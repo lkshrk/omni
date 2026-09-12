@@ -37,6 +37,15 @@ func TestCLIAndTUIReadOnlyQueriesProduceEquivalentSemanticObservations(t *testin
 	target := filepath.Join(home, ".config", "nvim", "init.lua")
 	writeIntegrationFile(t, source, "repo\n")
 	writeIntegrationFile(t, target, "local\n")
+	// A local file newer than its repo source is a modified entry, which the launch
+	// sync adopts; pinning it older keeps the entry the conflict this test reads.
+	localTime := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	if err := os.Chtimes(target, localTime, localTime); err != nil {
+		t.Fatalf("set local timestamp: %v", err)
+	}
+	if err := os.Chtimes(source, localTime.Add(time.Hour), localTime.Add(time.Hour)); err != nil {
+		t.Fatalf("set repo timestamp: %v", err)
+	}
 	if err := config.Save(configPath, &config.RootConfig{
 		Version:  config.CurrentVersion,
 		Settings: config.Settings{DotsRepo: repo, DisabledProviders: []string{"brew", "apt", "apk", "dnf", "pacman", "zypper", "node", "bun", "pnpm", "npm", "python", "uv", "pip"}},
