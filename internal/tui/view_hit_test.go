@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/lkshrk/omni/internal/app"
+	textutil "github.com/lkshrk/omni/internal/text"
 )
 
 func namedTools(n int) []*app.ToolView {
@@ -39,8 +40,15 @@ func frameLines(m Model) []string {
 	return strings.Split(stripANSIEscapeSequences(m.View().Content), "\n")
 }
 
+// The frame is degraded to ASCII when the environment cannot show glyphs, so an
+// expectation carrying one must take the same path.
+func frameText(want string) string {
+	return textutil.SymbolsFromEnv().Apply(want)
+}
+
 func frameLineOf(t *testing.T, m Model, want string) int {
 	t.Helper()
+	want = frameText(want)
 	lines := frameLines(m)
 	found := -1
 	for y, line := range lines {
@@ -108,7 +116,7 @@ func TestListRowClick_MissesLeaveCursorUnchanged(t *testing.T) {
 	m.cursor = 4
 
 	ruleY := 1
-	if line := frameLines(m)[ruleY]; !strings.HasPrefix(line, "───") {
+	if line := frameLines(m)[ruleY]; !strings.HasPrefix(line, frameText("───")) {
 		t.Fatalf("y=%d is %q, want the header rule", ruleY, line)
 	}
 	sectionY := frameLineOf(t, m, "Available")
