@@ -41,6 +41,41 @@ func TestResolveModulePathRejectsUnsafeAndAmbiguousPaths(t *testing.T) {
 		}
 	}
 
+	t.Run("symlinked ancestor of root still resolves", func(t *testing.T) {
+		// A home under a symlink (/tmp on macOS, a relocated /home on Linux) must not
+		// silently strip every package description.
+		workspace := t.TempDir()
+		real := filepath.Join(workspace, "real")
+		module := filepath.Join(real, "apm_modules", "acme", "bundle")
+		if err := os.MkdirAll(module, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		link := filepath.Join(workspace, "link")
+		if err := os.Symlink(real, link); err != nil {
+			t.Skipf("symlinks unavailable: %v", err)
+		}
+		linkedRoot := filepath.Join(link, "apm_modules")
+		got, ok := resolveModulePath(linkedRoot, "acme/bundle")
+		if !ok || got != filepath.Join(linkedRoot, "acme", "bundle") {
+			t.Fatalf("path below symlinked ancestor = %q, %v", got, ok)
+		}
+	})
+
+	t.Run("symlinked root is rejected", func(t *testing.T) {
+		workspace := t.TempDir()
+		real := filepath.Join(workspace, "modules")
+		if err := os.MkdirAll(filepath.Join(real, "acme", "bundle"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		linkedRoot := filepath.Join(workspace, "apm_modules")
+		if err := os.Symlink(real, linkedRoot); err != nil {
+			t.Skipf("symlinks unavailable: %v", err)
+		}
+		if got, ok := resolveModulePath(linkedRoot, "acme/bundle"); ok {
+			t.Fatalf("symlinked root resolved to %q", got)
+		}
+	})
+
 	t.Run("case collision", func(t *testing.T) {
 		skipOnCaseInsensitiveFilesystem(t)
 		if err := os.Mkdir(filepath.Join(root, "ACME"), 0o755); err != nil {

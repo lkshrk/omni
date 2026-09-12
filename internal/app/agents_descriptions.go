@@ -356,9 +356,9 @@ func resolveModulePath(root, source string) (string, bool) {
 	if err != nil || !rootInfo.IsDir() || rootInfo.Mode()&os.ModeSymlink != 0 {
 		return "", false
 	}
+	// Every segment below is contained against resolvedRoot, so a symlinked ancestor is safe; a symlinked root is rejected above.
 	resolvedRoot, err := filepath.EvalSymlinks(root)
-	absRoot, absErr := filepath.Abs(root)
-	if err != nil || absErr != nil || filepath.Clean(resolvedRoot) != filepath.Clean(absRoot) {
+	if err != nil {
 		return "", false
 	}
 	current := root
