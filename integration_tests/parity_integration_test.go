@@ -376,9 +376,11 @@ func runParityDotsUseRepoTUI(t *testing.T, bin string, sandbox *paritySandbox) {
 			return strings.Contains(text, "Dashboard") && strings.Contains(text, "Tools")
 		}, "TUI did not render main tabs")
 		writeTUIKeys(t, term, "\t", "\t")
+		// The launch sync swallows a row key while it runs, so wait for its history line.
 		waitForRequiredScreen(t, term, 8*time.Second, func(text string) bool {
-			return strings.Contains(text, "nvim") && strings.Contains(strings.ToLower(text), "conflict")
-		}, "TUI did not render the dots conflict")
+			return strings.Contains(text, "nvim") && strings.Contains(strings.ToLower(text), "conflict") &&
+				strings.Contains(text, "sync: partial, sync failed")
+		}, "TUI did not render the dots conflict after launch sync")
 		// u toggles: the first press arms and a second confirms, so pressing again because the arm has
 		// not rendered yet confirms early and leaves everything after this out of step.
 		writeTUIKeys(t, term, "u")
