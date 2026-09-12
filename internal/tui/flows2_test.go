@@ -1005,47 +1005,45 @@ func TestFlow2_UC94_PriorityEditorGrabCarryUp(t *testing.T) {
 func TestFlow2_UC95_GroupSectionUpAtTop(t *testing.T) {
 	t.Parallel()
 	m := hostsModel()
-	m.assignmentSection = 1
-	m.groupCursor = 0
+	m.selectGroupsGroupRow(0)
 	got := drive(m, pressRune('k'))
-	if got.assignmentSection != 0 {
-		t.Errorf("assignmentSection = %d, want 0 after k at top of groups", got.assignmentSection)
+	if got.assignmentSection() != 0 {
+		t.Errorf("assignmentSection = %d, want 0 after k at top of groups", got.assignmentSection())
 	}
 }
 
 func TestFlow2_UC97_HostSectionDownAtLast(t *testing.T) {
 	t.Parallel()
 	m := hostsModel()
-	m.hostCursor = 1
+	m.selectGroupsHostRow(1)
 	got := drive(m, pressRune('j'))
-	if got.assignmentSection != 1 {
-		t.Errorf("assignmentSection = %d, want 1 after j at last host", got.assignmentSection)
+	if got.assignmentSection() != 1 {
+		t.Errorf("assignmentSection = %d, want 1 after j at last host", got.assignmentSection())
 	}
-	if got.groupCursor != 0 {
-		t.Errorf("groupCursor = %d, want 0 after entering group section", got.groupCursor)
+	if got.groupCursor() != 0 {
+		t.Errorf("groupCursor = %d, want 0 after entering group section", got.groupCursor())
 	}
 }
 
 func TestFlow2_UC98_GroupSectionDownAtLast(t *testing.T) {
 	t.Parallel()
 	m := hostsModel()
-	m.assignmentSection = 1
+	m.focusGroupsGroupSection()
 	allGroupNames := buildAllGroupNames(m.groupNames)
-	m.groupCursor = len(allGroupNames) - 1
+	m.selectGroupsGroupRow(len(allGroupNames) - 1)
 	got := drive(m, pressRune('j'))
-	if got.assignmentSection != 0 {
-		t.Errorf("assignmentSection = %d, want 0 (wrapped to hosts)", got.assignmentSection)
+	if got.assignmentSection() != 0 {
+		t.Errorf("assignmentSection = %d, want 0 (wrapped to hosts)", got.assignmentSection())
 	}
-	if got.hostCursor != 0 {
-		t.Errorf("hostCursor = %d, want 0 (wrapped to top)", got.hostCursor)
+	if got.hostCursor() != 0 {
+		t.Errorf("hostCursor = %d, want 0 (wrapped to top)", got.hostCursor())
 	}
 }
 
 func TestFlow2_UC99_HostRenameKey(t *testing.T) {
 	t.Parallel()
 	m := hostsModel()
-	m.assignmentSection = 0
-	m.hostCursor = 0
+	m.selectGroupsHostRow(0)
 	got := drive(m, pressRune('r'))
 	if !got.hostRenameMode {
 		t.Error("hostRenameMode should be true after r key with a host selected")
@@ -1064,7 +1062,7 @@ func TestFlow2_HostRowSpaceActivatesHighlightedHost(t *testing.T) {
 	m.toolMemberships = map[string][]string{key: {"work", "personal"}}
 	m.toolGroups = app.ToolGroupLabelsForHost(m.toolMemberships, m.hostInfo, shortHostname())
 	m.ignoreLabels = map[string]string{"old": "host"}
-	m.hostCursor = 1
+	m.selectGroupsHostRow(1)
 	m.groupFilter = "work"
 	m.groupTabIdx = 1
 
@@ -1102,7 +1100,7 @@ func TestFlow2_HostRowEnterDoesNotActivate(t *testing.T) {
 	t.Parallel()
 	m := hostsModel()
 	m.hostInfo.Active = "alpha"
-	m.hostCursor = 1
+	m.selectGroupsHostRow(1)
 
 	got := drive(m, pressEnter())
 
@@ -1147,11 +1145,11 @@ func TestFlow2_HostRenameUsesCapturedHostAfterCursorMoves(t *testing.T) {
 	m := hostsModel()
 	m.app = a
 	m.ctx = context.Background()
-	m.hostCursor = 0
+	m.selectGroupsHostRow(0)
 
 	tm, _ := m.Update(pressRune('r'))
 	renaming := tm.(Model)
-	renaming.hostCursor = 1
+	renaming.selectGroupsHostRow(1)
 	renaming.settingsInput.SetValue("renamed-alpha")
 
 	tm, cmd := renaming.Update(pressEnter())
@@ -1188,8 +1186,7 @@ func TestFlow2_HostRenameUsesCapturedHostAfterCursorMoves(t *testing.T) {
 func TestFlow2_UC101_EditHostGroups(t *testing.T) {
 	t.Parallel()
 	m := hostsModel()
-	m.assignmentSection = 0
-	m.hostCursor = 0 // "alpha" host
+	m.selectGroupsHostRow(0) // "alpha" host
 	got := drive(m, pressRune('g'))
 	if got.hostEditMode != 1 {
 		t.Errorf("hostEditMode = %d, want 1 after g key", got.hostEditMode)
@@ -1209,8 +1206,7 @@ func TestFlow2_EditHostGroupsUsesRenderedActiveHostOrder(t *testing.T) {
 	t.Parallel()
 	m := hostsModel()
 	m.hostInfo.Active = "beta"
-	m.assignmentSection = 0
-	m.hostCursor = 0 // rendered first because beta is active
+	m.selectGroupsHostRow(0) // rendered first because beta is active
 
 	got := drive(m, pressRune('g'))
 
@@ -1231,12 +1227,11 @@ func TestFlow2_HostGroupEditUsesCapturedHostAfterCursorMoves(t *testing.T) {
 	m := hostsModel()
 	m.app = a
 	m.ctx = context.Background()
-	m.assignmentSection = 0
-	m.hostCursor = 0
+	m.selectGroupsHostRow(0)
 
 	tm, _ := m.Update(pressRune('g'))
 	editing := tm.(Model)
-	editing.hostCursor = 1
+	editing.selectGroupsHostRow(1)
 	editing.hostGroupDraft = []string{"work", "personal"}
 
 	tm, cmd := editing.Update(pressEnter())
@@ -1270,8 +1265,7 @@ func TestFlow2_HostGroupEditUsesCapturedHostAfterCursorMoves(t *testing.T) {
 func TestFlow2_UC102_HDoesNotOpenLegacyHostMapping(t *testing.T) {
 	t.Parallel()
 	m := hostsModel()
-	m.assignmentSection = 0
-	m.hostCursor = 0 // "alpha" has myhost
+	m.selectGroupsHostRow(0) // "alpha" has myhost
 	got := drive(m, pressRune('h'))
 	if got.hostEditMode != 0 {
 		t.Errorf("hostEditMode = %d, want 0 after h key", got.hostEditMode)
@@ -1336,7 +1330,7 @@ func TestFlow2_UC103_HostGroupPickerNavigation(t *testing.T) {
 		m.hostGroupPicker = []string{"personal"}
 		m.hostGroupDraft = []string{"personal"}
 		m.hostGroupIdx = 0
-		m.hostCursor = 0 // alpha
+		m.selectGroupsHostRow(0) // alpha
 		got := drive(m, pressEnter())
 		if got.hostEditMode != 0 {
 			t.Errorf("hostEditMode = %d, want 0 after Enter", got.hostEditMode)
@@ -1350,7 +1344,7 @@ func TestFlow2_UC103_HostGroupPickerNavigation(t *testing.T) {
 func TestFlow2_UC104_NewGroupCreating(t *testing.T) {
 	t.Parallel()
 	m := hostsModel()
-	m.assignmentSection = 1
+	m.focusGroupsGroupSection()
 	got := drive(m, pressRune('n'))
 	if !got.groupCreating {
 		t.Error("groupCreating should be true after n in section 1")
@@ -1363,13 +1357,13 @@ func TestFlow2_UC104_NewGroupCreating(t *testing.T) {
 func TestFlow2_HostCreationFromGroupSection(t *testing.T) {
 	t.Parallel()
 	m := hostsModel()
-	m.assignmentSection = 1
+	m.focusGroupsGroupSection()
 	got := drive(m, pressRune('p'))
 	if !got.groupCreating {
 		t.Error("host popup should open after p")
 	}
-	if got.assignmentSection != 0 || got.settingsInput.Placeholder != "hostname…" {
-		t.Fatalf("host creation state = section %d placeholder %q", got.assignmentSection, got.settingsInput.Placeholder)
+	if got.assignmentSection() != 0 || got.settingsInput.Placeholder != "hostname…" {
+		t.Fatalf("host creation state = section %d placeholder %q", got.assignmentSection(), got.settingsInput.Placeholder)
 	}
 }
 
@@ -1379,14 +1373,14 @@ func TestFlow2_HostCreationFromHostSection(t *testing.T) {
 	m := hostsModel()
 	m.app = a
 	m.ctx = context.Background()
-	m.assignmentSection = 0
+	m.focusGroupsHostSection()
 	tm, _ := m.Update(pressRune('p'))
 	got := tm.(Model)
 	if !got.groupCreating {
 		t.Error("host popup should be open after p")
 	}
-	if got.assignmentSection != 0 {
-		t.Errorf("assignmentSection = %d, want host section unchanged", got.assignmentSection)
+	if got.assignmentSection() != 0 {
+		t.Errorf("assignmentSection = %d, want host section unchanged", got.assignmentSection())
 	}
 	got.settingsInput.SetValue("Aardvark.EXAMPLE")
 	tm, cmd := got.Update(pressEnter())
@@ -1513,8 +1507,7 @@ func TestDoCreateHost_ExistingCanonicalHostIsNotReportedCreated(t *testing.T) {
 func TestFlow2_UC105_DeleteHostGroupBlocked(t *testing.T) {
 	t.Parallel()
 	m := hostsModel()
-	m.assignmentSection = 1
-	m.groupCursor = 0
+	m.selectGroupsGroupRow(0)
 	got := drive(m, pressRune('d'))
 	if got.groupDeleteConfirm {
 		t.Error("groupDeleteConfirm should not be set for host group (index 0)")
@@ -1524,8 +1517,7 @@ func TestFlow2_UC105_DeleteHostGroupBlocked(t *testing.T) {
 func TestFlow2_UC106_RenameHostGroupBlocked(t *testing.T) {
 	t.Parallel()
 	m := hostsModel()
-	m.assignmentSection = 1
-	m.groupCursor = 0
+	m.selectGroupsGroupRow(0)
 	got := drive(m, pressRune('r'))
 	if got.groupRenameMode {
 		t.Error("groupRenameMode should not be set for host group (index 0)")
@@ -1535,8 +1527,7 @@ func TestFlow2_UC106_RenameHostGroupBlocked(t *testing.T) {
 func TestFlow2_GroupRenameNegativeCursorIsNoop(t *testing.T) {
 	t.Parallel()
 	m := hostsModel()
-	m.assignmentSection = 1
-	m.groupCursor = -1
+	m.selectGroupsGroupRow(-1)
 	got := drive(m, pressRune('r'))
 	if got.groupRenameMode {
 		t.Error("groupRenameMode should not be set for negative group cursor")
@@ -1550,8 +1541,7 @@ func TestFlow2_GroupAfterHostCanBeDeletedAndRenamed(t *testing.T) {
 	t.Setenv("OMNI_HOSTNAME", "host")
 	m := hostsModel()
 	m.groupNames = []string{"apps", "work"}
-	m.assignmentSection = 1
-	m.groupCursor = 1 // "apps"; host group is index 0.
+	m.selectGroupsGroupRow(1) // "apps"; host group is index 0.
 
 	deleteGot := drive(m, pressRune('d'))
 	if !deleteGot.groupDeleteConfirm {
@@ -1577,12 +1567,11 @@ func TestFlow2_GroupRenameUsesCapturedGroupAfterCursorMoves(t *testing.T) {
 	m.app = a
 	m.ctx = context.Background()
 	m.groupNames = []string{"apps", "work"}
-	m.assignmentSection = 1
-	m.groupCursor = 1
+	m.selectGroupsGroupRow(1)
 
 	tm, _ := m.Update(pressRune('r'))
 	renaming := tm.(Model)
-	renaming.groupCursor = 2
+	renaming.selectGroupsGroupRow(2)
 	renaming.settingsInput.SetValue("renamed-apps")
 
 	tm, cmd := renaming.Update(pressEnter())
@@ -1621,8 +1610,7 @@ func TestFlow2_GroupDeletePopupOffersMoveOrDeleteTools(t *testing.T) {
 	m := hostsModel()
 	m.groupNames = []string{"work"}
 	m.toolMemberships = map[string][]string{toolKey("ripgrep", "brew"): {"work"}}
-	m.assignmentSection = 1
-	m.groupCursor = 1 // work, after host
+	m.selectGroupsGroupRow(1) // work, after host
 
 	got := drive(m, pressRune('d'))
 	if !got.groupDeleteConfirm {
@@ -1655,8 +1643,7 @@ func TestFlow2_GroupDeletePopupSkipsMoveChoiceForEmptyGroup(t *testing.T) {
 	t.Parallel()
 	m := hostsModel()
 	m.groupNames = []string{"work"}
-	m.assignmentSection = 1
-	m.groupCursor = 1 // work, after host
+	m.selectGroupsGroupRow(1) // work, after host
 
 	got := drive(m, pressRune('d'))
 	if !got.groupDeleteConfirm {
@@ -1706,8 +1693,7 @@ func TestFlow2_HostGroupBlockedBeforeReusableGroups(t *testing.T) {
 	t.Setenv("OMNI_HOSTNAME", "host")
 	m := hostsModel()
 	m.groupNames = []string{"apps", "work"}
-	m.assignmentSection = 1
-	m.groupCursor = 0 // host group.
+	m.selectGroupsGroupRow(0) // host group.
 
 	deleteGot := drive(m, pressRune('d'))
 	if deleteGot.groupDeleteConfirm {
@@ -1727,11 +1713,11 @@ func TestFlow2_UC109_GroupSectionToolsKey(t *testing.T) {
 		{Name: "ripgrep", Provider: "system", Tracked: true},
 	}
 	m.toolMemberships = map[string][]string{toolKey("ripgrep", "system"): {"work"}}
-	m.assignmentSection = 1
+	m.focusGroupsGroupSection()
 	allGroupNames := buildAllGroupNames(m.groupNames)
 	for i, name := range allGroupNames {
 		if name == "work" {
-			m.groupCursor = i
+			m.selectGroupsGroupRow(i)
 			break
 		}
 	}
@@ -1748,8 +1734,7 @@ func TestFlow2_GroupToolsKeyIgnoredOnHostSection(t *testing.T) {
 	t.Parallel()
 	m := hostsModel()
 	m.mode = viewGroups
-	m.assignmentSection = 0
-	m.groupCursor = 1
+	m.focusGroupsHostSection()
 	m.allTools = []*app.ToolView{
 		{Name: "ripgrep", Provider: "system", Tracked: true},
 	}
@@ -1766,11 +1751,11 @@ func TestFlow2_GroupDotsEditorOpensFromGroupRow(t *testing.T) {
 	t.Parallel()
 	m := hostsModel()
 	m.dotMemberships = map[string][]string{"nvim": {"base"}, "zsh": {"work"}}
-	m.assignmentSection = 1
+	m.focusGroupsGroupSection()
 	allGroupNames := buildAllGroupNames(m.groupNames)
 	for i, name := range allGroupNames {
 		if name == "work" {
-			m.groupCursor = i
+			m.selectGroupsGroupRow(i)
 			break
 		}
 	}
@@ -1883,8 +1868,7 @@ func TestFlow2_UC112_HostRequiredBlocksEsc(t *testing.T) {
 func TestFlow2_UC113_GroupRenameEmptyName(t *testing.T) {
 	t.Parallel()
 	m := hostsModel()
-	m.assignmentSection = 1
-	m.groupCursor = 1 // "work"
+	m.selectGroupsGroupRow(1) // "work"
 	m.groupRenameMode = true
 	si := textinput.New()
 	si.SetValue("")
@@ -1977,8 +1961,8 @@ func TestFlow2_UC117_CreateGroupDoneMsg(t *testing.T) {
 			t.Error("loading should be false")
 		}
 		// allGroupNames = ["base", "work"] → "work" is at index 1.
-		if got.groupCursor != 1 {
-			t.Errorf("groupCursor = %d, want 1", got.groupCursor)
+		if got.groupCursor() != 1 {
+			t.Errorf("groupCursor = %d, want 1", got.groupCursor())
 		}
 	})
 
@@ -2011,8 +1995,7 @@ func TestFlow2_CreateGroupDonePropagatesToHostViewsAndPickers(t *testing.T) {
 		t.Fatalf("hosts tab did not render newly-created group:\n%s", out)
 	}
 
-	got.assignmentSection = 0
-	got.hostCursor = 0
+	got.selectGroupsHostRow(0)
 	var cmds []tea.Cmd
 	got.startHostGroupEdit(&cmds)
 	if !slices.Contains(got.hostGroupPicker, "dev") {
@@ -2024,13 +2007,13 @@ func TestFlow2_UC118_GroupChangedMsg(t *testing.T) {
 	t.Parallel()
 	m := baseModel(nil)
 	m.groupNames = []string{"work", "dev"}
-	m.groupCursor = 2 // will be out of bounds after delete
+	m.selectGroupsGroupRow(2) // will be out of bounds after delete
 	got := drive(m, groupChangedMsg{
 		detail:     "✓ deleted dev",
 		groupNames: []string{"work"},
 	})
-	if got.groupCursor > 1 {
-		t.Errorf("groupCursor = %d, should be clamped to ≤1", got.groupCursor)
+	if got.groupCursor() > 1 {
+		t.Errorf("groupCursor = %d, should be clamped to ≤1", got.groupCursor())
 	}
 }
 
@@ -2143,7 +2126,7 @@ func TestFlow2_UC120_HostGroupChangedMsgRemove(t *testing.T) {
 func TestFlow2_UC121_HostGroupChangedMsgDelete(t *testing.T) {
 	t.Parallel()
 	m := baseModel(nil)
-	m.hostCursor = 0
+	m.selectGroupsHostRow(0)
 	got := drive(m, hostGroupChangedMsg{
 		host:  "work",
 		group: "",

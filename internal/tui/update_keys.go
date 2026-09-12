@@ -243,7 +243,7 @@ func (m *Model) switchMainTab(target viewMode, cmds *[]tea.Cmd) bool {
 		return false
 	}
 	if m.mode == viewGroups && target != viewGroups {
-		m.assignmentSection = 0
+		m.focusGroupsHostSection()
 	}
 	previous := m.mode
 	m.cancelConfirmationForGlobalNavigation()

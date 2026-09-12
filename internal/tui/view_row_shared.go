@@ -98,38 +98,39 @@ type rowColWidthMeasure struct {
 	priv                   func(i int) bool
 }
 
-// Seed from floor widths, widen to the widest item content, cap the version column at verReserveW, then shrink via fitToolColumnsToScreen so the row fits screenW.
-func seedWidenCapShrinkColWidths(seed colWidths, n int, measure rowColWidthMeasure) colWidths {
+// Widens the tool columns over the measured rows. priv is not a measured
+// column: it is either wide enough for the marker or absent.
+func seedWidenColWidths(seed colWidths, n int, measure rowColWidthMeasure) colWidths {
+	text := func(fn func(i int) string, i int) string {
+		if fn == nil {
+			return ""
+		}
+		return fn(i)
+	}
+	widths := measureTableColumns(toolsTableColumns, n, func(i int, key string) string {
+		switch key {
+		case "name":
+			return text(measure.name, i)
+		case "prov":
+			return text(measure.prov, i)
+		case "ver":
+			return text(measure.ver, i)
+		default:
+			return text(measure.group, i)
+		}
+	})
 	cols := seed
+	cols.name = max(cols.name, widths["name"])
+	cols.prov = max(cols.prov, widths["prov"])
+	cols.ver = min(max(cols.ver, widths["ver"]), verReserveW)
+	cols.group = max(cols.group, widths["group"])
 	for i := 0; i < n; i++ {
-		if measure.name != nil {
-			if w := lipgloss.Width(measure.name(i)); w > cols.name {
-				cols.name = w
-			}
-		}
-		if measure.prov != nil {
-			if w := lipgloss.Width(measure.prov(i)); w > cols.prov {
-				cols.prov = w
-			}
-		}
-		if measure.ver != nil {
-			if w := len([]rune(measure.ver(i))); w > cols.ver {
-				cols.ver = w
-			}
-		}
-		if measure.group != nil {
-			if g := measure.group(i); g != "" {
-				if w := lipgloss.Width(g); w > cols.group {
-					cols.group = w
-				}
-			}
-		}
 		if measure.priv != nil && measure.priv(i) {
 			cols.priv = lipgloss.Width(iconPrivileged)
+			break
 		}
 	}
-	cols.ver = min(cols.ver, verReserveW)
-	return fitToolColumnsToScreen(cols)
+	return cols
 }
 
 func rowEmphasis(selected bool, s lipgloss.Style) lipgloss.Style {

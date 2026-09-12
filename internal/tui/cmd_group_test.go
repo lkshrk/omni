@@ -337,8 +337,7 @@ func TestHostDeleteConfirm_UsesCapturedHostName(t *testing.T) {
 	m := baseModel(nil)
 	m.app = a
 	m.hostInfo = info
-	m.assignmentSection = 0
-	m.hostCursor = 0
+	m.selectGroupsHostRow(0)
 
 	var armCmds []tea.Cmd
 	m.startHostDelete(&armCmds)
@@ -346,7 +345,7 @@ func TestHostDeleteConfirm_UsesCapturedHostName(t *testing.T) {
 		t.Fatalf("delete confirmation target = confirm:%v name:%q, want alpha", m.hostDeleteConfirm, m.hostDeleteName)
 	}
 
-	m.hostCursor = 1
+	m.selectGroupsHostRow(1)
 	handled, cmds := m.handleHostSubmodeKeyMsg(pressEnter().(tea.KeyPressMsg))
 	if !handled {
 		t.Fatal("delete confirmation key should be handled")
@@ -396,15 +395,14 @@ func TestGroupDeleteConfirm_UsesCapturedGroupName(t *testing.T) {
 	m := modelForCmds(a)
 	m.mode = viewGroups
 	m.groupNames = []string{"alpha", "beta"}
-	m.assignmentSection = 1
-	m.groupCursor = 1
+	m.selectGroupsGroupRow(1)
 	var armCmds []tea.Cmd
 	m.startHostDelete(&armCmds)
 	if !m.groupDeleteConfirm || m.groupDeleteName != "alpha" {
 		t.Fatalf("group delete target = confirm:%v name:%q, want alpha", m.groupDeleteConfirm, m.groupDeleteName)
 	}
 
-	m.groupCursor = 2
+	m.selectGroupsGroupRow(2)
 	handled, cmds := m.handleHostSubmodeKeyMsg(pressEnter().(tea.KeyPressMsg))
 	if !handled {
 		t.Fatal("group delete confirmation key should be handled")

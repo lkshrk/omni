@@ -322,14 +322,11 @@ func (m *Model) doSaveDotsRepoAndSync(repo string) tea.Cmd {
 }
 
 func (m *Model) selectedHostName() string {
-	hosts := app.PrioritizedHostSummaries(m.hostInfo)
-	if len(hosts) == 0 {
+	row, ok := m.selectedGroupsRow()
+	if !ok || row.kind != groupsRowHost {
 		return ""
 	}
-	if m.hostCursor >= 0 && m.hostCursor < len(hosts) {
-		return hosts[m.hostCursor].Name
-	}
-	return ""
+	return row.host
 }
 
 func (m *Model) doSetHostGroups(host string, _ []string, after, createdGroups []string) tea.Cmd {

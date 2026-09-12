@@ -329,7 +329,7 @@ func (m *Model) handleHostSubmodeKeyMsg(msg tea.KeyPressMsg) (bool, []tea.Cmd) {
 		switch {
 		case key.Matches(msg, m.keys.Confirm):
 			newName := strings.TrimSpace(m.settingsInput.Value())
-			creatingHost := m.assignmentSection == 0
+			creatingHost := m.groupCreatingHost
 			m.groupCreating = false
 			m.settingsInput.Blur()
 			if newName != "" {
@@ -540,6 +540,18 @@ func (m *Model) handleGroupsNavigationKeyMsg(msg tea.KeyPressMsg, cmds *[]tea.Cm
 		m.moveGroupsCursorUp()
 	case key.Matches(msg, m.keys.Down):
 		m.moveGroupsCursorDown()
+	case key.Matches(msg, m.keys.Top):
+		m.groupsCursor = m.groupsNav().first()
+	case key.Matches(msg, m.keys.Bottom):
+		m.groupsCursor = m.groupsNav().last()
+	case key.Matches(msg, m.keys.HalfPageDown):
+		m.groupsCursor = m.groupsNav().halfPage(1)
+	case key.Matches(msg, m.keys.HalfPageUp):
+		m.groupsCursor = m.groupsNav().halfPage(-1)
+	case key.Matches(msg, m.keys.PageDown):
+		m.groupsCursor = m.groupsNav().page(1)
+	case key.Matches(msg, m.keys.PageUp):
+		m.groupsCursor = m.groupsNav().page(-1)
 	case key.Matches(msg, m.keys.Back):
 		if !m.hostRequired {
 			m.mode = viewList
@@ -550,57 +562,17 @@ func (m *Model) handleGroupsNavigationKeyMsg(msg tea.KeyPressMsg, cmds *[]tea.Cm
 }
 
 func (m *Model) moveGroupsCursorUp() {
-	switch m.assignmentSection {
-	case 0:
-		if m.hostCursor > 0 {
-			m.hostCursor--
-		} else {
-			allGroupNames := buildAllGroupNames(m.groupNames)
-			if len(allGroupNames) > 0 {
-				m.assignmentSection = 1
-				m.groupCursor = len(allGroupNames) - 1
-			}
-		}
-	case 1:
-		if m.groupCursor > 0 {
-			m.groupCursor--
-		} else {
-			m.assignmentSection = 0
-			if m.hostInfo != nil && len(m.hostInfo.Hosts) > 0 {
-				m.hostCursor = len(m.hostInfo.Hosts) - 1
-			}
-		}
-	}
+	m.groupsCursor = m.groupsNav().step(-1)
 }
 
 func (m *Model) moveGroupsCursorDown() {
-	switch m.assignmentSection {
-	case 0:
-		nHosts := 0
-		if m.hostInfo != nil {
-			nHosts = len(m.hostInfo.Hosts)
-		}
-		if m.hostCursor < nHosts-1 {
-			m.hostCursor++
-		} else {
-			m.assignmentSection = 1
-			m.groupCursor = 0
-		}
-	case 1:
-		allGroupNames := buildAllGroupNames(m.groupNames)
-		if m.groupCursor < len(allGroupNames)-1 {
-			m.groupCursor++
-		} else {
-			m.assignmentSection = 0
-			m.hostCursor = 0
-		}
-	}
+	m.groupsCursor = m.groupsNav().step(1)
 }
 
 func (m *Model) handleGroupsActionKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) {
 	switch {
 	case key.Matches(msg, m.keys.Toggle):
-		if m.assignmentSection == 0 {
+		if m.assignmentSection() == 0 {
 			m.confirmCopySelectedHostGroups(cmds)
 		}
 	default:
@@ -624,7 +596,8 @@ func (m *Model) handleGroupsActionKey(msg tea.KeyPressMsg, cmds *[]tea.Cmd) {
 }
 
 func (m *Model) startGroupCreation(cmds *[]tea.Cmd) {
-	m.assignmentSection = 1
+	m.groupCreatingHost = false
+	m.focusGroupsGroupSection()
 	m.groupCreating = true
 	m.settingsInput.SetValue("")
 	m.settingsInput.Placeholder = "group name…"
@@ -633,7 +606,8 @@ func (m *Model) startGroupCreation(cmds *[]tea.Cmd) {
 }
 
 func (m *Model) startHostCreation(cmds *[]tea.Cmd) {
-	m.assignmentSection = 0
+	m.groupCreatingHost = true
+	m.focusGroupsHostSection()
 	m.groupCreating = true
 	m.settingsInput.SetValue("")
 	m.settingsInput.Placeholder = "hostname…"
@@ -656,7 +630,7 @@ func (m *Model) beginPendingHostCreation(cmds *[]tea.Cmd, source string) {
 }
 
 func (m *Model) startHostOrGroupRename() {
-	switch m.assignmentSection {
+	switch m.assignmentSection() {
 	case 0:
 		name := m.selectedHostName()
 		if name == "" {
@@ -673,7 +647,7 @@ func (m *Model) startHostOrGroupRename() {
 }
 
 func (m *Model) startHostGroupEdit(cmds *[]tea.Cmd) {
-	if m.assignmentSection != 0 {
+	if m.assignmentSection() != 0 {
 		return
 	}
 	host := m.selectedHostName()
@@ -696,7 +670,7 @@ func (m *Model) startHostGroupEdit(cmds *[]tea.Cmd) {
 }
 
 func (m *Model) startHostDelete(cmds *[]tea.Cmd) {
-	switch m.assignmentSection {
+	switch m.assignmentSection() {
 	case 0:
 		if host := m.selectedHostName(); host != "" {
 			m.hostDeleteConfirm = true
@@ -732,7 +706,7 @@ func (m Model) groupHasContent(group string) bool {
 
 func (m *Model) startGroupRename() {
 	group := m.selectedHostGroupName()
-	if m.assignmentSection != 1 || group == "" || isProtectedGroupName(group) {
+	if m.assignmentSection() != 1 || group == "" || isProtectedGroupName(group) {
 		return
 	}
 	m.settingsInput.SetValue(group)
@@ -744,10 +718,10 @@ func (m *Model) startGroupRename() {
 
 func (m *Model) selectedHostGroupName() string {
 	allGroupNames := buildAllGroupNames(m.groupNames)
-	if m.groupCursor < 0 || m.groupCursor >= len(allGroupNames) {
+	if m.groupCursor() < 0 || m.groupCursor() >= len(allGroupNames) {
 		return ""
 	}
-	return allGroupNames[m.groupCursor]
+	return allGroupNames[m.groupCursor()]
 }
 
 func (m *Model) selectedHostIsCurrentHost() bool {
@@ -758,7 +732,7 @@ func (m *Model) selectedHostIsCurrentHost() bool {
 }
 
 func (m *Model) canCopySelectedHostGroups() bool {
-	return m.assignmentSection == 0 && m.selectedHostName() != "" && !m.selectedHostIsCurrentHost()
+	return m.assignmentSection() == 0 && m.selectedHostName() != "" && !m.selectedHostIsCurrentHost()
 }
 
 func isProtectedGroupName(group string) bool {
@@ -766,7 +740,7 @@ func isProtectedGroupName(group string) bool {
 }
 
 func (m *Model) startHostGroupToolsEdit() {
-	if m.assignmentSection != 1 {
+	if m.assignmentSection() != 1 {
 		return
 	}
 	group := m.selectedHostGroupName()
@@ -797,7 +771,7 @@ func (m *Model) startHostGroupToolsEdit() {
 }
 
 func (m *Model) startHostGroupDotsEdit(cmds *[]tea.Cmd) {
-	if m.assignmentSection != 1 {
+	if m.assignmentSection() != 1 {
 		return
 	}
 	group := m.selectedHostGroupName()

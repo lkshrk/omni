@@ -95,25 +95,11 @@ func (m Model) agentsFilterText() string {
 
 // Only the non-printable navigation keys are intercepted while the input has focus; j and k must still type.
 func (m *Model) handleAgentsSearchNavKeyMsg(msg tea.KeyPressMsg) bool {
-	n := m.agentsRowCount()
-	page := max(listAvailableHeight(*m)/2, 1)
-	ctrl := msg.Mod&^lockMods == tea.ModCtrl
-	switch {
-	case msg.Code == tea.KeyUp || (ctrl && msg.Code == 'p'):
-		m.agentsCursor = cursorMove(m.agentsCursor, -1, n, true)
-	case msg.Code == tea.KeyDown || (ctrl && msg.Code == 'n'):
-		m.agentsCursor = cursorMove(m.agentsCursor, 1, n, true)
-	case msg.Code == tea.KeyPgUp || (ctrl && msg.Code == 'u'):
-		m.agentsCursor = max(m.agentsCursor-page, 0)
-	case msg.Code == tea.KeyPgDown || (ctrl && msg.Code == 'd'):
-		m.agentsCursor = min(m.agentsCursor+page, max(n-1, 0))
-	case msg.Code == tea.KeyHome:
-		m.agentsCursor = 0
-	case msg.Code == tea.KeyEnd:
-		m.agentsCursor = max(n-1, 0)
-	default:
+	next, ok := filterNavStep(msg, m.agentsNav())
+	if !ok {
 		return false
 	}
+	m.agentsCursor = next
 	m.cursorHidden = false
 	m.agentsConfirmIdx = -1
 	return true
@@ -413,26 +399,30 @@ func (m Model) agentsRowCount() int {
 	return len(m.agentsVisiblePackages()) + len(m.agentsVisibleServices(m.agentsMCPRows)) + len(m.agentsVisibleServices(m.agentsLSPRows)) + len(m.agentsVisibleNatives())
 }
 
+func (m Model) agentsNav() listNav {
+	return newListNav(m.agentsCursor, m.agentsRowCount(), sectionedTabViewport(m, m.agentsSectionedTab()))
+}
+
 func (m *Model) handleAgentsNavigationKeyMsg(msg tea.KeyPressMsg) bool {
-	n := m.agentsRowCount()
 	before := m.agentsCursor
+	nav := m.agentsNav()
 	switch {
 	case key.Matches(msg, m.keys.Up):
-		m.agentsCursor = cursorMove(m.agentsCursor, -1, n, true)
+		m.agentsCursor = nav.step(-1)
 	case key.Matches(msg, m.keys.Down):
-		m.agentsCursor = cursorMove(m.agentsCursor, 1, n, true)
+		m.agentsCursor = nav.step(1)
 	case key.Matches(msg, m.keys.Top):
-		m.agentsCursor = 0
+		m.agentsCursor = nav.first()
 	case key.Matches(msg, m.keys.Bottom):
-		m.agentsCursor = max(n-1, 0)
+		m.agentsCursor = nav.last()
 	case key.Matches(msg, m.keys.HalfPageDown):
-		m.agentsCursor = min(m.agentsCursor+max(listAvailableHeight(*m)/2, 1), max(n-1, 0))
+		m.agentsCursor = nav.halfPage(1)
 	case key.Matches(msg, m.keys.HalfPageUp):
-		m.agentsCursor = max(m.agentsCursor-max(listAvailableHeight(*m)/2, 1), 0)
+		m.agentsCursor = nav.halfPage(-1)
 	case key.Matches(msg, m.keys.PageDown):
-		m.agentsCursor = min(m.agentsCursor+max(listAvailableHeight(*m), 1), max(n-1, 0))
+		m.agentsCursor = nav.page(1)
 	case key.Matches(msg, m.keys.PageUp):
-		m.agentsCursor = max(m.agentsCursor-max(listAvailableHeight(*m), 1), 0)
+		m.agentsCursor = nav.page(-1)
 	default:
 		return false
 	}

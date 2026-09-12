@@ -64,13 +64,16 @@ type statusListRow struct {
 type dashboardReconcilePlanItem = app.DashboardReconcilePlanStep
 
 func renderStatus(m Model) string {
+	return renderSectionedTab(m, statusSectionedTab(m))
+}
+
+func statusSectionedTab(m Model) sectionedTab {
 	rows := statusRows(m)
 	m.statusCursor = clampIndex(m.statusCursor, len(rows))
-	sections := statusSections(m, rows)
-	return renderSectionedTab(m, sectionedTab{
+	return sectionedTab{
 		leadingBlank: true,
-		sections:     sections,
-	})
+		sections:     statusSections(m, rows),
+	}
 }
 
 func renderDashboardReconcilePlanPopup(m Model) string {
@@ -177,6 +180,7 @@ func statusSections(m Model, rows []statusListRow) []sectionedTabSection {
 		}
 		bySection[row.section] = append(bySection[row.section], sectionedTabRow{
 			selected: selected,
+			index:    i,
 			line:     statusRowLine(m, row, selected),
 			details:  details,
 		})
@@ -881,19 +885,20 @@ func statusRowLine(m Model, row statusListRow, selected bool) string {
 	labelText := renderCell(leftCell(style.Render(label), labelW))
 	labelCell := iconText + strings.Repeat(" ", listIconGapWidth) + labelText
 	contentW := rowAvailableWidth(m.width)
+	// The left group is the label then the summary, with the icon already
+	// inside the label cell, so the layout's icon gap is what separates label
+	// from summary here. Both gaps are read rather than restated, or the
+	// budget stops matching the row.
+	layout := statusTableLayout()
 	// The badge is right-aligned against contentW, so one longer than the space the label column leaves would push the row past the terminal width.
-	value := fitStyledText(row.value, max(contentW-statusLabelWidth-settingsMinGap, 1))
+	value := fitStyledText(row.value, max(contentW-statusLabelWidth-layout.minGap, 1))
 	valueW := lipgloss.Width(value)
-	summaryW := contentW - statusLabelWidth - valueW - settingsMinGap - listColumnGap
+	summaryW := contentW - statusLabelWidth - valueW - layout.minGap - layout.iconGap
 	left := []rowCell{leftCell(labelCell, statusLabelWidth)}
 	if summary := strings.TrimSpace(row.summary); !selected && summary != "" && summaryW >= 16 {
 		left = append(left, leftCell(p.styleHelp.Render(fitCellText(summary, summaryW)), summaryW))
 	}
-	return renderResponsiveGroupListRow(p, selected,
-		left,
-		[]rowCell{rightCell(value, 0)},
-		contentW, settingsMinGap, listColumnGap,
-	)
+	return listRowPrefix(p, selected) + renderTableRowBody(layout, left, []rowCell{rightCell(value, 0)}, contentW)
 }
 
 func statusRowOKIcon(m Model) (string, lipgloss.Style) {

@@ -110,6 +110,13 @@ func (m *Model) beginDotsVariantOperation(req dotsVariantRequest) {
 func (m *Model) handleDotsSearchKeyMsg(msg tea.KeyPressMsg) []tea.Cmd {
 	var cmds []tea.Cmd
 
+	if next, ok := filterNavStep(msg, m.dotsNav(dotsVisibleRows(*m))); ok {
+		m.clearDotsConfirmState()
+		m.setDotsCursor(next, dotsVisibleRows(*m))
+		m.cursorHidden = false
+		return cmds
+	}
+
 	switch {
 	case key.Matches(msg, m.keys.Back):
 		m.dotsSearchActive = false
@@ -139,6 +146,10 @@ func (m *Model) handleDotsSearchKeyMsg(msg tea.KeyPressMsg) []tea.Cmd {
 	return cmds
 }
 
+func (m Model) dotsNav(visible []dotsVisibleRow) listNav {
+	return newListNav(m.dotsCursor, len(visible), sectionedTabViewport(m, dotsSectionedTab(m)))
+}
+
 func (m *Model) handleDotsNavigationKeyMsg(msg tea.KeyPressMsg, visible []dotsVisibleRow, cmds *[]tea.Cmd) bool {
 	switch {
 	case key.Matches(msg, m.keys.Back):
@@ -149,6 +160,24 @@ func (m *Model) handleDotsNavigationKeyMsg(msg tea.KeyPressMsg, visible []dotsVi
 	case key.Matches(msg, m.keys.Down):
 		m.clearDotsConfirmState()
 		m.moveDotsCursor(1, visible)
+	case key.Matches(msg, m.keys.Top):
+		m.clearDotsConfirmState()
+		m.setDotsCursor(m.dotsNav(visible).first(), visible)
+	case key.Matches(msg, m.keys.Bottom):
+		m.clearDotsConfirmState()
+		m.setDotsCursor(m.dotsNav(visible).last(), visible)
+	case key.Matches(msg, m.keys.HalfPageDown):
+		m.clearDotsConfirmState()
+		m.setDotsCursor(m.dotsNav(visible).halfPage(1), visible)
+	case key.Matches(msg, m.keys.HalfPageUp):
+		m.clearDotsConfirmState()
+		m.setDotsCursor(m.dotsNav(visible).halfPage(-1), visible)
+	case key.Matches(msg, m.keys.PageDown):
+		m.clearDotsConfirmState()
+		m.setDotsCursor(m.dotsNav(visible).page(1), visible)
+	case key.Matches(msg, m.keys.PageUp):
+		m.clearDotsConfirmState()
+		m.setDotsCursor(m.dotsNav(visible).page(-1), visible)
 	case m.dotsConfirmIdx >= 0 || m.dotsOverwriteIdx >= 0 || m.dotsLocalIdx >= 0 || m.dotsIgnoreIdx >= 0 || m.dotsVariantIdx >= 0:
 		return false
 	case key.Matches(msg, m.keys.Search):
@@ -219,13 +248,22 @@ func (m *Model) syncDotsExpandedName(visible []dotsVisibleRow) {
 
 func (m *Model) moveDotsCursor(delta int, visible []dotsVisibleRow) {
 	if len(visible) == 0 {
+		m.setDotsCursor(0, visible)
+		return
+	}
+	m.setDotsCursor(cursorMove(m.dotsCursor, delta, len(visible), true), visible)
+}
+
+// Moving off an expanded entry collapses it, which reshapes the visible rows,
+// so the target row is relocated in the new set rather than kept by index.
+func (m *Model) setDotsCursor(next int, visible []dotsVisibleRow) {
+	if len(visible) == 0 {
 		m.dotsCursor = 0
 		m.dotsExpandedName = ""
 		m.clearDotsExpandedChildren("")
 		return
 	}
-	n := len(visible)
-	next := cursorMove(m.dotsCursor, delta, n, true)
+	next = clampIndex(next, len(visible))
 	target := visible[next]
 	if m.dotsExpandedName != "" && (target.entry.Name != m.dotsExpandedName || app.DotStatusState(target.entry) != m.dotsExpandedState) {
 		m.clearDotsExpandedChildren(m.dotsExpandedName)

@@ -18,37 +18,34 @@ func (m *Model) handleStatusKeyMsg(msg tea.KeyPressMsg) []tea.Cmd {
 	}
 	rows := statusRows(*m)
 	m.clampStatusCursor(len(rows))
+	nav := m.statusNav()
 
 	switch {
 	case key.Matches(msg, m.keys.Back):
 		m.mode = viewList
 		return nil
 	case key.Matches(msg, m.keys.Up):
-		if n := len(rows); n > 0 {
-			m.statusCursor = (m.statusCursor - 1 + n) % n
+		if len(rows) > 0 {
+			m.statusCursor = nav.step(-1)
 		}
 	case key.Matches(msg, m.keys.Down):
-		if n := len(rows); n > 0 {
-			m.statusCursor = (m.statusCursor + 1) % n
+		if len(rows) > 0 {
+			m.statusCursor = nav.step(1)
 		}
 	case key.Matches(msg, m.keys.Top):
-		m.statusCursor = 0
+		m.statusCursor = nav.first()
 	case key.Matches(msg, m.keys.Bottom):
 		if len(rows) > 0 {
-			m.statusCursor = len(rows) - 1
+			m.statusCursor = nav.last()
 		}
 	case key.Matches(msg, m.keys.HalfPageDown):
-		half := max(listAvailableHeight(*m)/2, 1)
-		m.statusCursor = min(m.statusCursor+half, max(len(rows)-1, 0))
+		m.statusCursor = nav.halfPage(1)
 	case key.Matches(msg, m.keys.HalfPageUp):
-		half := max(listAvailableHeight(*m)/2, 1)
-		m.statusCursor = max(m.statusCursor-half, 0)
+		m.statusCursor = nav.halfPage(-1)
 	case key.Matches(msg, m.keys.PageDown):
-		page := max(listAvailableHeight(*m), 1)
-		m.statusCursor = min(m.statusCursor+page, max(len(rows)-1, 0))
+		m.statusCursor = nav.page(1)
 	case key.Matches(msg, m.keys.PageUp):
-		page := max(listAvailableHeight(*m), 1)
-		m.statusCursor = max(m.statusCursor-page, 0)
+		m.statusCursor = nav.page(-1)
 	case key.Matches(msg, m.keys.Refresh):
 		if msg.IsRepeat {
 			return nil
@@ -480,12 +477,15 @@ func (m *Model) clampStatusCursor(rowCount int) {
 	m.statusCursor = clampIndex(m.statusCursor, rowCount)
 }
 
+func (m Model) statusNav() listNav {
+	return newListNav(m.statusCursor, len(statusRows(m)), sectionedTabViewport(m, statusSectionedTab(m)))
+}
+
 func (m *Model) scrollStatusBy(delta int) {
 	if delta == 0 {
 		return
 	}
-	rows := statusRows(*m)
-	m.statusCursor = clampIndex(m.statusCursor+delta, len(rows))
+	m.statusCursor = m.statusNav().step(delta)
 }
 
 func (m *Model) handleStatusAction(action statusAction, cmds *[]tea.Cmd) {

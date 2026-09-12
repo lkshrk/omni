@@ -460,6 +460,12 @@ func (m *Model) handleMouseClickMsg(msg tea.MouseClickMsg, cmds *[]tea.Cmd) bool
 	if m.handleToolFilterClick(mouse.X, mouse.Y) {
 		return true
 	}
+	if m.handleListRowClick(mouse.X, mouse.Y) {
+		return true
+	}
+	if m.handleSectionedRowClick(mouse.Y) {
+		return true
+	}
 	if !m.mainTabsClickable() {
 		return false
 	}
@@ -491,26 +497,14 @@ func (m *Model) handleToolFilterClick(x, y int) bool {
 }
 
 func (m Model) toolFiltersClickable() bool {
-	if m.hostRequired || m.showFilePicker || m.stowInstallPrompt || m.help.ShowAll {
+	if !m.rowClicksEnabled() {
 		return false
 	}
 	return m.mode == viewList || m.mode == viewSearch
 }
 
 func (m Model) mainTabsClickable() bool {
-	if m.hostRequired || m.showFilePicker || m.stowInstallPrompt || m.dashboardReconcilePlanOpen || m.help.ShowAll || m.traceLog != nil || m.traceLogLoading {
-		return false
-	}
-	if !isMainTabMode(m.mode) {
-		return false
-	}
-	if m.hostRenameMode || m.groupCreating || m.hostCreateStep != 0 || m.groupRenameMode || m.groupDeleteConfirm {
-		return false
-	}
-	if m.hostEditMode != 0 || m.editingPriority || m.editingServiceDuration || m.dangerConfirmRow >= 0 {
-		return false
-	}
-	return true
+	return !m.overlayOpen() && isMainTabMode(m.mode)
 }
 
 func (m *Model) handleMouseWheelMsg(msg tea.MouseWheelMsg) bool {
@@ -550,14 +544,14 @@ func (m *Model) scrollBy(delta int) {
 	}
 	switch m.mode {
 	case viewList, viewSearch:
-		m.cursor = cursorMove(m.cursor, delta, len(m.visibleTools), true)
+		m.setToolsCursor(m.toolsNav().step(delta))
 		m.clearListConfirmation()
 	case viewCommand:
 		m.commandCursor = clampRange(m.commandCursor+delta, -1, max(len(m.commandSuggestions)-1, -1))
 	case viewDots:
 		m.scrollDotsBy(delta)
 	case viewSkills:
-		m.agentsCursor = cursorMove(m.agentsCursor, delta, m.agentsRowCount(), true)
+		m.agentsCursor = m.agentsNav().step(delta)
 	case viewStatus:
 		m.scrollStatusBy(delta)
 	case viewSettings:
@@ -578,10 +572,8 @@ func (m *Model) scrollBy(delta int) {
 }
 
 func (m *Model) scrollDotsBy(delta int) {
-	visible := dotsVisibleRows(*m)
-	m.dotsCursor = cursorMove(m.dotsCursor, delta, len(visible), true)
-	m.syncDotsExpandedName(visible)
 	m.clearDotsConfirmState()
+	m.moveDotsCursor(delta, dotsVisibleRows(*m))
 }
 
 func (m *Model) scrollDotsPeekBy(delta int) {

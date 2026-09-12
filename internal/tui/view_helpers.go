@@ -115,18 +115,6 @@ func rightCell(text string, width int) rowCell {
 	return rowCell{text: text, width: width, align: rowCellAlignRight}
 }
 
-func renderSplitRow(left, right []rowCell, totalWidth, minGap, columnGap int) string {
-	leftText := renderCellGroup(left, columnGap)
-	rightText := renderCellGroup(right, columnGap)
-	if rightText == "" {
-		return leftText
-	}
-	if leftText == "" {
-		return rightText
-	}
-	return alignLR(leftText, rightText, totalWidth, minGap)
-}
-
 func renderFixedGroupRow(first []rowCell, rest []rowCell, firstGap, columnGap int) string {
 	firstText := renderCellGroup(first, columnGap)
 	restText := renderCellGroup(rest, columnGap)

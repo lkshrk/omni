@@ -20,17 +20,26 @@ const (
 	listConfirmRemoveNvmRuntime      = "remove-nvm-runtime"
 )
 
+// Moving to another tool drops any provider candidate picked on the previous
+// one; leaving it set would install the wrong provider on Enter.
+func (m *Model) setToolsCursor(next int) {
+	m.cursor = next
+	m.providerCandidateCursor = 0
+}
+
+func (m Model) toolsNav() listNav {
+	return newListNav(m.cursor, len(m.visibleTools), sectionedTabViewport(m, toolsSectionedTab(m)))
+}
+
 func (m *Model) handleListNavigationKeyMsg(msg tea.KeyPressMsg) bool {
 	switch {
 	case key.Matches(msg, m.keys.Up):
-		if n := len(m.visibleTools); n > 0 {
-			m.cursor = cursorMove(m.cursor, -1, n, true)
-			m.providerCandidateCursor = 0
+		if len(m.visibleTools) > 0 {
+			m.setToolsCursor(m.toolsNav().step(-1))
 		}
 	case key.Matches(msg, m.keys.Down):
-		if n := len(m.visibleTools); n > 0 {
-			m.cursor = cursorMove(m.cursor, 1, n, true)
-			m.providerCandidateCursor = 0
+		if len(m.visibleTools) > 0 {
+			m.setToolsCursor(m.toolsNav().step(1))
 		}
 	case key.Matches(msg, m.keys.ProviderPrev):
 		if candidates := providerCandidateOptions(*m, m.selectedTool()); len(candidates) > 0 && m.providerCandidateCursor > 0 {
@@ -41,29 +50,19 @@ func (m *Model) handleListNavigationKeyMsg(msg tea.KeyPressMsg) bool {
 			m.providerCandidateCursor++
 		}
 	case key.Matches(msg, m.keys.Top):
-		m.cursor = 0
-		m.providerCandidateCursor = 0
+		m.setToolsCursor(m.toolsNav().first())
 	case key.Matches(msg, m.keys.Bottom):
-		if n := len(m.visibleTools); n > 0 {
-			m.cursor = n - 1
-			m.providerCandidateCursor = 0
+		if len(m.visibleTools) > 0 {
+			m.setToolsCursor(m.toolsNav().last())
 		}
 	case key.Matches(msg, m.keys.HalfPageDown):
-		half := max(listAvailableHeight(*m)/2, 1)
-		m.cursor = min(m.cursor+half, max(len(m.visibleTools)-1, 0))
-		m.providerCandidateCursor = 0
+		m.setToolsCursor(m.toolsNav().halfPage(1))
 	case key.Matches(msg, m.keys.HalfPageUp):
-		half := max(listAvailableHeight(*m)/2, 1)
-		m.cursor = max(m.cursor-half, 0)
-		m.providerCandidateCursor = 0
+		m.setToolsCursor(m.toolsNav().halfPage(-1))
 	case key.Matches(msg, m.keys.PageDown):
-		page := max(listAvailableHeight(*m), 1)
-		m.cursor = min(m.cursor+page, max(len(m.visibleTools)-1, 0))
-		m.providerCandidateCursor = 0
+		m.setToolsCursor(m.toolsNav().page(1))
 	case key.Matches(msg, m.keys.PageUp):
-		page := max(listAvailableHeight(*m), 1)
-		m.cursor = max(m.cursor-page, 0)
-		m.providerCandidateCursor = 0
+		m.setToolsCursor(m.toolsNav().page(-1))
 	case key.Matches(msg, m.keys.PrevTab):
 		if len(m.providerNames) > 0 {
 			if m.providerTabIdx > 0 {

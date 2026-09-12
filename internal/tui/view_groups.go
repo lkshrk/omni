@@ -52,14 +52,14 @@ func renderGroupDeletePopup(m Model) string {
 const groupDeletePopupContentWidth = 44
 
 func renderGroupCreatePopup(m Model) string {
-	if m.assignmentSection == 0 {
+	if m.groupCreatingHost {
 		return renderNameCreatePopup(m, "hostname")
 	}
 	return renderNameCreatePopup(m, "group name")
 }
 
 func groupCreatePopupTitle(m Model) string {
-	if m.assignmentSection == 0 {
+	if m.groupCreatingHost {
 		return "New Host"
 	}
 	return "New Group"
@@ -111,6 +111,10 @@ func renderNewGroupInputView(m Model, width int) string {
 }
 
 func renderGroups(m Model) string {
+	return renderSectionedTab(m, groupsSectionedTab(m))
+}
+
+func groupsSectionedTab(m Model) sectionedTab {
 	p := m.palette
 	detailPrefix := textRowContentPrefix()
 	hintPrefix := textRowHintPrefix()
@@ -125,6 +129,7 @@ func renderGroups(m Model) string {
 		)
 	}
 
+	selectedSection, selectedHost, selectedGroup := m.assignmentSection(), m.hostCursor(), m.groupCursor()
 	hosts := app.PrioritizedHostSummaries(m.hostInfo)
 	allGroupNames := buildAllGroupNames(m.groupNames)
 	groupCounts := toolCountsByGroup(m)
@@ -146,13 +151,14 @@ func renderGroups(m Model) string {
 			groupBadge := compactHostAssignmentList(name, host.Groups)
 			hostBadge := hostStatusLabel(host)
 			nameLabel := name
-			hostSelected := m.assignmentSection == 0 && i == m.hostCursor && !m.cursorHidden
+			hostSelected := selectedSection == 0 && i == selectedHost && !m.cursorHidden
 			if hostSelected {
 				if m.hostRenameMode {
 					inputWidth := max(m.width-lipgloss.Width("    Rename: [ ")-4, 20)
 					m.settingsInput.SetWidth(inputWidth)
 					inputView := renderEmptyAwareTextInputView(p, m.settingsInput, m.settingsInput.Placeholder, inputWidth)
 					assignmentSection.rows = append(assignmentSection.rows, sectionedTabRow{
+						index:    i,
 						selected: true,
 						line: renderFixedGroupListRow(p, true,
 							[]rowCell{leftCell(p.styleActiveText.Render(nameLabel), cols.name)},
@@ -178,37 +184,39 @@ func renderGroups(m Model) string {
 					details = append(details, renderPressAgainActionHint(p, detailPrefix, "d", "delete"))
 				}
 
-				if m.assignmentSection == 0 && !m.hostRenameMode && m.hostEditMode == 0 && !m.hostDeleteConfirm {
+				if selectedSection == 0 && !m.hostRenameMode && m.hostEditMode == 0 && !m.hostDeleteConfirm {
 					details = append(details, renderContextHints(m, hintCtxHostDefault, hintPrefix))
 				}
 				assignmentSection.rows = append(assignmentSection.rows, sectionedTabRow{
+					index:    i,
 					selected: true,
-					line: renderResponsiveGroupListRow(p, true,
+					line: listRowPrefix(p, true) + renderTableRowBody(groupsTableLayout(),
 						[]rowCell{leftCell(p.styleActiveText.Render(nameLabel), cols.name)},
 						[]rowCell{
 							leftCell(listRowColumnStyle(true, p.styleHelp).Render(groupBadge), cols.mid),
 							leftCell(listRowColumnStyle(true, p.styleProvider).Render(hostBadge), cols.tail),
 						},
-						rowAvailableWidth(m.width), groupsMinGap, listColumnGap,
+						rowAvailableWidth(m.width),
 					),
 					details: details,
 				})
 			} else {
 				assignmentSection.rows = append(assignmentSection.rows, sectionedTabRow{
-					line: renderResponsiveGroupListRow(p, false,
+					index: i,
+					line: listRowPrefix(p, false) + renderTableRowBody(groupsTableLayout(),
 						[]rowCell{leftCell(p.styleNormal.Render(nameLabel), cols.name)},
 						[]rowCell{
 							leftCell(p.styleHelp.Render(groupBadge), cols.mid),
 							leftCell(p.styleHelp.Render(hostBadge), cols.tail),
 						},
-						rowAvailableWidth(m.width), groupsMinGap, listColumnGap,
+						rowAvailableWidth(m.width),
 					),
 				})
 			}
 		}
 	}
 
-	groupsFocused := m.assignmentSection == 1
+	groupsFocused := selectedSection == 1
 	groupSection := sectionedTabSection{
 		title:            "Groups",
 		blankAfterHeader: false,
@@ -220,7 +228,7 @@ func renderGroups(m Model) string {
 		label := displayName
 		toolCount := compactCount(count, "tool")
 		dotCount := compactCount(groupDots[gn], "dotfile")
-		isSelected := groupsFocused && i == m.groupCursor && !m.cursorHidden
+		isSelected := groupsFocused && i == selectedGroup && !m.cursorHidden
 
 		if isSelected {
 			switch {
@@ -229,6 +237,7 @@ func renderGroups(m Model) string {
 				m.settingsInput.SetWidth(inputWidth)
 				inputView := renderEmptyAwareTextInputView(p, m.settingsInput, m.settingsInput.Placeholder, inputWidth)
 				groupSection.rows = append(groupSection.rows, sectionedTabRow{
+					index:    len(hosts) + i,
 					selected: true,
 					line: renderFixedGroupListRow(p, true,
 						[]rowCell{leftCell(p.styleActiveText.Render(label), cols.name)},
@@ -242,14 +251,15 @@ func renderGroups(m Model) string {
 				})
 			case m.groupDeleteConfirm:
 				groupSection.rows = append(groupSection.rows, sectionedTabRow{
+					index:    len(hosts) + i,
 					selected: true,
-					line: renderResponsiveGroupListRow(p, true,
+					line: listRowPrefix(p, true) + renderTableRowBody(groupsTableLayout(),
 						[]rowCell{leftCell(p.styleMissing.Render(label), cols.name)},
 						[]rowCell{
 							rightCell(listRowColumnStyle(true, p.styleHelp).Render(toolCount), cols.mid),
 							rightCell(listRowColumnStyle(true, p.styleProvider).Render(dotCount), cols.tail),
 						},
-						rowAvailableWidth(m.width), groupsMinGap, listColumnGap,
+						rowAvailableWidth(m.width),
 					),
 					details: []string{confirmCancelHintWithPrefix(m, "confirm delete", hintPrefix)},
 				})
@@ -262,37 +272,39 @@ func renderGroups(m Model) string {
 				}
 				details = append(details, renderContextHints(m, hintCtxGroupDefault, hintPrefix))
 				groupSection.rows = append(groupSection.rows, sectionedTabRow{
+					index:    len(hosts) + i,
 					selected: true,
-					line: renderResponsiveGroupListRow(p, true,
+					line: listRowPrefix(p, true) + renderTableRowBody(groupsTableLayout(),
 						[]rowCell{leftCell(p.styleActiveText.Render(label), cols.name)},
 						[]rowCell{
 							rightCell(listRowColumnStyle(true, p.styleHelp).Render(toolCount), cols.mid),
 							rightCell(listRowColumnStyle(true, p.styleProvider).Render(dotCount), cols.tail),
 						},
-						rowAvailableWidth(m.width), groupsMinGap, listColumnGap,
+						rowAvailableWidth(m.width),
 					),
 					details: details,
 				})
 			}
 		} else {
 			groupSection.rows = append(groupSection.rows, sectionedTabRow{
-				line: renderResponsiveGroupListRow(p, false,
+				index: len(hosts) + i,
+				line: listRowPrefix(p, false) + renderTableRowBody(groupsTableLayout(),
 					[]rowCell{leftCell(p.styleNormal.Render(label), cols.name)},
 					[]rowCell{
 						rightCell(p.styleHelp.Render(toolCount), cols.mid),
 						rightCell(p.styleHelp.Render(dotCount), cols.tail),
 					},
-					rowAvailableWidth(m.width), groupsMinGap, listColumnGap,
+					rowAvailableWidth(m.width),
 				),
 			})
 		}
 	}
 
-	return renderSectionedTab(m, sectionedTab{
+	return sectionedTab{
 		leadingBlank: true,
 		top:          top,
 		sections:     []sectionedTabSection{assignmentSection, groupSection},
-	})
+	}
 }
 
 type groupAssignmentTableColumns struct {
@@ -301,19 +313,34 @@ type groupAssignmentTableColumns struct {
 	tail int
 }
 
+// mid and tail carry different things per section: a host row shows its
+// assignments and status, a group row shows its tool and dotfile counts.
+var groupsTableColumns = []tableColumn{
+	{key: "name", seed: 20, align: rowCellAlignLeft},
+	{key: "mid", seed: len("assigned groups"), align: rowCellAlignRight},
+	{key: "tail", seed: len("status"), align: rowCellAlignRight},
+}
+
 func groupAssignmentTableColumnWidths(hosts []app.HostSummary, groupNames []string, groupCounts, groupDots map[string]int) groupAssignmentTableColumns {
-	cols := groupAssignmentTableColumns{name: 20, mid: len("assigned groups"), tail: len("status")}
+	type cells struct{ name, mid, tail string }
+	rows := make([]cells, 0, len(hosts)+len(groupNames))
 	for _, host := range hosts {
-		cols.name = max(cols.name, lipgloss.Width(host.Name))
-		cols.mid = max(cols.mid, lipgloss.Width(compactHostAssignmentList(host.Name, host.Groups)))
-		cols.tail = max(cols.tail, lipgloss.Width(hostStatusLabel(host)))
+		rows = append(rows, cells{host.Name, compactHostAssignmentList(host.Name, host.Groups), hostStatusLabel(host)})
 	}
 	for _, name := range groupNames {
-		cols.name = max(cols.name, lipgloss.Width(rowContentInset()+groupDisplayName(name)))
-		cols.mid = max(cols.mid, lipgloss.Width(compactCount(groupCounts[name], "tool")))
-		cols.tail = max(cols.tail, lipgloss.Width(compactCount(groupDots[name], "dotfile")))
+		rows = append(rows, cells{rowContentInset() + groupDisplayName(name), compactCount(groupCounts[name], "tool"), compactCount(groupDots[name], "dotfile")})
 	}
-	return cols
+	widths := measureTableColumns(groupsTableColumns, len(rows), func(i int, key string) string {
+		switch key {
+		case "name":
+			return rows[i].name
+		case "mid":
+			return rows[i].mid
+		default:
+			return rows[i].tail
+		}
+	})
+	return groupAssignmentTableColumns{name: widths["name"], mid: widths["mid"], tail: widths["tail"]}
 }
 
 func groupDisplayName(group string) string {

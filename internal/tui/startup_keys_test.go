@@ -42,8 +42,8 @@ func TestStartupKeysReplayOnGroupsTabAfterSnapshot(t *testing.T) {
 	if got.cursorHidden {
 		t.Error("navigation typed during startup should reveal the host cursor")
 	}
-	if got.hostCursor != 1 {
-		t.Errorf("hostCursor = %d, want 1", got.hostCursor)
+	if got.hostCursor() != 1 {
+		t.Errorf("hostCursor = %d, want 1", got.hostCursor())
 	}
 	if !got.hostDeleteConfirm || got.hostDeleteName != "laptop" {
 		t.Errorf("hostDeleteConfirm = %v, hostDeleteName = %q, want true and laptop", got.hostDeleteConfirm, got.hostDeleteName)

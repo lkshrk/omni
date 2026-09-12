@@ -760,17 +760,22 @@ func renderPopupBodyWithFooterItems(m Model, width, bodyHeight int, body string,
 	return lipgloss.NewStyle().Width(width).Render(body)
 }
 
-func listAvailableHeight(m Model) int {
-	h := m.height
-	h -= 2 // title row + top separator
+// The title row and the separator under it, plus the input row and its own
+// separator while a search or command line is open. Click handling needs the
+// same count to turn a screen row into a list row.
+func frameTopLines(m Model) int {
+	lines := 2
 	if m.mode == viewSearch || m.mode == viewCommand {
-		h -= 2 // input row + second separator
+		lines += 2
 	}
-	h -= 2 // bottom separator + status bar
-	if h < 1 {
-		return 1
-	}
-	return h
+	return lines
+}
+
+// The separator above the status bar, and the bar.
+const frameBottomLines = 2
+
+func listAvailableHeight(m Model) int {
+	return max(m.height-frameTopLines(m)-frameBottomLines, 1)
 }
 
 // The shared popup frame is applied by View so the file picker matches other modal surfaces.

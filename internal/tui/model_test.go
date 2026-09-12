@@ -2016,8 +2016,8 @@ func TestModel_HostsTab(t *testing.T) {
 	t.Run("j/k navigate host cursor", func(t *testing.T) {
 		m := drive(baseModel(threeTools()), pressTab(), pressTab(), pressTab())
 		// hostCursor starts at 0; hostInfo is nil so Down is clamped
-		if m.hostCursor != 0 {
-			t.Errorf("hostCursor = %d, want 0", m.hostCursor)
+		if m.hostCursor() != 0 {
+			t.Errorf("hostCursor = %d, want 0", m.hostCursor())
 		}
 	})
 }
@@ -4996,7 +4996,7 @@ func TestSelectedHostName_ValidCursor(t *testing.T) {
 				"beta":  {},
 			},
 		},
-		hostCursor: 0,
+		groupsCursor: 0,
 	}
 	// sorted: ["alpha", "beta"] → cursor 0 → "alpha"
 	if got := m.selectedHostName(); got != "alpha" {
@@ -5014,7 +5014,7 @@ func TestSelectedHostName_UsesRenderedActiveHostOrder(t *testing.T) {
 				"beta":  {},
 			},
 		},
-		hostCursor: 0,
+		groupsCursor: 0,
 	}
 
 	if got := m.selectedHostName(); got != "beta" {
@@ -5028,7 +5028,7 @@ func TestSelectedHostName_OutOfRange(t *testing.T) {
 		hostInfo: &app.HostInfo{
 			Hosts: map[string]config.HostAssignment{"alpha": {}},
 		},
-		hostCursor: 99,
+		groupsCursor: 99,
 	}
 	if got := m.selectedHostName(); got != "" {
 		t.Errorf("out-of-range cursor: got %q, want empty", got)
@@ -5457,33 +5457,32 @@ func TestCursorReveal_GroupsTab(t *testing.T) {
 	if mRevealed.cursorHidden {
 		t.Error("cursorHidden should be false after first j")
 	}
-	if mRevealed.hostCursor != 0 {
-		t.Errorf("hostCursor = %d after first j, want 0 (revealed, not moved)", mRevealed.hostCursor)
+	if mRevealed.hostCursor() != 0 {
+		t.Errorf("hostCursor = %d after first j, want 0 (revealed, not moved)", mRevealed.hostCursor())
 	}
 
 	mNav := drive(mRevealed, pressRune('j'))
-	navigated := mNav.hostCursor == 1 || mNav.assignmentSection == 1
+	navigated := mNav.hostCursor() == 1 || mNav.assignmentSection() == 1
 	if !navigated {
 		t.Errorf("after second j: hostCursor=%d assignmentSection=%d, want cursor moved (hostCursor=1 or assignmentSection=1)",
-			mNav.hostCursor, mNav.assignmentSection)
+			mNav.hostCursor(), mNav.assignmentSection())
 	}
 }
 
 func TestWrapAround_GroupsTab_UpWrapsToGroups(t *testing.T) {
 	t.Parallel()
 	m := hostsModel()
-	m.assignmentSection = 0
-	m.hostCursor = 0
+	m.selectGroupsHostRow(0)
 
 	got := drive(m, pressRune('k'))
 
-	if got.assignmentSection != 1 {
-		t.Errorf("assignmentSection = %d after k at top of hosts, want 1 (groups section)", got.assignmentSection)
+	if got.assignmentSection() != 1 {
+		t.Errorf("assignmentSection = %d after k at top of hosts, want 1 (groups section)", got.assignmentSection())
 	}
 	allGroups := buildAllGroupNames(m.groupNames)
 	lastIdx := len(allGroups) - 1
-	if got.groupCursor != lastIdx {
-		t.Errorf("groupCursor = %d after wrap, want %d (last group index)", got.groupCursor, lastIdx)
+	if got.groupCursor() != lastIdx {
+		t.Errorf("groupCursor = %d after wrap, want %d (last group index)", got.groupCursor(), lastIdx)
 	}
 }
 
@@ -5491,16 +5490,15 @@ func TestWrapAround_GroupsTab_DownWrapsToHosts(t *testing.T) {
 	t.Parallel()
 	m := hostsModel()
 	allGroups := buildAllGroupNames(m.groupNames)
-	m.assignmentSection = 1
-	m.groupCursor = len(allGroups) - 1
+	m.selectGroupsGroupRow(len(allGroups) - 1)
 
 	got := drive(m, pressRune('j'))
 
-	if got.assignmentSection != 0 {
-		t.Errorf("assignmentSection = %d after j at last group, want 0 (hosts section)", got.assignmentSection)
+	if got.assignmentSection() != 0 {
+		t.Errorf("assignmentSection = %d after j at last group, want 0 (hosts section)", got.assignmentSection())
 	}
-	if got.hostCursor != 0 {
-		t.Errorf("hostCursor = %d after wrap, want 0 (top of hosts)", got.hostCursor)
+	if got.hostCursor() != 0 {
+		t.Errorf("hostCursor = %d after wrap, want 0 (top of hosts)", got.hostCursor())
 	}
 }
 
@@ -5934,5 +5932,157 @@ func TestCursorHidden_TabGlobalKeys_DashboardReconcileAndDotsBulk(t *testing.T) 
 		if got := drive(dots, pressRune(k)); !got.cursorHidden {
 			t.Errorf("cursorHidden after %q on the dots tab = false, want true (bulk conflict resolve is tab-global)", string(k))
 		}
+	}
+}
+
+func multiCandidateModel(n int) Model {
+	names := []string{"cand-a", "cand-b", "cand-c", "cand-d", "cand-e", "cand-f"}[:n]
+	tools := make([]*app.ToolView, 0, n)
+	candidates := make(map[string][]app.ToolInstallSpec, n)
+	for _, name := range names {
+		tools = append(tools, &app.ToolView{Name: name, Tracked: true})
+		candidates[name] = []app.ToolInstallSpec{
+			{Provider: "npm", Package: name},
+			{Provider: "brew", Package: name},
+			{Provider: "zsh", Package: name},
+		}
+	}
+	m := baseModel(tools)
+	m.toolProviderCandidates = candidates
+	m.applyFilter()
+	return m
+}
+
+func TestProviderCandidateCursor_WheelResetsOnToolChange(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string
+		wheel tea.Msg
+	}{
+		{"wheel down", wheelDown()},
+		{"wheel up", wheelUp()},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			picked := drive(multiCandidateModel(3), pressRune('l'), pressRune('l'))
+			if picked.providerCandidateCursor != 2 {
+				t.Fatalf("providerCandidateCursor after two l = %d, want 2", picked.providerCandidateCursor)
+			}
+			got := drive(picked, tt.wheel)
+			if got.cursor == picked.cursor {
+				t.Fatalf("cursor did not move on %s: %d", tt.name, got.cursor)
+			}
+			if got.providerCandidateCursor != 0 {
+				t.Errorf("providerCandidateCursor after %s = %d, want 0", tt.name, got.providerCandidateCursor)
+			}
+		})
+	}
+}
+
+func TestProviderCandidateCursor_WheelSelectsFirstCandidateOfNewTool(t *testing.T) {
+	t.Parallel()
+	picked := drive(multiCandidateModel(3), pressRune('l'))
+	from := picked.visibleTools[picked.cursor].Name
+
+	got := drive(picked, wheelDown())
+	tool := got.visibleTools[got.cursor]
+	if tool.Name == from {
+		t.Fatalf("wheel stayed on %q", tool.Name)
+	}
+	spec := got.selectedProviderCandidateTool(tool)
+	if spec.Provider != "npm" {
+		t.Errorf("install provider for %q = %q, want %q (its first candidate)", tool.Name, spec.Provider, "npm")
+	}
+	if spec.Package != tool.Name {
+		t.Errorf("install package = %q, want %q", spec.Package, tool.Name)
+	}
+}
+
+func TestProviderCandidateCursor_BlurredSearchNavResets(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		msg  tea.Msg
+	}{
+		{"j", pressRune('j')},
+		{"k", pressRune('k')},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := multiCandidateModel(3)
+			m.mode = viewSearch
+			m.filter.Blur()
+			m.providerCandidateCursor = 2
+
+			got := drive(m, tt.msg)
+			if got.cursor == m.cursor {
+				t.Fatalf("cursor did not move on %s: %d", tt.name, got.cursor)
+			}
+			if got.providerCandidateCursor != 0 {
+				t.Errorf("providerCandidateCursor after %s = %d, want 0", tt.name, got.providerCandidateCursor)
+			}
+		})
+	}
+}
+
+func TestProviderCandidateCursor_RowClickResets(t *testing.T) {
+	t.Parallel()
+	picked := drive(multiCandidateModel(3), pressRune('l'), pressRune('l'))
+	if picked.providerCandidateCursor != 2 {
+		t.Fatalf("providerCandidateCursor after two l = %d, want 2", picked.providerCandidateCursor)
+	}
+	y := frameLineOf(t, picked, "cand-c")
+
+	got := clickAt(picked, y)
+	if got.cursor == picked.cursor {
+		t.Fatalf("click did not move the cursor off row %d", got.cursor)
+	}
+	if got.providerCandidateCursor != 0 {
+		t.Errorf("providerCandidateCursor after clicking another row = %d, want 0", got.providerCandidateCursor)
+	}
+}
+
+func TestProviderCandidateCursor_JumpKeysReset(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		msg  tea.Msg
+	}{
+		{"home", pressHome()},
+		{"G", pressRune('G')},
+		{"ctrl+d", pressCtrlD()},
+		{"ctrl+u", pressCtrlU()},
+		{"pgdown", tea.KeyPressMsg{Code: tea.KeyPgDown}},
+		{"pgup", tea.KeyPressMsg{Code: tea.KeyPgUp}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := multiCandidateModel(6)
+			m.cursor = 2
+			picked := drive(m, pressRune('l'))
+			if picked.providerCandidateCursor != 1 {
+				t.Fatalf("providerCandidateCursor after l = %d, want 1", picked.providerCandidateCursor)
+			}
+			got := drive(picked, tt.msg)
+			if got.providerCandidateCursor != 0 {
+				t.Errorf("providerCandidateCursor after %s = %d, want 0", tt.name, got.providerCandidateCursor)
+			}
+		})
+	}
+}
+
+func TestProviderCandidateCursor_HorizontalKeysKeepSelection(t *testing.T) {
+	t.Parallel()
+	m := multiCandidateModel(3)
+	got := drive(m, pressRune('l'), pressRune('l'))
+	if got.providerCandidateCursor != 2 {
+		t.Fatalf("providerCandidateCursor after two l = %d, want 2", got.providerCandidateCursor)
+	}
+	if got.cursor != m.cursor {
+		t.Fatalf("cursor moved on l: %d", got.cursor)
+	}
+	got = drive(got, pressRune('h'))
+	if got.providerCandidateCursor != 1 {
+		t.Errorf("providerCandidateCursor after h = %d, want 1", got.providerCandidateCursor)
 	}
 }

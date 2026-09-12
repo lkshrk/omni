@@ -93,9 +93,13 @@ func TestAgentsCursorTraversesEverySection(t *testing.T) {
 func TestAgentsSummaryCountsEverySurface(t *testing.T) {
 	m := agentsSectionedModel(t)
 	summary := agentsSummaryText(m)
-	for _, want := range []string{"1 unavailable", "3 pkg", "2 mcp", "1 lsp"} {
-		if !strings.Contains(summary, want) {
-			t.Fatalf("summary %q missing %q", summary, want)
+	if !strings.Contains(summary, "1 unavailable") {
+		t.Fatalf("summary %q missing %q", summary, "1 unavailable")
+	}
+	header := renderAgentsHeaderInfo(m)
+	for _, want := range []string{"3 pkg", "2 mcp", "1 lsp"} {
+		if !strings.Contains(header, want) {
+			t.Fatalf("header %q missing %q", header, want)
 		}
 	}
 	if !strings.Contains(m.viewSkillsBody(), summary) {
@@ -155,10 +159,13 @@ func TestAgentsOutdatedResultDecoratesRowsAndIgnoresStale(t *testing.T) {
 		t.Fatalf("fresh result not applied: %#v", fresh.agentsRows[0])
 	}
 	view := fresh.viewSkillsBody()
-	for _, want := range []string{"↑", "1.2.3 → 2.0.0", "1 updates", "1 package updates could not be checked"} {
+	for _, want := range []string{"↑", "1.2.3 → 2.0.0", "1 package updates could not be checked"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("view missing %q:\n%s", want, view)
 		}
+	}
+	if header := renderAgentsHeaderInfo(fresh); !strings.Contains(header, "1 updates") {
+		t.Fatalf("header %q missing the update count", header)
 	}
 }
 
@@ -640,10 +647,13 @@ func TestAgentsFilterNarrowsEverySection(t *testing.T) {
 		t.Fatalf("visible rows = %d", got)
 	}
 	view := m.viewSkillsBody()
-	for _, want := range []string{"ghost", "ghost-mcp", "2/6 shown"} {
+	for _, want := range []string{"ghost", "ghost-mcp"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("view missing %q:\n%s", want, view)
 		}
+	}
+	if header := renderAgentsHeaderInfo(m); !strings.Contains(header, "2/6 shown") {
+		t.Fatalf("header %q missing the filtered count", header)
 	}
 	if strings.Contains(view, "LSP servers") || strings.Contains(view, "litellm-tools") {
 		t.Fatalf("filter did not hide non-matching rows or sections:\n%s", view)

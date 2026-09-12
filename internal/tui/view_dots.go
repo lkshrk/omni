@@ -129,12 +129,20 @@ func dotsSections(entries []app.DotStatus) []app.DotStatusSection {
 }
 
 func renderDots(m Model) string {
+	return renderSectionedTab(m, dotsSectionedTab(m))
+}
+
+func renderDotsIndexed(m Model) (string, rowLineIndex) {
+	return renderSectionedTabIndexed(m, dotsSectionedTab(m))
+}
+
+func dotsSectionedTab(m Model) sectionedTab {
 	p := m.palette
 	var sb strings.Builder
 
 	// Zero-value cached availability means nothing is loaded yet; render nothing rather than flashing the onboarding screen before the cache arrives.
 	if m.dotsSyncAvailCached.Reason == "" && !m.dotsSyncAvailCached.Configured {
-		return ""
+		return sectionedTab{}
 	}
 
 	if dotsViewDisabled(m) {
@@ -143,7 +151,7 @@ func renderDots(m Model) string {
 		sb.WriteString(p.styleNormal.Render("  [enter] ") + p.styleHelp.Render("set up dotfiles from scratch"))
 		sb.WriteString("\n")
 		sb.WriteString(p.styleHelp.Render("  Or toggle Dotfile Sync in Settings to re-enable without setup.") + "\n")
-		return sb.String()
+		return sectionedTab{pinnedTop: splitFrameLines(sb.String())}
 	}
 
 	if dotsViewUnconfigured(m) {
@@ -153,28 +161,46 @@ func renderDots(m Model) string {
 		sb.WriteString(p.styleHelp.Render("  keeping dotfiles in sync across machines.") + "\n\n")
 		sb.WriteString(p.styleNormal.Render("  [enter] ") + p.styleHelp.Render("set up now"))
 		sb.WriteString("\n")
-		return sb.String()
+		return sectionedTab{pinnedTop: splitFrameLines(sb.String())}
 	}
 
 	if len(m.dotsEntries) == 0 {
 		sb.WriteString("\n")
 		// m.loading: the startup snapshot carrying the cached dots state has not landed, so "No dotfiles tracked yet" would be a lie.
 		if m.dotsPreparing || m.loading {
-			return ""
+			return sectionedTab{}
 		}
 		sb.WriteString(p.styleNormal.Render("  No dotfiles tracked yet.") + "\n\n")
 		sb.WriteString(p.styleHelp.Render("  Add dot entries from this tab or run sync all to discover candidates."))
 		sb.WriteString("\n")
-		return sb.String()
+		return sectionedTab{pinnedTop: splitFrameLines(sb.String())}
 	}
 
-	var buf scrollBuf
-	write := buf.write
-	sections := newListSectionWriter(p, m.width, write)
+	tab := sectionedTab{}
+	var topLines []string
+	write := func(text string) { topLines = append(topLines, strings.TrimSuffix(text, "\n")) }
+
+	// The first line a row emits is the row itself; anything after it is the
+	// detail block that must stay glued to it.
+	var cur sectionedTabRow
+	emitRow := func(text string) {
+		text = strings.TrimSuffix(text, "\n")
+		if cur.line == "" {
+			cur.line = text
+			return
+		}
+		cur.details = append(cur.details, text)
+	}
+	flushRow := func(sectionIdx, index int, selected bool) {
+		cur.index = index
+		cur.selected = selected
+		tab.sections[sectionIdx].rows = append(tab.sections[sectionIdx].rows, cur)
+		cur = sectionedTabRow{}
+	}
 	hintPrefix := listHintPrefixWithGap(listWideIconGapWidth)
 
 	if m.dotsSearchActive {
-		write(renderDotsSearchControl(m) + "\n")
+		tab.pinnedTop = append(tab.pinnedTop, renderDotsSearchControl(m))
 	}
 
 	if repoPath := dotsRepoPathForView(m); repoPath != "" {
@@ -201,25 +227,13 @@ func renderDots(m Model) string {
 	cols := dotsTableColumnWidths(p, m, visible)
 	contentW := rowAvailableWidth(m.width)
 	cols = fitDotsColumnsToWidth(cols, contentW)
-	iconNameGap := strings.Repeat(" ", dotsIconNameGapW)
-	nameTargetGap := strings.Repeat(" ", dotsGapW)
-	rightW := cols.status + dotsGapW + cols.ratio
-	if cols.ignore > 0 {
-		rightW += dotsGapW + cols.ignore
-	}
-	if cols.group > 0 {
-		rightW += dotsGapW + cols.group
-	}
-	fixedW := dotsIconW + dotsIconNameGapW + cols.name + dotsGapW + rightW + dotsGapW
+	layout := dotsTableLayout()
+	iconNameGap := strings.Repeat(" ", layout.iconGap)
+	nameTargetGap := strings.Repeat(" ", layout.columnGap)
+	fixedW := layout.iconWidth + layout.iconGap + cols.name + layout.columnGap + dotsRightGroupWidth(cols) + layout.columnGap
 	targetWidth := max(contentW-fixedW, 1)
 	splitDotsRow := func(left, right string) string {
-		return renderSplitRow(
-			[]rowCell{leftCell(left, 0)},
-			[]rowCell{rightCell(right, 0)},
-			contentW,
-			dotsGapW,
-			dotsGapW,
-		)
+		return renderTableRowBody(dotsTableLayout(), []rowCell{leftCell(left, 0)}, []rowCell{rightCell(right, 0)}, contentW)
 	}
 	renderDotsRow := func(selected bool, left, right string) string {
 		return listRowPrefix(p, selected) + splitDotsRow(left, right)
@@ -227,6 +241,7 @@ func renderDots(m Model) string {
 
 	rowIndex := 0
 	inIgnoredSection := false
+	curSection := 0
 	var renderChildRows func(e app.DotStatus, children []app.DotChild)
 	renderChildRows = func(e app.DotStatus, children []app.DotChild) {
 		for _, child := range children {
@@ -254,43 +269,32 @@ func renderDots(m Model) string {
 			}
 			childIconStyle, childNameStyle, childTargetStyle := dotChildRowStyles(p, child, parentState, inIgnoredSection)
 			if childIgnoreConfirm {
-				buf.markCursor()
 				left := childLeft(p.styleIgnored.Bold(true), p.styleActiveText, p.styleHelp.Bold(true), "↳", childName, childTargetPadded)
-				write(renderDotsRow(true, left, childRight) + "\n")
-				write(renderContextHints(m, hintCtxDotsIgnoreConfirm, hintPrefix) + "\n")
-				buf.markCursorEnd()
+				emitRow(renderDotsRow(true, left, childRight) + "\n")
+				emitRow(renderContextHints(m, hintCtxDotsIgnoreConfirm, hintPrefix) + "\n")
 			} else if childRepoConfirm {
-				buf.markCursor()
 				left := childLeft(p.styleOutdated.Bold(true), p.styleActiveText, p.styleHelp.Bold(true), "↳", childName, childTargetPadded)
-				write(renderDotsRow(true, left, childRight) + "\n")
-				write(renderContextHints(m, hintCtxDotsRepoConfirm, hintPrefix) + "\n")
-				buf.markCursorEnd()
+				emitRow(renderDotsRow(true, left, childRight) + "\n")
+				emitRow(renderContextHints(m, hintCtxDotsRepoConfirm, hintPrefix) + "\n")
 			} else if childLocalConfirm {
-				buf.markCursor()
 				left := childLeft(p.styleOutdated.Bold(true), p.styleActiveText, p.styleHelp.Bold(true), "↳", childName, childTargetPadded)
-				write(renderDotsRow(true, left, childRight) + "\n")
-				write(renderContextHints(m, hintCtxDotsLocalConfirm, hintPrefix) + "\n")
-				buf.markCursorEnd()
+				emitRow(renderDotsRow(true, left, childRight) + "\n")
+				emitRow(renderContextHints(m, hintCtxDotsLocalConfirm, hintPrefix) + "\n")
 			} else if childVariantCreate {
-				buf.markCursor()
 				left := childLeft(p.styleProvider, p.styleActiveText, p.styleHelp.Bold(true), "↳", childName, childTargetPadded)
-				write(renderDotsRow(true, left, childRight) + "\n")
-				write(renderDotsVariantCreatePrompt(m, app.DotExtractName(e.Name, child.RelPath), hintPrefix, m.width) + "\n")
-				buf.markCursorEnd()
+				emitRow(renderDotsRow(true, left, childRight) + "\n")
+				emitRow(renderDotsVariantCreatePrompt(m, app.DotExtractName(e.Name, child.RelPath), hintPrefix, m.width) + "\n")
 			} else if isChildCursor {
-				buf.markCursor()
 				left := childLeft(childIconStyle.Bold(true), p.styleActiveText, childTargetStyle.Bold(true), "↳", childName, childTargetPadded)
-				write(renderDotsRow(true, left, childRight) + "\n")
+				emitRow(renderDotsRow(true, left, childRight) + "\n")
 				if hints := renderDotsContextHints(m, hintCtxDotsRow, hintPrefix, m.width); hints != "" {
-					write(hints + "\n")
-					buf.markCursorEnd()
-				} else {
-					buf.markCursorEnd()
+					emitRow(hints + "\n")
 				}
 			} else {
 				left := childLeft(childIconStyle, childNameStyle, childTargetStyle, "↳", childName, childTargetPadded)
-				write(renderDotsRow(false, left, childRight) + "\n")
+				emitRow(renderDotsRow(false, left, childRight) + "\n")
 			}
+			flushRow(curSection, rowIndex, isChildCursor || childIgnoreConfirm || childRepoConfirm || childLocalConfirm || childVariantCreate)
 			rowIndex++
 			if dotsChildExpanded(m, e.Name, child) {
 				renderChildRows(e, child.Children)
@@ -302,7 +306,8 @@ func renderDots(m Model) string {
 			continue
 		}
 		inIgnoredSection = section.Title == "Ignored"
-		sections.Header(section.Title)
+		tab.sections = append(tab.sections, sectionedTabSection{title: section.Title})
+		curSection = len(tab.sections) - 1
 		for _, e := range section.Statuses {
 			iconStyle, icon, statusLabel := dotStateDisplay(p, app.DotStatusState(e))
 			// Synthesized container entries in the Ignored section are not explicitly ignored themselves, so they get muted "-" status.
@@ -337,10 +342,6 @@ func renderDots(m Model) string {
 			variantRemove := m.dotsVariantIdx == rowIndex && m.dotsVariantMode == dotsVariantRemove
 			isCursor := rowIndex == m.dotsCursor && !m.cursorHidden
 
-			if isCursor {
-				buf.markCursor()
-			}
-
 			targetPadded := renderCell(leftCell(target, targetWidth))
 			rowLeft := func(iconStyle, nameStyle, targetStyle lipgloss.Style) string {
 				return iconStyle.Render(icon) +
@@ -353,60 +354,51 @@ func renderDots(m Model) string {
 			switch {
 			case removingConfirm:
 				left := rowLeft(p.styleMissing, p.styleMissing, p.styleMissing)
-				write(renderDotsRow(true, left, activeRight) + "\n")
-				write(renderDotsDeleteKeepLocalPrompt(m, e, hintPrefix) + "\n")
-				buf.markCursorEnd()
+				emitRow(renderDotsRow(true, left, activeRight) + "\n")
+				emitRow(renderDotsDeleteKeepLocalPrompt(m, e, hintPrefix) + "\n")
 			case repoConfirm:
 				left := rowLeft(p.styleOutdated, p.styleOutdated, p.styleOutdated)
-				write(renderDotsRow(true, left, activeRight) + "\n")
-				write(renderContextHints(m, hintCtxDotsRepoConfirm, hintPrefix) + "\n")
-				buf.markCursorEnd()
+				emitRow(renderDotsRow(true, left, activeRight) + "\n")
+				emitRow(renderContextHints(m, hintCtxDotsRepoConfirm, hintPrefix) + "\n")
 			case localConfirm:
 				left := rowLeft(p.styleOutdated, p.styleOutdated, p.styleOutdated)
-				write(renderDotsRow(true, left, activeRight) + "\n")
-				write(renderContextHints(m, hintCtxDotsLocalConfirm, hintPrefix) + "\n")
-				buf.markCursorEnd()
+				emitRow(renderDotsRow(true, left, activeRight) + "\n")
+				emitRow(renderContextHints(m, hintCtxDotsLocalConfirm, hintPrefix) + "\n")
 			case ignoreConfirm:
 				left := rowLeft(p.styleIgnored, p.styleIgnored, p.styleIgnored)
-				write(renderDotsRow(true, left, activeRight) + "\n")
-				write(renderContextHints(m, hintCtxDotsIgnoreConfirm, hintPrefix) + "\n")
-				buf.markCursorEnd()
+				emitRow(renderDotsRow(true, left, activeRight) + "\n")
+				emitRow(renderContextHints(m, hintCtxDotsIgnoreConfirm, hintPrefix) + "\n")
 			case variantCreate:
 				left := rowLeft(p.styleProvider, p.styleActiveText, p.styleHelp.Bold(true))
-				write(renderDotsRow(true, left, activeRight) + "\n")
-				write(renderDotsVariantCreatePrompt(m, e.Name, hintPrefix, m.width) + "\n")
-				buf.markCursorEnd()
+				emitRow(renderDotsRow(true, left, activeRight) + "\n")
+				emitRow(renderDotsVariantCreatePrompt(m, e.Name, hintPrefix, m.width) + "\n")
 			case variantRemove:
 				left := rowLeft(p.styleMissing, p.styleMissing, p.styleMissing)
-				write(renderDotsRow(true, left, activeRight) + "\n")
-				write(renderDotsVariantRemovePrompt(m, e.Name, hintPrefix, m.width) + "\n")
-				buf.markCursorEnd()
+				emitRow(renderDotsRow(true, left, activeRight) + "\n")
+				emitRow(renderDotsVariantRemovePrompt(m, e.Name, hintPrefix, m.width) + "\n")
 			case isCursor:
 				left := rowLeft(iconStyle.Bold(true), p.styleActiveText, p.styleHelp.Bold(true))
-				write(renderDotsRow(true, left, activeRight) + "\n")
+				emitRow(renderDotsRow(true, left, activeRight) + "\n")
 				if errLine := renderDotsLastError(m, e, m.width); errLine != "" {
-					write(errLine + "\n")
+					emitRow(errLine + "\n")
 				}
 				prefix := textRowContentPrefix()
 				width := max(m.width-lipgloss.Width(prefix)-screenEdgePadding, 1)
 				for _, detail := range fullMembershipDetailLines(m.dotMemberships[e.Name], width) {
-					write(prefix + p.styleHelp.Render(detail) + "\n")
+					emitRow(prefix + p.styleHelp.Render(detail) + "\n")
 				}
 				if app.DotStatusHasAction(e, app.DotActionUseRepo) || app.DotStatusHasAction(e, app.DotActionUseLocal) {
-					write(renderDotsContextHints(m, hintCtxDotsConflict, hintPrefix, m.width) + "\n")
-					buf.markCursorEnd()
+					emitRow(renderDotsContextHints(m, hintCtxDotsConflict, hintPrefix, m.width) + "\n")
 				} else {
 					if hints := renderDotsContextHints(m, hintCtxDotsRow, hintPrefix, m.width); hints != "" {
-						write(hints + "\n")
-						buf.markCursorEnd()
-					} else {
-						buf.markCursorEnd()
+						emitRow(hints + "\n")
 					}
 				}
 			default:
 				left := rowLeft(iconStyle, p.styleNormal, p.styleHelp)
-				write(renderDotsRow(false, left, right) + "\n")
+				emitRow(renderDotsRow(false, left, right) + "\n")
 			}
+			flushRow(curSection, rowIndex, isCursor || removingConfirm || repoConfirm || localConfirm || ignoreConfirm || variantCreate || variantRemove)
 			rowIndex++
 			if dotsEntryMatchesExpanded(m, e) {
 				renderChildRows(e, e.Children)
@@ -414,9 +406,11 @@ func renderDots(m Model) string {
 		}
 	}
 
-	renderDotsHistorySection(m, write, sections)
-
-	return buf.render(listAvailableHeight(m))
+	if history := dotsHistorySection(m); history != nil {
+		tab.sections = append(tab.sections, *history)
+	}
+	tab.top = topLines
+	return tab
 }
 
 func dotsRepoPathForView(m Model) string {
@@ -430,22 +424,23 @@ func dotsRepoPathForView(m Model) string {
 	return ""
 }
 
-func renderDotsHistorySection(m Model, write func(string), sections *listSectionWriter) {
+func dotsHistorySection(m Model) *sectionedTabSection {
 	if len(m.dotsHistory) == 0 && strings.TrimSpace(m.dotsHistoryErr) == "" {
-		return
+		return nil
 	}
-	sections.Header("History")
+	out := sectionedTabSection{title: "History"}
 	lineW := max(rowAvailableWidth(m.width)-2, 12)
 	if errText := strings.TrimSpace(m.dotsHistoryErr); errText != "" {
-		write(m.palette.styleHelp.PaddingLeft(2).Render(fitCellText("history unavailable: "+errText, lineW)) + "\n")
-		return
+		out.empty = []string{m.palette.styleHelp.PaddingLeft(2).Render(fitCellText("history unavailable: "+errText, lineW))}
+		return &out
 	}
 	for i, entry := range m.dotsHistory {
 		if i >= 3 {
 			break
 		}
-		write(m.palette.styleHelp.PaddingLeft(2).Render(fitCellText(dotsHistoryTabLine(entry), lineW)) + "\n")
+		out.empty = append(out.empty, m.palette.styleHelp.PaddingLeft(2).Render(fitCellText(dotsHistoryTabLine(entry), lineW)))
 	}
+	return &out
 }
 
 func dotsHistoryDashboardLine(entry app.DotsHistoryEntry) string {
@@ -668,37 +663,80 @@ type dotsTableColumns struct {
 	group  int
 }
 
-func dotsTableColumnWidths(p palette, m Model, entries []app.DotStatus) dotsTableColumns {
-	cols := dotsTableColumns{
-		name:   dotsNameMinW,
-		status: dotsStatusColW,
-		ratio:  dotsRatioColW,
-	}
+// dots packs many narrow count columns, so it keeps tighter gaps than the
+// wider tool and agent rows.
+var dotsTableColumnSpec = []tableColumn{
+	{key: "name", seed: dotsNameMinW, align: rowCellAlignLeft},
+	{key: "status", seed: dotsStatusColW, align: rowCellAlignLeft},
+	{key: "ratio", seed: dotsRatioColW, align: rowCellAlignRight},
+	{key: "ignore", align: rowCellAlignRight},
+	{key: "group", align: rowCellAlignRight},
+}
+
+var dotsShrinkLadder = []tableShrinkStep{
+	shrinkStep("group", 6),
+	shrinkStep("name", 8),
+	shrinkStep("ratio", 4),
+	shrinkStep("ignore", 3),
+	shrinkStep("status", 6),
+	shrinkStep("group", 1),
+	shrinkStep("ratio", 1),
+	shrinkStep("ignore", 1),
+	shrinkStep("status", 1),
+	shrinkStep("name", 1),
+}
+
+type dotsRowCells struct{ name, status, ratio, ignore, group string }
+
+func dotsMeasuredRows(p palette, m Model, entries []app.DotStatus) []dotsRowCells {
+	var rows []dotsRowCells
 	for _, entry := range entries {
 		state := app.DotStatusState(entry)
 		_, _, statusLabel := dotStateDisplay(p, state)
-		cols.name = max(cols.name, lipgloss.Width(dotEntryDisplayName(m, entry)))
-		cols.status = max(cols.status, lipgloss.Width(statusLabel))
 		counts := app.DotStatusFileCounts(entry)
-		cols.ratio = max(cols.ratio, lipgloss.Width(dotRatioText(counts)))
-		if ignored := dotIgnoredText(counts); ignored != "" {
-			cols.ignore = max(cols.ignore, dotsIgnoredColW, lipgloss.Width(ignored))
-		}
-		if pills := renderGroupPills(p, dotEntryGroups(m, entry), m.hostInfo, 0, nil); pills != "" {
-			cols.group = max(cols.group, lipgloss.Width(pills))
-		}
+		rows = append(rows, dotsRowCells{
+			name:   dotEntryDisplayName(m, entry),
+			status: statusLabel,
+			ratio:  dotRatioText(counts),
+			ignore: dotIgnoredText(counts),
+			group:  renderGroupPills(p, dotEntryGroups(m, entry), m.hostInfo, 0, nil),
+		})
 		visitDotChildren(entry.Children, func(child app.DotChild) {
 			childStatus, _ := dotChildStatusDisplay(p, child, state)
-			counts := app.DotChildFileCounts(child, state)
-			cols.name = max(cols.name, lipgloss.Width(dotChildDisplayName(m, entry, child)))
-			cols.status = max(cols.status, lipgloss.Width(childStatus))
-			cols.ratio = max(cols.ratio, lipgloss.Width(dotRatioText(counts)))
-			if ignored := dotIgnoredText(counts); ignored != "" {
-				cols.ignore = max(cols.ignore, dotsIgnoredColW, lipgloss.Width(ignored))
-			}
+			childCounts := app.DotChildFileCounts(child, state)
+			rows = append(rows, dotsRowCells{
+				name:   dotChildDisplayName(m, entry, child),
+				status: childStatus,
+				ratio:  dotRatioText(childCounts),
+				ignore: dotIgnoredText(childCounts),
+			})
 		})
 	}
-	return cols
+	return rows
+}
+
+func dotsTableColumnWidths(p palette, m Model, entries []app.DotStatus) dotsTableColumns {
+	rows := dotsMeasuredRows(p, m, entries)
+	widths := measureTableColumns(dotsTableColumnSpec, len(rows), func(i int, key string) string {
+		switch key {
+		case "name":
+			return rows[i].name
+		case "status":
+			return rows[i].status
+		case "ratio":
+			return rows[i].ratio
+		case "ignore":
+			return rows[i].ignore
+		default:
+			return rows[i].group
+		}
+	})
+	// An ignore column only appears when some row has ignored files, and it
+	// then claims a floor the measured text may not reach.
+	if widths["ignore"] > 0 {
+		widths["ignore"] = max(widths["ignore"], dotsIgnoredColW)
+	}
+	return dotsTableColumns{name: widths["name"], status: widths["status"], ratio: widths["ratio"], ignore: widths["ignore"], group: widths["group"]}
 }
 
 func visitDotChildren(children []app.DotChild, fn func(app.DotChild)) {
@@ -708,42 +746,34 @@ func visitDotChildren(children []app.DotChild, fn func(app.DotChild)) {
 	}
 }
 
+func dotsRightGroupWidth(cols dotsTableColumns) int {
+	gap := dotsTableLayout().columnGap
+	width := cols.status + gap + cols.ratio
+	if cols.ignore > 0 {
+		width += gap + cols.ignore
+	}
+	if cols.group > 0 {
+		width += gap + cols.group
+	}
+	return width
+}
+
 func fitDotsColumnsToWidth(cols dotsTableColumns, contentW int) dotsTableColumns {
-	rightW := func(c dotsTableColumns) int {
-		width := c.status + dotsGapW + c.ratio
-		if c.ignore > 0 {
-			width += dotsGapW + c.ignore
-		}
-		if c.group > 0 {
-			width += dotsGapW + c.group
-		}
-		return width
-	}
-	totalW := dotsIconW + dotsIconNameGapW + cols.name + dotsGapW + 1 + dotsGapW + rightW(cols)
-	over := totalW - max(contentW, 1)
-	if over <= 0 {
-		return cols
-	}
-	shrinkWidth(&cols.group, 6, &over)
-	shrinkWidth(&cols.name, 8, &over)
-	shrinkWidth(&cols.ratio, 4, &over)
-	shrinkWidth(&cols.ignore, 3, &over)
-	shrinkWidth(&cols.status, 6, &over)
-	shrinkWidth(&cols.group, 1, &over)
-	shrinkWidth(&cols.ratio, 1, &over)
-	shrinkWidth(&cols.ignore, 1, &over)
-	shrinkWidth(&cols.status, 1, &over)
-	shrinkWidth(&cols.name, 1, &over)
-	return cols
+	layout := dotsTableLayout()
+	totalW := layout.iconWidth + layout.iconGap + cols.name + layout.columnGap + 1 + layout.columnGap + dotsRightGroupWidth(cols)
+	widths := tableWidths{"name": cols.name, "status": cols.status, "ratio": cols.ratio, "ignore": cols.ignore, "group": cols.group}
+	widths.fit(totalW-max(contentW, 1), dotsShrinkLadder...)
+	return dotsTableColumns{name: widths["name"], status: widths["status"], ratio: widths["ratio"], ignore: widths["ignore"], group: widths["group"]}
 }
 
 func dotRightColumns(p palette, selected bool, status string, statusStyle lipgloss.Style, counts app.DotFileCounts, ratioW, ignoredW int, groups []string, info *app.HostInfo, groupW int) string {
 	if selected {
 		statusStyle = statusStyle.Bold(true)
 	}
-	right := statusStyle.Render(status) + strings.Repeat(" ", dotsGapW) + dotRatioView(p, selected, counts, ratioW)
+	gap := strings.Repeat(" ", dotsTableLayout().columnGap)
+	right := statusStyle.Render(status) + gap + dotRatioView(p, selected, counts, ratioW)
 	if ignoredW > 0 {
-		right += strings.Repeat(" ", dotsGapW) + dotIgnoredView(p, selected, counts, ignoredW)
+		right += gap + dotIgnoredView(p, selected, counts, ignoredW)
 	}
 	if groupW == 0 {
 		return right
@@ -752,7 +782,7 @@ func dotRightColumns(p palette, selected bool, status string, statusStyle lipglo
 		return rowEmphasis(selected, s)
 	})
 	groupCol := renderCell(rightCell(pills, groupW))
-	return right + strings.Repeat(" ", dotsGapW) + groupCol
+	return right + gap + groupCol
 }
 
 // Falls back to the legacy single-group field for entries not yet migrated onto the multi-group model.
@@ -849,4 +879,12 @@ func renderDotsLastError(m Model, e app.DotStatus, width int) string {
 	line := p.styleMissing.PaddingLeft(4).Width(avail).Render("✗ " + text)
 	hint := renderActionHintText(p, []hintItem{hintFromBinding(m.keys.ErrorLog)})
 	return line + "\n" + strings.Repeat(" ", 4) + hint
+}
+
+func splitFrameLines(s string) []string {
+	s = strings.TrimSuffix(s, "\n")
+	if s == "" {
+		return nil
+	}
+	return strings.Split(s, "\n")
 }

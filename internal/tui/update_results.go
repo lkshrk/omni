@@ -461,13 +461,7 @@ func (m *Model) handleCreateGroupDoneMsg(msg createGroupDoneMsg) []tea.Cmd {
 	if msg.groupNames != nil {
 		m.groupNames = msg.groupNames
 		refreshed = true
-		allGroupNames := buildAllGroupNames(m.groupNames)
-		for i, name := range allGroupNames {
-			if name == msg.name {
-				m.groupCursor = i
-				break
-			}
-		}
+		m.placeGroupCursor(msg.name)
 	}
 	if msg.toolMemberships != nil {
 		m.toolMemberships = msg.toolMemberships
@@ -515,10 +509,7 @@ func (m *Model) handleGroupChangedMsg(msg groupChangedMsg) []tea.Cmd {
 	}
 	if msg.groupNames != nil {
 		m.groupNames = msg.groupNames
-		allGroupNames := buildAllGroupNames(m.groupNames)
-		if m.groupCursor >= len(allGroupNames) {
-			m.groupCursor = max(len(allGroupNames)-1, 0)
-		}
+		m.clampGroupsCursor()
 	}
 	if msg.info != nil {
 		m.hostInfo = msg.info
@@ -778,24 +769,13 @@ func (m *Model) handleHostGroupChangedMsg(msg hostGroupChangedMsg) []tea.Cmd {
 		}
 		statusText = "✓ " + msg.group + " " + verb + " host " + msg.host
 	} else if m.hostInfo != nil {
-		if n := len(m.hostInfo.Hosts); m.hostCursor >= n {
-			m.hostCursor = max(n-1, 0)
-		}
+		m.clampGroupsCursor()
 	}
 	if refreshed {
 		m.applyFilter()
 	}
 	cmds = append(cmds, setStatus(m, statusText, false))
 	return cmds
-}
-
-func (m *Model) placeHostCursor(host string) {
-	for i, summary := range app.PrioritizedHostSummaries(m.hostInfo) {
-		if summary.Name == host {
-			m.hostCursor = i
-			return
-		}
-	}
 }
 
 func (m *Model) handleClaimDoneMsg(msg claimDoneMsg) []tea.Cmd {

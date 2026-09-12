@@ -367,9 +367,12 @@ func (m Model) agentsWrappedNotice(text string, style lipgloss.Style) []string {
 	return out
 }
 
+// One body row, the footer separator, the command or status line, the summary,
+// and the global hint bar.
+const agentsNoticeReservedLines = 5
+
 func (m Model) agentsAPMNoticeLines() []string {
-	// Leave room for one body row, the footer separator, command/status, summary, and global hints.
-	budget := max(listAvailableHeight(m)-5, 1)
+	budget := max(listAvailableHeight(m)-agentsNoticeReservedLines, 1)
 	var out []string
 	for _, notice := range m.apmNotices {
 		wrapped := m.agentsWrappedNotice(agentsNoticeText(notice), agentsNoticeStyle(m.palette, notice))
@@ -389,7 +392,36 @@ func (m Model) agentsAPMNoticeLines() []string {
 }
 
 // The op block sits outside the scroll window, so a running sync stays visible however long the row list is.
+// The footer reads as state first, then what is happening, then the summary,
+// so the workspace's condition is not buried under whichever command last ran.
 func (m Model) agentsFooterLines() []string {
+	lines := m.agentsStateLines()
+	lines = append(lines, m.agentsActivityLines()...)
+	return append(lines, m.agentsSummaryLines()...)
+}
+
+// What is true about the workspace right now.
+func (m Model) agentsStateLines() []string {
+	p := m.palette
+	var lines []string
+	if cause, remedy := agentsReadinessGuidanceParts(m); cause != "" {
+		style := p.styleHelp
+		if m.agentsReadinessErr != nil || m.agentsReadiness.State == app.AgentsReadinessInvalid {
+			style = p.styleErr
+		}
+		lines = append(lines, m.agentsWrappedNotice(cause, style)...)
+		if remedy != "" {
+			lines = append(lines, m.agentsWrappedNotice(remedy, p.styleHelp)...)
+		}
+	}
+	for _, notice := range agentsHarnessNoticeLines(m.agentsNotices) {
+		lines = append(lines, m.agentsWrappedNotice(notice, p.styleOutdated)...)
+	}
+	return lines
+}
+
+// What just happened, or is happening: commands, failures and checks.
+func (m Model) agentsActivityLines() []string {
 	p := m.palette
 	pad := screenEdgeInset()
 	var lines []string
@@ -409,19 +441,6 @@ func (m Model) agentsFooterLines() []string {
 		lines = append(lines, m.agentsWrappedNotice(m.apmErr.Error(), p.styleErr)...)
 	}
 	lines = append(lines, m.agentsRemovalHintLines()...)
-	if cause, remedy := agentsReadinessGuidanceParts(m); cause != "" {
-		style := p.styleHelp
-		if m.agentsReadinessErr != nil || m.agentsReadiness.State == app.AgentsReadinessInvalid {
-			style = p.styleErr
-		}
-		lines = append(lines, m.agentsWrappedNotice(cause, style)...)
-		if remedy != "" {
-			lines = append(lines, m.agentsWrappedNotice(remedy, p.styleHelp)...)
-		}
-	}
-	for _, notice := range agentsHarnessNoticeLines(m.agentsNotices) {
-		lines = append(lines, m.agentsWrappedNotice(notice, p.styleOutdated)...)
-	}
 	if m.agentsRowsErr != nil {
 		lines = append(lines, m.agentsWrappedNotice(m.agentsRowsErr.Error(), p.styleErr)...)
 	}
@@ -433,12 +452,19 @@ func (m Model) agentsFooterLines() []string {
 	case m.agentsOutdatedUnknown > 0:
 		lines = append(lines, p.styleHelp.Render(pad+strconv.Itoa(m.agentsOutdatedUnknown)+" package updates could not be checked  ·  R retry"))
 	}
-	if m.agentsRegistryMode {
-		lines = append(lines, p.styleHelp.Render(pad+strconv.Itoa(len(m.agentsVisibleRegistry()))+"/"+strconv.Itoa(len(m.agentsRegistry))+" plugins  ·  esc back"))
-	} else if m.agentsRowsKnown {
-		lines = append(lines, p.styleHelp.Render(pad+agentsSummaryText(m)))
-	}
 	return lines
+}
+
+func (m Model) agentsSummaryLines() []string {
+	p := m.palette
+	pad := screenEdgeInset()
+	switch {
+	case m.agentsRegistryMode:
+		return []string{p.styleHelp.Render(pad + strconv.Itoa(len(m.agentsVisibleRegistry())) + "/" + strconv.Itoa(len(m.agentsRegistry)) + " plugins  ·  esc back")}
+	case m.agentsRowsKnown:
+		return []string{p.styleHelp.Render(pad + agentsSummaryText(m))}
+	}
+	return nil
 }
 
 func agentsReadinessGuidance(m Model) string {
@@ -479,35 +505,69 @@ type agentsColWidths struct {
 	name, detail, version, targets int
 }
 
-func agentsColumnWidths(m Model) agentsColWidths {
-	cols := agentsColWidths{name: 20}
-	widen := func(name, detail, targets string) {
-		cols.name = max(cols.name, lipgloss.Width(name))
-		cols.detail = max(cols.detail, lipgloss.Width(detail))
-		cols.targets = max(cols.targets, lipgloss.Width(targets))
-	}
+var agentsTableColumns = []tableColumn{
+	{key: "name", seed: 20, align: rowCellAlignLeft},
+	{key: "detail", align: rowCellAlignRight},
+	{key: "version", align: rowCellAlignRight},
+	{key: "targets", align: rowCellAlignRight},
+}
+
+// name gives up its comfortable width first but is crushed last; the
+// right-hand columns may collapse away entirely.
+var agentsShrinkLadder = []tableShrinkStep{
+	shrinkStep("detail", 12),
+	shrinkStep("name", 12),
+	shrinkStep("targets", 6),
+	shrinkStep("version", 7),
+	shrinkStep("detail", 0),
+	shrinkStep("targets", 0),
+	shrinkStep("version", 0),
+	shrinkStep("name", 8),
+}
+
+var agentsColumnsByKey = columnsByKey(agentsTableColumns)
+
+func agentsColumnByKey(key string) tableColumn {
+	return agentsColumnsByKey[key]
+}
+
+type agentsRowCells struct{ name, detail, version, targets string }
+
+func agentsMeasuredRows(m Model) []agentsRowCells {
+	var rows []agentsRowCells
 	for _, row := range m.agentsVisiblePackages() {
-		widen(row.Name, agentsRowAuthor(row), agentsTargetsText(row.Targets))
-		cols.version = max(cols.version, lipgloss.Width(agentsPackageVersion(row)))
+		rows = append(rows, agentsRowCells{row.Name, agentsRowAuthor(row), agentsPackageVersion(row), agentsTargetsText(row.Targets)})
 	}
-	for _, rows := range [][]app.AgentsServiceRow{m.agentsVisibleServices(m.agentsMCPRows), m.agentsVisibleServices(m.agentsLSPRows)} {
-		for _, row := range rows {
-			widen(row.Name, row.Detail, agentsTargetsText(row.Targets))
+	for _, group := range [][]app.AgentsServiceRow{m.agentsVisibleServices(m.agentsMCPRows), m.agentsVisibleServices(m.agentsLSPRows)} {
+		for _, row := range group {
+			rows = append(rows, agentsRowCells{row.Name, row.Detail, "", agentsTargetsText(row.Targets)})
 		}
 	}
 	for _, row := range m.agentsVisibleNatives() {
-		widen(row.Identity, agentsNativeDetail(row), row.Target)
+		rows = append(rows, agentsRowCells{row.Identity, agentsNativeDetail(row), "", row.Target})
 	}
-	over := listIconWidth + toolIconNameGapWidth + cols.name + listColumnGap + agentsRightGroupWidth(cols) - rowAvailableWidth(m.width)
-	shrinkWidth(&cols.detail, 12, &over)
-	shrinkWidth(&cols.name, 12, &over)
-	shrinkWidth(&cols.targets, 6, &over)
-	shrinkWidth(&cols.version, 7, &over)
-	shrinkWidth(&cols.detail, 0, &over)
-	shrinkWidth(&cols.targets, 0, &over)
-	shrinkWidth(&cols.version, 0, &over)
-	shrinkWidth(&cols.name, 8, &over)
-	return cols
+	return rows
+}
+
+func agentsColumnWidths(m Model) agentsColWidths {
+	rows := agentsMeasuredRows(m)
+	widths := measureTableColumns(agentsTableColumns, len(rows), func(i int, key string) string {
+		switch key {
+		case "name":
+			return rows[i].name
+		case "detail":
+			return rows[i].detail
+		case "version":
+			return rows[i].version
+		default:
+			return rows[i].targets
+		}
+	})
+	cols := agentsColWidths{name: widths["name"], detail: widths["detail"], version: widths["version"], targets: widths["targets"]}
+	layout := agentsTableLayout()
+	over := layout.iconWidth + layout.iconGap + cols.name + layout.columnGap + agentsRightGroupWidth(cols) - rowAvailableWidth(m.width)
+	widths.fit(over, agentsShrinkLadder...)
+	return agentsColWidths{name: widths["name"], detail: widths["detail"], version: widths["version"], targets: widths["targets"]}
 }
 
 func agentsRightGroupWidth(cols agentsColWidths) int {
@@ -530,32 +590,27 @@ func (m Model) agentsRowLine(name, detail, version, latest, targets string, stat
 	if selected {
 		nameStyle = p.styleActiveText
 	}
-	rest := make([]rowCell, 0, 5)
-	add := func(text string, style lipgloss.Style, width int) {
-		if width <= 0 {
-			return
-		}
-		rest = append(rest, rightCell(style.Render(fitCellText(text, width)), width))
-	}
-	add(detail, p.styleHelp, cols.detail)
+	widths := tableWidths{"name": cols.name, "detail": cols.detail, "version": cols.version, "targets": cols.targets}
+	right := []rowCell{widths.cell(agentsColumnByKey("detail"), detail, p.styleHelp)}
 	if latest != "" && cols.version > 0 {
 		current, upgrade := fitUpgradeVersionText(compactVersion(version), compactVersion(latest), cols.version)
-		rest = append(rest, rightCell(p.styleVersionMuted.Render(current)+p.styleOutdated.Render(upgrade), cols.version))
+		right = append(right, rightCell(p.styleVersionMuted.Render(current)+p.styleOutdated.Render(upgrade), cols.version))
 	} else {
-		add(version, p.styleVersion, cols.version)
+		right = append(right, widths.cell(agentsColumnByKey("version"), version, p.styleVersion))
 	}
-	add(targets, p.styleProvider, cols.targets)
-	return renderResponsiveGroupListRow(p, selected,
-		[]rowCell{
-			leftCell(glyphStyle.Render(glyph), listIconWidth),
-			leftCell(nameStyle.Render(fitCellText(name, cols.name)), cols.name),
-		},
-		rest,
-		rowAvailableWidth(m.width), listColumnGap, listColumnGap,
-	)
+	right = append(right, widths.cell(agentsColumnByKey("targets"), targets, p.styleProvider))
+	left := []rowCell{
+		leftCell(glyphStyle.Render(glyph), listIconWidth),
+		widths.cell(agentsColumnByKey("name"), name, nameStyle),
+	}
+	return listRowPrefix(p, selected) + renderTableRowBody(agentsTableLayout(), left, right, rowAvailableWidth(m.width))
 }
 
 func (m Model) viewSkillsBody() string {
+	return renderSectionedTab(m, m.agentsSectionedTab())
+}
+
+func (m Model) agentsSectionedTab() sectionedTab {
 	p := m.palette
 	cols := agentsColumnWidths(m)
 	cursor := clampIndex(m.agentsCursor, m.agentsRowCount())
@@ -566,7 +621,7 @@ func (m Model) viewSkillsBody() string {
 		out := sectionedTabSection{title: title}
 		for i := 0; i < rows; i++ {
 			selected := index == cursor && !m.cursorHidden
-			row := sectionedTabRow{selected: selected, line: render(i, selected)}
+			row := sectionedTabRow{selected: selected, index: index, line: render(i, selected)}
 			if selected {
 				errorLines, details := block(i)
 				row.details = append(errorLines, details...)
@@ -629,19 +684,26 @@ func (m Model) viewSkillsBody() string {
 		sections = []sectionedTabSection{{empty: []string{p.styleHelp.Render(empty)}}}
 	}
 
-	return renderSectionedTab(m, sectionedTab{
-		top:      m.agentsBodyTopLines(),
-		footer:   m.agentsFooterLines(),
-		sections: sections,
-	})
+	return sectionedTab{
+		pinnedTop: m.agentsPinnedTopLines(),
+		top:       m.agentsBodyTopLines(),
+		footer:    m.agentsFooterLines(),
+		sections:  sections,
+	}
 }
 
 // Mirrors the dots body: the search control, then the workspace path, then the first section.
+// The filter control stays pinned: scrolling it out of view while filtering
+// hides the thing being typed into.
+func (m Model) agentsPinnedTopLines() []string {
+	if !m.agentsSearchActive {
+		return nil
+	}
+	return []string{renderAgentsFilterControl(m)}
+}
+
 func (m Model) agentsBodyTopLines() []string {
 	var lines []string
-	if m.agentsSearchActive {
-		lines = append(lines, renderAgentsFilterControl(m))
-	}
 	path := agentsWorkspacePath(m)
 	if path != "" {
 		width := max(rowAvailableWidth(m.width)-2, 1)
@@ -670,28 +732,22 @@ func agentsSummaryText(m Model) string {
 		}
 	}
 	var parts []string
-	updates := 0
-	for _, row := range packages {
-		if row.UpdateAvailable {
-			updates++
-		}
-	}
-	if updates > 0 {
-		parts = append(parts, strconv.Itoa(updates)+" updates")
-	}
 	for _, status := range app.AgentsStatusOrder {
 		if counts[status] > 0 || slices.Contains(agentsAlwaysCounted, status) {
 			parts = append(parts, strconv.Itoa(counts[status])+" "+string(status))
 		}
 	}
-	surfaces := strconv.Itoa(len(packages)) + " pkg  " + strconv.Itoa(len(mcp)) + " mcp  " + strconv.Itoa(len(lsp)) + " lsp"
-	if natives := len(m.agentsVisibleNatives()); natives > 0 {
-		surfaces += "  " + strconv.Itoa(natives) + " native"
+	return strings.Join(parts, "  ")
+}
+
+func (m Model) agentsUpdateCount() int {
+	updates := 0
+	for _, row := range m.agentsVisiblePackages() {
+		if row.UpdateAvailable {
+			updates++
+		}
 	}
-	if m.agentsFilterText() != "" {
-		surfaces += "  ·  " + strconv.Itoa(m.agentsRowCount()) + "/" + strconv.Itoa(m.agentsTotalRowCount()) + " shown"
-	}
-	return strings.Join(parts, "  ") + "  ·  " + surfaces
+	return updates
 }
 
 func (m Model) agentsRemovalHintLines() []string {
@@ -714,20 +770,33 @@ func agentsWorkspacePath(m Model) string {
 	return agentsFallbackWorkspacePath
 }
 
-func (m Model) viewAgentsRegistryBody(section func(string, int, func(int, bool) string, func(int) ([]string, []string)) sectionedTabSection) string {
+var agentsRegistryColumns = []tableColumn{
+	{key: "name", seed: 20, align: rowCellAlignLeft},
+	{key: "targets", align: rowCellAlignRight},
+}
+
+var agentsRegistryShrinkLadder = []tableShrinkStep{
+	shrinkStep("name", 12),
+	shrinkStep("targets", 6),
+	shrinkStep("targets", 0),
+	shrinkStep("name", 8),
+}
+
+func (m Model) viewAgentsRegistryBody(section func(string, int, func(int, bool) string, func(int) ([]string, []string)) sectionedTabSection) sectionedTab {
 	p := m.palette
 	entries := m.agentsVisibleRegistry()
-	cols := agentsColWidths{name: 20}
 	statusWidth := len(string(app.AgentsPackageInstalled))
-	for _, entry := range entries {
-		cols.name = max(cols.name, lipgloss.Width(entry.Name))
-		cols.targets = max(cols.targets, lipgloss.Width(entry.Marketplace))
-	}
-	over := listIconWidth + toolIconNameGapWidth + cols.name + listColumnGap + agentsRightGroupWidth(cols) + statusWidth + listColumnGap - rowAvailableWidth(m.width)
-	shrinkWidth(&cols.name, 12, &over)
-	shrinkWidth(&cols.targets, 6, &over)
-	shrinkWidth(&cols.targets, 0, &over)
-	shrinkWidth(&cols.name, 8, &over)
+	widths := measureTableColumns(agentsRegistryColumns, len(entries), func(i int, key string) string {
+		if key == "name" {
+			return entries[i].Name
+		}
+		return entries[i].Marketplace
+	})
+	cols := agentsColWidths{name: widths["name"], targets: widths["targets"]}
+	layout := agentsTableLayout()
+	over := layout.iconWidth + layout.iconGap + cols.name + layout.columnGap + agentsRightGroupWidth(cols) + statusWidth + layout.columnGap - rowAvailableWidth(m.width)
+	widths.fit(over, agentsRegistryShrinkLadder...)
+	cols = agentsColWidths{name: widths["name"], targets: widths["targets"]}
 
 	rows := section("Registry", len(entries), func(i int, selected bool) string {
 		entry := entries[i]
@@ -739,7 +808,7 @@ func (m Model) viewAgentsRegistryBody(section func(string, int, func(int, bool) 
 		if selected {
 			nameStyle = p.styleActiveText
 		}
-		return renderResponsiveGroupListRow(p, selected,
+		return listRowPrefix(p, selected) + renderTableRowBody(agentsTableLayout(),
 			[]rowCell{
 				leftCell(style.Render(glyph), listIconWidth),
 				leftCell(nameStyle.Render(fitCellText(entry.Name, cols.name)), cols.name),
@@ -748,7 +817,7 @@ func (m Model) viewAgentsRegistryBody(section func(string, int, func(int, bool) 
 				rightCell(style.Render(status), statusWidth),
 				rightCell(p.styleProvider.Render(fitCellText(entry.Marketplace, cols.targets)), cols.targets),
 			},
-			rowAvailableWidth(m.width), listColumnGap, listColumnGap,
+			rowAvailableWidth(m.width),
 		)
 	}, func(i int) ([]string, []string) {
 		entry := entries[i]
@@ -763,9 +832,10 @@ func (m Model) viewAgentsRegistryBody(section func(string, int, func(int, bool) 
 		}
 		sections = []sectionedTabSection{{empty: []string{p.styleHelp.Render(empty)}}}
 	}
-	return renderSectionedTab(m, sectionedTab{
-		top:      m.agentsBodyTopLines(),
-		footer:   m.agentsFooterLines(),
-		sections: sections,
-	})
+	return sectionedTab{
+		pinnedTop: m.agentsPinnedTopLines(),
+		top:       m.agentsBodyTopLines(),
+		footer:    m.agentsFooterLines(),
+		sections:  sections,
+	}
 }

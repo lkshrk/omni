@@ -139,14 +139,16 @@ func agentsNativeHintItems(m Model) []hintItem {
 	if !ok || row.kind != agentsRowNative {
 		return nil
 	}
-	items := []hintItem{hintFromBinding(m.keys.AgentsNativeIgnore)}
-	if !row.native.Ignored {
-		if row.native.Adoptable {
-			items = append(items, hintFromBinding(m.keys.AgentsNativeAdopt))
-		}
-		// The shared binding is labelled "uninstall" for packages; a native artifact is removed.
-		items = append(items, hintFromBindingDesc(m.keys.AgentsRemove, actions.MustTUILabel(actions.AgentsRemoveNative)))
+	if row.native.Ignored {
+		return []hintItem{hintFromBinding(m.keys.AgentsNativeIgnore)}
 	}
+	var items []hintItem
+	if row.native.Adoptable {
+		items = append(items, hintFromBinding(m.keys.AgentsNativeAdopt))
+	}
+	items = append(items, hintFromBinding(m.keys.AgentsNativeIgnore))
+	// The shared binding is labelled "uninstall" for packages; a native artifact is removed.
+	items = append(items, hintFromBindingDesc(m.keys.AgentsRemove, actions.MustTUILabel(actions.AgentsRemoveNative)))
 	return items
 }
 

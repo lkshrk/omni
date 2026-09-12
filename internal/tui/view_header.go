@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -394,8 +395,10 @@ func renderHeaderInfo(m Model) string {
 		return renderDotsHeaderInfo(m)
 	case viewGroups:
 		return renderGroupsHeaderInfo(m)
-	case viewStatus, viewSettings, viewSkills:
-		// Dashboard and settings keep the top-right for the version only (renderHeaderVersion); agents has no header summary.
+	case viewSkills:
+		return renderAgentsHeaderInfo(m)
+	case viewStatus, viewSettings:
+		// Dashboard and settings keep the top-right for the version only (renderHeaderVersion).
 		return ""
 	default:
 		return renderToolsHeaderInfo(m)
@@ -438,6 +441,26 @@ func renderGroupsHeaderInfo(m Model) string {
 	groups := len(buildAllGroupNames(m.groupNames))
 	hosts := len(app.PrioritizedHostSummaries(m.hostInfo))
 	return renderHeaderInfoText(m.palette, "  "+compactCount(groups, "group")+"  "+compactCount(hosts, "host"))
+}
+
+func renderAgentsHeaderInfo(m Model) string {
+	if !m.agentsRowsKnown {
+		return ""
+	}
+	counts := "  "
+	if updates := m.agentsUpdateCount(); updates > 0 {
+		counts += strconv.Itoa(updates) + " updates  "
+	}
+	counts += strconv.Itoa(len(m.agentsVisiblePackages())) + " pkg  " +
+		strconv.Itoa(len(m.agentsVisibleServices(m.agentsMCPRows))) + " mcp  " +
+		strconv.Itoa(len(m.agentsVisibleServices(m.agentsLSPRows))) + " lsp"
+	if natives := len(m.agentsVisibleNatives()); natives > 0 {
+		counts += "  " + strconv.Itoa(natives) + " native"
+	}
+	if m.agentsFilterText() != "" {
+		counts += "  " + strconv.Itoa(m.agentsRowCount()) + "/" + strconv.Itoa(m.agentsTotalRowCount()) + " shown"
+	}
+	return renderHeaderInfoText(m.palette, counts)
 }
 
 func renderHeaderInfoText(p palette, text string) string {

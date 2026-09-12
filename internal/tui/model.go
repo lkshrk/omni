@@ -298,7 +298,6 @@ type Model struct {
 	effectiveSystemManager string // e.g. "brew", "apt" — concrete PM backing the system provider family
 
 	hostInfo    *app.HostInfo
-	hostCursor  int
 	ignoreSet   map[string]bool // tool names ignored by the active host
 	groupFilter string          // non-empty: only show tools belonging to this group
 	groupTabIdx int             // 0=all, 1=current host, 2+=reusable groups; mirrors groupFilter
@@ -316,9 +315,10 @@ type Model struct {
 	hostRenameMode     bool     // true when the inline host rename text input is open
 	hostRenameName     string   // host captured when inline rename was opened
 
-	// 0 = hosts list, 1 = groups list
-	assignmentSection  int
-	groupCursor        int  // cursor within the allGroupNames list
+	// Single cursor over the flattened hosts-then-groups row list; the host
+	// section, host index and group index are all derived from it.
+	groupsCursor       int
+	groupCreatingHost  bool // true when the inline create popup is creating a host rather than a group
 	groupDeleteConfirm bool // true when awaiting second Enter to confirm group delete
 	groupDeleteName    string
 	groupDeleteChoice  int  // 0=move last-membership tools to this host, 1=delete last-membership specs

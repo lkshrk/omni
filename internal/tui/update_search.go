@@ -78,6 +78,12 @@ func (m *Model) handleSearchKeyMsg(msg tea.KeyPressMsg) []tea.Cmd {
 	if !m.filter.Focused() {
 		return m.handleBlurredSearchKeyMsg(msg)
 	}
+	if next, ok := filterNavStep(msg, m.toolsNav()); ok {
+		m.setToolsCursor(next)
+		m.cursorHidden = false
+		m.clearListConfirmation()
+		return nil
+	}
 	if key.Matches(msg, m.keys.Confirm) {
 		query := m.filter.Value()
 		m.filter.Blur()
@@ -146,29 +152,25 @@ func (m *Model) handleBlurredSearchKeyMsg(msg tea.KeyPressMsg) []tea.Cmd {
 
 	switch {
 	case key.Matches(msg, m.keys.Up):
-		if m.cursor > 0 {
-			m.cursor--
+		if len(m.visibleTools) > 0 {
+			m.setToolsCursor(m.toolsNav().step(-1))
 		}
 	case key.Matches(msg, m.keys.Down):
-		if m.cursor < len(m.visibleTools)-1 {
-			m.cursor++
+		if len(m.visibleTools) > 0 {
+			m.setToolsCursor(m.toolsNav().step(1))
 		}
 	case key.Matches(msg, m.keys.Top):
-		m.cursor = 0
+		m.setToolsCursor(m.toolsNav().first())
 	case key.Matches(msg, m.keys.Bottom):
-		m.cursor = max(len(m.visibleTools)-1, 0)
+		m.setToolsCursor(m.toolsNav().last())
 	case key.Matches(msg, m.keys.HalfPageDown):
-		half := max(listAvailableHeight(*m)/2, 1)
-		m.cursor = min(m.cursor+half, max(len(m.visibleTools)-1, 0))
+		m.setToolsCursor(m.toolsNav().halfPage(1))
 	case key.Matches(msg, m.keys.HalfPageUp):
-		half := max(listAvailableHeight(*m)/2, 1)
-		m.cursor = max(m.cursor-half, 0)
+		m.setToolsCursor(m.toolsNav().halfPage(-1))
 	case key.Matches(msg, m.keys.PageDown):
-		page := max(listAvailableHeight(*m), 1)
-		m.cursor = min(m.cursor+page, max(len(m.visibleTools)-1, 0))
+		m.setToolsCursor(m.toolsNav().page(1))
 	case key.Matches(msg, m.keys.PageUp):
-		page := max(listAvailableHeight(*m), 1)
-		m.cursor = max(m.cursor-page, 0)
+		m.setToolsCursor(m.toolsNav().page(-1))
 	case key.Matches(msg, m.keys.PrevTab):
 		cmds = append(cmds, m.moveSearchProviderTab(-1)...)
 	case key.Matches(msg, m.keys.NextTab):

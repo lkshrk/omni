@@ -353,10 +353,10 @@ func renderSettings(m Model) string {
 		}
 
 		if i == m.serviceDurationRow && m.editingServiceDuration {
-			write(renderResponsiveGroupListRow(p, true,
+			write(listRowPrefix(p, true) + renderTableRowBody(settingsTableLayout(),
 				[]rowCell{leftCell(p.styleActiveText.Render(rowInset+formatSettingLabel(row.label)), settingLabelWidth+lipgloss.Width(rowInset))},
 				[]rowCell{rightCell(p.styleProvider.Render("[editing]"), 0)},
-				contentW, settingsMinGap, listColumnGap,
+				contentW,
 			) + "\n")
 			write(renderSettingsDurationPicker(m, detailPrefix) + "\n")
 			write(renderContextHints(m, hintCtxSettingsDurationEdit, hintPrefix) + "\n")
@@ -388,16 +388,16 @@ func renderSettings(m Model) string {
 			if row.danger {
 				labelStyle = p.styleDangerSection
 			}
-			write(renderResponsiveGroupListRow(p, true,
+			write(listRowPrefix(p, true) + renderTableRowBody(settingsTableLayout(),
 				[]rowCell{leftCell(labelStyle.Render(rowInset+formatSettingLabel(row.label)), settingLabelWidth+lipgloss.Width(rowInset))},
 				[]rowCell{rightCell(value, 0)},
-				contentW, settingsMinGap, listColumnGap,
+				contentW,
 			) + "\n")
 		} else {
-			write(renderResponsiveGroupListRow(p, false,
+			write(listRowPrefix(p, false) + renderTableRowBody(settingsTableLayout(),
 				[]rowCell{leftCell(lbl.Render(rowInset+formatSettingLabel(row.label)), settingLabelWidth+lipgloss.Width(rowInset))},
 				[]rowCell{rightCell(value, 0)},
-				contentW, settingsMinGap, listColumnGap,
+				contentW,
 			) + "\n")
 		}
 		if isSettingsCursor {
@@ -524,8 +524,12 @@ func (m Model) settingsDetailScrollMax() int {
 	return max(len(renderDoctorDashboardLines(m, textRowContentPrefix()))-settingsDetailWindowHeight(m), 0)
 }
 
+// The detail popup's own frame: its top and bottom borders, its title, and the
+// hint line under it.
+const settingsDetailChromeLines = 4
+
 func settingsDetailWindowHeight(m Model) int {
-	return max(listAvailableHeight(m)-4, 1)
+	return max(listAvailableHeight(m)-settingsDetailChromeLines, 1)
 }
 
 func renderDoctorCheckLine(m Model, prefix string, check app.DoctorCheck) string {

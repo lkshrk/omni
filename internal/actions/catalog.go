@@ -477,7 +477,7 @@ var Dots = []Action{
 	{
 		ID:              DotsSync,
 		Domain:          "dots",
-		Scope:           ScopeGlobal,
+		Scope:           ScopeRow,
 		Label:           "dots sync",
 		Description:     "Repair dotfile symlinks.",
 		LongDescription: "Repair managed dotfile symlinks without pulling or pushing git changes.",
@@ -1125,7 +1125,7 @@ var Agents = []Action{
 		LongDescription: "Add one natively installed artifact to the host APM manifest; deploying it remains omni agents sync.",
 		Mutates:         true,
 		TUIOnlyReason:   "The CLI adopts a whole host through agents adopt; declaring one selected artifact is a row action.",
-		TUI:             &TUIBinding{KeyMapField: "AgentsNativeAdopt", DefaultKey: "A", Label: "adopt", Description: "Declare the selected native artifact in the host template."},
+		TUI:             &TUIBinding{KeyMapField: "AgentsNativeAdopt", DefaultKey: "a", Label: "adopt", Description: "Declare the selected native artifact in the host template."},
 	},
 	{
 		ID:                 AgentsRemoveNative,
@@ -1143,7 +1143,7 @@ var Agents = []Action{
 	{
 		ID:              AgentsIgnore,
 		Domain:          "agents",
-		Scope:           ScopeGlobal,
+		Scope:           ScopeRow,
 		Label:           LabelIgnore,
 		Description:     "Record or drop a native agent artifact omni must leave alone.",
 		LongDescription: "Persist an agents.ignored entry so drift stops reporting a deliberate native install and adoption leaves it in place; unignore removes the entry.",

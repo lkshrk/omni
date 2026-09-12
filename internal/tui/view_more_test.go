@@ -1587,7 +1587,7 @@ func TestRenderHosts_WithHosts(t *testing.T) {
 			"solo": {},
 		},
 	}
-	m.hostCursor = 0
+	m.selectGroupsHostRow(0)
 	out := renderGroups(m)
 	if !strings.Contains(out, "work") {
 		t.Errorf("expected 'work' in hosts output, got:\n%s", out)
@@ -1713,7 +1713,7 @@ func TestRenderHosts_GroupCreating(t *testing.T) {
 		Hosts: map[string]config.HostAssignment{},
 	}
 	m.groupCreating = true
-	m.assignmentSection = 1
+	m.groupCreatingHost = false
 	out := m.viewString()
 	for _, want := range []string{"New Group", "group name", "enter create", "esc cancel"} {
 		if !strings.Contains(out, want) {
@@ -1741,7 +1741,7 @@ func TestRenderHosts_HostCreating(t *testing.T) {
 	m.height = 30
 	m.hostInfo = &app.HostInfo{Hosts: map[string]config.HostAssignment{}}
 	m.groupCreating = true
-	m.assignmentSection = 0
+	m.groupCreatingHost = true
 	out := m.viewString()
 	for _, want := range []string{"New Host", "hostname", "enter create", "esc cancel"} {
 		if !strings.Contains(out, want) {
@@ -1964,7 +1964,7 @@ func TestRenderHosts_DeleteConfirm(t *testing.T) {
 			"work": {Groups: []string{}},
 		},
 	}
-	m.hostCursor = 0
+	m.selectGroupsHostRow(0)
 	m.hostDeleteConfirm = true
 	out := renderGroups(m)
 	if !strings.Contains(out, "press ") || !strings.Contains(out, " again to delete") {
@@ -2005,7 +2005,7 @@ func TestRenderHosts_HostAndGroupSummaries(t *testing.T) {
 			"home": {Groups: []string{"personal"}},
 		},
 	}
-	m.hostCursor = 0
+	m.selectGroupsHostRow(0)
 
 	out := renderGroups(m)
 
@@ -2042,7 +2042,7 @@ func TestRenderHosts_CurrentHostSummaryAggregatesAssignedGroups(t *testing.T) {
 			"mymachine": {Groups: []string{"dev", "ops"}},
 		},
 	}
-	m.hostCursor = 0
+	m.selectGroupsHostRow(0)
 
 	out := renderGroups(m)
 	if !strings.Contains(out, "current host: 3 tools, 3 dotfiles") {
@@ -2102,10 +2102,10 @@ func TestRenderHosts_HostAndGroupColumnsAlign(t *testing.T) {
 		t.Fatalf("selected host count columns should use active weight:\n%s", hostLine)
 	}
 
-	m.assignmentSection = 1
+	m.focusGroupsGroupSection()
 	for i, group := range buildAllGroupNames(m.groupNames) {
 		if group == "very-long-group" {
-			m.groupCursor = i
+			m.selectGroupsGroupRow(i)
 			break
 		}
 	}
@@ -2129,7 +2129,6 @@ func TestRenderHosts_ProtectedGroupDetail(t *testing.T) {
 	t.Setenv("OMNI_HOSTNAME", "mymachine")
 	m := baseModel(nil)
 	m.mode = viewGroups
-	m.assignmentSection = 1
 	m.hostInfo = &app.HostInfo{
 		Active: "mymachine",
 		Hosts: map[string]config.HostAssignment{
@@ -2137,9 +2136,10 @@ func TestRenderHosts_ProtectedGroupDetail(t *testing.T) {
 		},
 	}
 	m.groupNames = []string{"dev"}
+	m.focusGroupsGroupSection()
 	for i, group := range buildAllGroupNames(m.groupNames) {
 		if group == "mymachine" {
-			m.groupCursor = i
+			m.selectGroupsGroupRow(i)
 			break
 		}
 	}
@@ -2208,7 +2208,7 @@ func colsNameWidthForHostTest(m Model) int {
 func TestRenderHosts_HostActionsAndRename(t *testing.T) {
 	t.Parallel()
 	m := hostsModel()
-	m.hostCursor = 0
+	m.selectGroupsHostRow(0)
 	out := renderGroups(m)
 	for _, want := range []string{"space copy groups", "r rename", "g edit groups", "d delete"} {
 		if !strings.Contains(out, want) {
@@ -2231,7 +2231,7 @@ func TestRenderHosts_CurrentHostDoesNotOfferCopyGroups(t *testing.T) {
 	t.Parallel()
 	m := hostsModel()
 	m.hostInfo.Active = "alpha"
-	m.hostCursor = 0
+	m.selectGroupsHostRow(0)
 
 	out := renderGroups(m)
 	if strings.Contains(out, "copy groups") {
@@ -2248,7 +2248,7 @@ func TestRenderHostGroupEditor_LocalHostGroupLocked(t *testing.T) {
 	t.Parallel()
 	m := hostsModel()
 	m.hostInfo.Active = "alpha"
-	m.hostCursor = 0
+	m.selectGroupsHostRow(0)
 	var cmds []tea.Cmd
 	m.startHostGroupEdit(&cmds)
 
@@ -2266,10 +2266,10 @@ func TestRenderHostGroupEditor_LocalHostGroupLocked(t *testing.T) {
 func TestRenderHosts_GroupActions(t *testing.T) {
 	t.Parallel()
 	m := hostsModel()
-	m.assignmentSection = 1
+	m.focusGroupsGroupSection()
 	for i, group := range buildAllGroupNames(m.groupNames) {
 		if group == "work" {
-			m.groupCursor = i
+			m.selectGroupsGroupRow(i)
 			break
 		}
 	}
@@ -2293,7 +2293,7 @@ func TestRenderHosts_GroupActions(t *testing.T) {
 		}
 	}
 
-	m.groupCursor = 0 // base
+	m.selectGroupsGroupRow(0) // base
 	out = renderGroups(m)
 	for _, disallowed := range []string{"r rename", "d delete"} {
 		if strings.Contains(out, disallowed) {
@@ -2464,7 +2464,7 @@ func TestViewHostEditorTitlesUseCapturedHostAfterCursorMoves(t *testing.T) {
 	m.hostEditMode = 1
 	m.hostEditName = "alpha"
 	m.hostGroupPicker = []string{"base", "work"}
-	m.hostCursor = 1
+	m.selectGroupsHostRow(1)
 
 	out := m.viewString()
 	if !strings.Contains(out, "Edit Groups: alpha") {
@@ -2902,7 +2902,7 @@ func TestMainTabs_FirstSectionStartsAtSharedRow(t *testing.T) {
 func TestRenderHosts_InlineHintsUseSharedIndent(t *testing.T) {
 	t.Parallel()
 	m := hostsModel()
-	m.assignmentSection = 0
+	m.focusGroupsHostSection()
 	out := renderGroups(m)
 	line := renderedLineContaining(out, "copy groups")
 	if line == "" {
@@ -3402,7 +3402,7 @@ func TestTabKeyMap_ShortHelp_HostsGroupSection(t *testing.T) {
 	t.Parallel()
 	m := baseModel(nil)
 	m.mode = viewGroups
-	m.assignmentSection = 1
+	m.focusGroupsGroupSection()
 	got := strings.Join(bindingHelpDescs(tabKeyMap{&m}.ShortHelp()), ",")
 	if !strings.Contains(got, "new group") {
 		t.Errorf("hosts footer should include new group in group section, got %v", got)
@@ -6037,20 +6037,19 @@ func TestAlignLR_MinGap(t *testing.T) {
 	}
 }
 
-func TestRenderSplitRow_MaximizesGapBetweenGroups(t *testing.T) {
+func TestRenderTableRowBody_MaximizesGapBetweenGroups(t *testing.T) {
 	t.Parallel()
-	out := renderSplitRow(
+	out := renderTableRowBody(
+		tableLayout{iconGap: listColumnGap, columnGap: listColumnGap, minGap: 2},
 		[]rowCell{leftCell("name", 8), leftCell("provider", 8)},
 		[]rowCell{rightCell("[dev]", 8)},
 		40,
-		2,
-		listColumnGap,
 	)
 	if !strings.Contains(out, "name") || !strings.Contains(out, "provider") || !strings.Contains(out, "[dev]") {
-		t.Fatalf("split row missing columns: %q", out)
+		t.Fatalf("table row missing columns: %q", out)
 	}
 	if got := lipgloss.Width(out); got != 40 {
-		t.Fatalf("split row width = %d, want 40: %q", got, out)
+		t.Fatalf("table row width = %d, want 40: %q", got, out)
 	}
 	if visualColumnOf(out, "[dev]") <= visualColumnOf(out, "provider")+lipgloss.Width("provider") {
 		t.Fatalf("right group should appear after left group: %q", out)

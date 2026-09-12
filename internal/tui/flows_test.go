@@ -1346,7 +1346,7 @@ func TestFlow_UC37_GroupsNavigation(t *testing.T) {
 		// First j after tab switch reveals cursor; second j navigates.
 		msgs := append(toHosts(), pressRune('j'), pressRune('j'))
 		got := drive(m, msgs...)
-		if got.hostCursor < 1 && got.assignmentSection < 1 {
+		if got.hostCursor() < 1 && got.assignmentSection() < 1 {
 			t.Error("j in hosts tab should move cursor or section")
 		}
 	})
@@ -1361,8 +1361,8 @@ func TestFlow_UC38_NewHostFromHostsTab(t *testing.T) {
 		if !got.groupCreating {
 			t.Error("groupCreating should be true after n")
 		}
-		if got.assignmentSection != 1 || got.settingsInput.Placeholder != "group name…" {
-			t.Fatalf("group creation state = section %d placeholder %q", got.assignmentSection, got.settingsInput.Placeholder)
+		if got.groupCreatingHost || got.settingsInput.Placeholder != "group name…" {
+			t.Fatalf("group creation state = creatingHost %v placeholder %q", got.groupCreatingHost, got.settingsInput.Placeholder)
 		}
 	})
 
@@ -1371,8 +1371,8 @@ func TestFlow_UC38_NewHostFromHostsTab(t *testing.T) {
 		if !got.groupCreating {
 			t.Error("groupCreating should be true after p")
 		}
-		if got.assignmentSection != 0 || got.settingsInput.Placeholder != "hostname…" {
-			t.Fatalf("host creation state = section %d placeholder %q", got.assignmentSection, got.settingsInput.Placeholder)
+		if !got.groupCreatingHost || got.settingsInput.Placeholder != "hostname…" {
+			t.Fatalf("host creation state = creatingHost %v placeholder %q", got.groupCreatingHost, got.settingsInput.Placeholder)
 		}
 	})
 }
@@ -3163,8 +3163,8 @@ func TestFlow_UC64_MouseWheelScroll(t *testing.T) {
 	t.Run("hosts wheel scrolls host cursor", func(t *testing.T) {
 		m := hostsModel()
 		got := drive(m, tea.MouseWheelMsg{Button: tea.MouseWheelDown})
-		if got.hostCursor != 1 {
-			t.Errorf("hostCursor = %d, want 1 after wheel down", got.hostCursor)
+		if got.hostCursor() != 1 {
+			t.Errorf("hostCursor = %d, want 1 after wheel down", got.hostCursor())
 		}
 	})
 

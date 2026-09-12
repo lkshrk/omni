@@ -97,10 +97,7 @@ func toolFilterHitZones(m Model) []toolFilterHitZone {
 }
 
 func toolFilterBarY(m Model) int {
-	if m.mode == viewSearch {
-		return 4
-	}
-	return 2
+	return listChromeLines(m)
 }
 
 func pillHitZones(kind toolFilterKind, names []string, activeIdx, start, y, maxW int) ([]toolFilterHitZone, int) {
@@ -172,33 +169,16 @@ func pillText(label string, active bool) string {
 	return " " + label + " "
 }
 
-func renderList(m Model) string {
+func toolsSectionedTab(m Model) sectionedTab {
 	p := m.palette
-	var sb strings.Builder
-
-	if bar := renderFilterBar(m); bar != "" {
-		sb.WriteString(bar)
-	}
-	sb.WriteByte('\n')
-	subtabLines := 1
-
+	tab := sectionedTab{pinnedTop: []string{renderFilterBar(m)}}
 	if len(m.visibleTools) == 0 {
 		if len(m.scanningProviders) > 0 || m.loading || (m.mode == viewSearch && m.searching) {
-			return sb.String()
-		} else {
-			sb.WriteString(p.styleHelp.Render(emptyToolListText(m)))
+			return tab
 		}
-		return sb.String()
+		tab.sections = []sectionedTabSection{{empty: []string{p.styleHelp.Render(emptyToolListText(m))}}}
+		return tab
 	}
-
-	type displayRow struct {
-		text    string
-		render  func() string // when non-nil, produced lazily; skips styling for off-screen rows
-		toolIdx int           // -1 for headers/blanks
-	}
-	var rows []displayRow
-	cursorRow := 0
-	var lastSec section = -1
 
 	sectionLabel := func(s section) string {
 		switch s {
@@ -222,18 +202,12 @@ func renderList(m Model) string {
 		return m.syncStatusOf(t) == syncWrongProv
 	})
 	detail := inlineDetailLines(m, m.width, cols)
-	cursorBlockEnd := 0
 
+	var lastSec section = -1
 	for i, t := range m.visibleTools {
 		sec := m.displaySection(t)
 		if sec != lastSec {
-			if lastSec != -1 {
-				rows = append(rows, displayRow{text: "", toolIdx: -1})
-			}
-			rows = append(rows, displayRow{
-				text:    renderSectionHeader(p, sectionLabel(sec), m.width),
-				toolIdx: -1,
-			})
+			tab.sections = append(tab.sections, sectionedTabSection{title: sectionLabel(sec)})
 			lastSec = sec
 		}
 
@@ -256,49 +230,28 @@ func renderList(m Model) string {
 		isIgnored := sec == sectionIgnored
 		ss := m.syncStatusOf(t)
 		isCursor := i == m.cursor && !m.cursorHidden
-		// Deferred so off-screen rows never pay for lipgloss styling: View() runs on every Update, including ~10Hz spinner ticks.
 		renderRow := func() string {
 			return renderToolRowWithProviderPin(p, t, cols, spinnerView, groups, m.hostInfo, providerPinForTool(t, m.toolProviderPins), fallbackConcreteForTool(t, m.toolFallbacks), m.effectiveSystemManager, m.effectivePythonManager, m.effectiveNodeManager, isIgnored, isCursor, ss, rowActionErrorStatus(m, t))
 		}
+
+		row := sectionedTabRow{selected: isCursor, index: i}
 		if isCursor {
-			cursorRow = len(rows)
 			selPrefix := selectedRowPrefix(p)
-			rows = append(rows, displayRow{render: func() string { return selPrefix + renderRow() }, toolIdx: i})
-			for _, errorLine := range toolErrorLines(m, t, true) {
-				rows = append(rows, displayRow{text: errorLine, toolIdx: -1})
-			}
-			for _, dl := range detail {
-				rows = append(rows, displayRow{text: dl, toolIdx: -1})
-			}
-			cursorBlockEnd = len(rows) - 1
+			row.render = func() string { return selPrefix + renderRow() }
+			row.details = append(row.details, toolErrorLines(m, t, true)...)
+			row.details = append(row.details, detail...)
 		} else {
-			rows = append(rows, displayRow{render: func() string { return inactiveRowPrefix() + renderRow() }, toolIdx: i})
-			for _, errorLine := range toolErrorLines(m, t, false) {
-				rows = append(rows, displayRow{text: errorLine, toolIdx: -1})
-			}
+			row.render = func() string { return inactiveRowPrefix() + renderRow() }
+			row.details = append(row.details, toolErrorLines(m, t, false)...)
 		}
+		last := len(tab.sections) - 1
+		tab.sections[last].rows = append(tab.sections[last].rows, row)
 	}
+	return tab
+}
 
-	// Keep the full selected block visible, and subtract subtabLines so the pill bar doesn't crowd out tool rows.
-	avail := listAvailableHeight(m) - subtabLines
-	if avail < 1 {
-		avail = 1
-	}
-	bottomOfBlock := cursorRow
-	if m.cursor >= 0 {
-		bottomOfBlock = cursorBlockEnd
-	}
-	start, end := scrollWindowBounds(len(rows), bottomOfBlock, avail)
-
-	for _, r := range rows[start:end] {
-		if r.render != nil {
-			sb.WriteString(r.render())
-		} else {
-			sb.WriteString(r.text)
-		}
-		sb.WriteByte('\n')
-	}
-	return sb.String()
+func renderList(m Model) string {
+	return renderSectionedTab(m, toolsSectionedTab(m))
 }
 
 func emptyToolListText(m Model) string {
@@ -379,35 +332,35 @@ func newColWidthsWithProviderPins(tools []*app.ToolView, toolMemberships map[str
 	}
 
 	// Individual columns stay at their largest observed width so rows across tabs obey the same placement rule.
-	return seedWidenCapShrinkColWidths(seed, len(tools), measure)
+	return fitToolColumnsToScreen(seedWidenColWidths(seed, len(tools), measure))
+}
+
+var toolsTableColumns = []tableColumn{
+	{key: "name", seed: 20, align: rowCellAlignLeft},
+	{key: "prov", seed: 8, align: rowCellAlignRight},
+	{key: "ver", seed: len("missing"), cap: verReserveW, align: rowCellAlignRight},
+	{key: "group", align: rowCellAlignRight},
+}
+
+var toolsShrinkLadder = []tableShrinkStep{
+	shrinkStep("group", 6),
+	shrinkStep("name", 12),
+	shrinkStep("ver", 8),
+	shrinkStep("prov", 6),
+	shrinkStep("group", 1),
+	shrinkStep("ver", 1),
+	shrinkStep("name", 1),
+	shrinkStep("prov", 1),
 }
 
 func fitToolColumnsToScreen(cols colWidths) colWidths {
 	contentW := rowAvailableWidth(cols.screenW)
-	totalW := listIconWidth + toolIconNameGapWidth + cols.name + listColumnGap + toolRightGroupWidth(cols)
-	over := totalW - contentW
-	if over <= 0 {
-		return cols
-	}
-
-	shrinkWidth(&cols.group, 6, &over)
-	shrinkWidth(&cols.name, 12, &over)
-	shrinkWidth(&cols.ver, 8, &over)
-	shrinkWidth(&cols.prov, 6, &over)
-	shrinkWidth(&cols.group, 1, &over)
-	shrinkWidth(&cols.ver, 1, &over)
-	shrinkWidth(&cols.name, 1, &over)
-	shrinkWidth(&cols.prov, 1, &over)
+	layout := toolsTableLayout()
+	totalW := layout.iconWidth + layout.iconGap + cols.name + layout.columnGap + toolRightGroupWidth(cols)
+	widths := tableWidths{"name": cols.name, "prov": cols.prov, "ver": cols.ver, "group": cols.group}
+	widths.fit(totalW-contentW, toolsShrinkLadder...)
+	cols.name, cols.prov, cols.ver, cols.group = widths["name"], widths["prov"], widths["ver"], widths["group"]
 	return cols
-}
-
-func shrinkWidth(width *int, minWidth int, over *int) {
-	if width == nil || over == nil || *over <= 0 || *width <= minWidth {
-		return
-	}
-	delta := min(*width-minWidth, *over)
-	*width -= delta
-	*over -= delta
 }
 
 func displayVersionText(t *app.ToolView) string {
@@ -454,7 +407,7 @@ func renderToolRowWithProviderPin(p palette, t *app.ToolView, cols colWidths, sp
 		return rowGroupPillsCell(renderGroupPills(p, groups, info, cols.group, groupPillEmphasis), cols.group)
 	}
 	split := func(left, right []rowCell) string {
-		return renderSplitRow(left, right, rowAvailableWidth(cols.screenW), listColumnGap, listColumnGap)
+		return renderTableRowBody(toolsTableLayout(), left, right, rowAvailableWidth(cols.screenW))
 	}
 
 	if ignored {
@@ -891,15 +844,16 @@ func toolDetailWrapWidth(width int, cols colWidths, prefixW int) int {
 }
 
 func toolRightGroupWidth(cols colWidths) int {
-	width := cols.prov + listColumnGap + cols.ver
+	gap := toolsTableLayout().columnGap
+	width := cols.prov + gap + cols.ver
 	if cols.priv > 0 {
 		width += cols.priv + toolPrivilegeProviderGap
 	}
 	if cols.typ > 0 {
-		width += cols.typ + listColumnGap
+		width += cols.typ + gap
 	}
 	if cols.group > 0 {
-		width += listColumnGap + cols.group
+		width += gap + cols.group
 	}
 	return width
 }
