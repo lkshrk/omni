@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/lkshrk/omni/internal/app"
+	"github.com/lkshrk/omni/internal/config"
 )
 
 func TestClassifyToolView(t *testing.T) {
@@ -81,6 +82,17 @@ func TestClassifyToolView(t *testing.T) {
 			wantSec:    app.ToolViewSectionOutOfSync,
 			wantSync:   app.ToolSyncWrongProvider,
 			wantProv:   "brew",
+			wantSource: "configured",
+		},
+		{
+			name: "release-asset install of a script spec is not a provider mismatch",
+			tool: &app.ToolView{
+				Name: "codebase-memory-mcp", Provider: "script", InstalledWith: config.ProviderGitHubReleaseAsset,
+				Installed: true, Tracked: true,
+			},
+			wantSec:    app.ToolViewSectionInstalled,
+			wantSync:   app.ToolSyncOK,
+			wantProv:   config.ProviderGitHubReleaseAsset,
 			wantSource: "configured",
 		},
 		{

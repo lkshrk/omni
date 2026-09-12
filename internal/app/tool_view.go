@@ -4,6 +4,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/lkshrk/omni/internal/config"
 	"github.com/lkshrk/omni/internal/provider"
 )
 
@@ -246,9 +247,17 @@ func ExpectedConcreteProviderForTool(tool *ToolView, context ToolClassificationC
 		return desired, source
 	}
 	if tool.Provider != "" && !provider.BuiltinIsEcosystem(tool.Provider) {
-		return tool.Provider, "configured"
+		return concreteProviderForConfigured(tool), "configured"
 	}
 	return "", ""
+}
+
+// The release-asset provider executes script specs and records itself as the installer.
+func concreteProviderForConfigured(tool *ToolView) string {
+	if tool.Provider == "script" && tool.InstalledWith == config.ProviderGitHubReleaseAsset {
+		return config.ProviderGitHubReleaseAsset
+	}
+	return tool.Provider
 }
 
 func ToolProviderDisplayLabel(input ToolProviderDisplayInput) string {
