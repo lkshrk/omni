@@ -53,7 +53,7 @@ func TestTUIAgentsNativeAdoptDeclaresTheArtifactInTheTemplate(t *testing.T) {
 	runAgentsNativeTUI(t, bin, sandbox, func(term *vttest.Terminal) {
 		waitForRequiredScreen(t, term, 8*time.Second, screenHas("Not managed by APM", nativeParityIdentity), "TUI did not render the native section")
 		selectAgentsNativeRow(t, term)
-		writeTUIKeys(t, term, "A")
+		writeTUIKeys(t, term, "a")
 	}, func(s *paritySandbox) bool {
 		raw, err := os.ReadFile(template)
 		return err == nil && strings.Contains(string(raw), "official")
