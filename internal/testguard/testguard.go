@@ -165,6 +165,13 @@ func createSandboxUnder(parent string) (*Sandbox, error) {
 	if err != nil {
 		return nil, fmt.Errorf("creating test sandbox: %w", err)
 	}
+	// Containment checks resolve the paths they test, so an unresolved root never matches them: on macOS /tmp is a symlink to /private/tmp.
+	resolvedRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		_ = os.RemoveAll(root)
+		return nil, fmt.Errorf("resolving test sandbox root: %w", err)
+	}
+	root = resolvedRoot
 	sandbox := newSandbox(root, newNonce())
 	if sandbox.nonce == "" {
 		_ = os.RemoveAll(root)

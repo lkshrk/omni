@@ -77,6 +77,28 @@ func TestDirectGoTestIgnoresHomeTMPDIR(t *testing.T) {
 	}
 }
 
+func TestSandboxRootIsSymlinkResolved(t *testing.T) {
+	root := os.Getenv(rootEnv)
+	if root == "" {
+		t.Fatal("sandbox root is unset")
+	}
+	resolved, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatalf("resolve sandbox root: %v", err)
+	}
+	if resolved != root {
+		t.Fatalf("sandbox root %q resolves to %q; containment checks compare resolved paths", root, resolved)
+	}
+	dir := t.TempDir()
+	resolvedDir, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatalf("resolve TempDir: %v", err)
+	}
+	if resolvedDir != dir {
+		t.Fatalf("t.TempDir() %q resolves to %q", dir, resolvedDir)
+	}
+}
+
 func TestTestBinaryDetectionUsesBuildPathNotExecutableName(t *testing.T) {
 	if !testBinaryBuildPath("github.com/lkshrk/omni/internal/testguard.test") {
 		t.Fatal("standard Go test build path was not detected")
