@@ -70,11 +70,16 @@ esac
 		waitForRequiredScreen(t, term, 7*time.Second, screenHas("Dashboard", "Tools"), "TUI did not start")
 		var lastDoctor *app.DoctorResult
 		var lastDoctorErr error
-		waitForRequiredScreen(t, term, 12*time.Second, func(string) bool {
+		// The description reads what the last poll saw, so it is built after the wait rather than as its argument.
+		screen, ok := waitForScreen(term, max(12*time.Second, requiredScreenFloor), func(string) bool {
 			packet, err := readOnlyObservationPacket(observationPath)
 			lastDoctor, lastDoctorErr = packet.Doctor, err
 			return err == nil && reflect.DeepEqual(packet.Doctor, &cliDoctor)
-		}, "TUI did not publish the accepted doctor result"+describeDoctorMismatch(lastDoctor, lastDoctorErr, &cliDoctor))
+		})
+		if !ok {
+			t.Fatalf("TUI did not publish the accepted doctor result%s; screen:\n%s",
+				describeDoctorMismatch(lastDoctor, lastDoctorErr, &cliDoctor), screen)
+		}
 		writeTUIKeys(t, term, "\t")
 		waitForRequiredScreen(t, term, 10*time.Second, func(text string) bool {
 			packet, err := readOnlyObservationPacket(observationPath)
