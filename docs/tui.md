@@ -1,5 +1,29 @@
 # TUI
 
+## List tabs
+
+The five list tabs — Tools, Dots, Agents, Status and Groups — share one table,
+one navigation model and one hit model, so a key, a click or a wheel tick
+behaves the same on every tab. Rows are budgeted against the gaps the layout
+actually renders, so the scroll window matches what is on screen.
+
+| Key | Movement |
+| --- | --- |
+| `j` / `k`, `↓` / `↑` | One row. Wraps at either end. |
+| `ctrl+d` / `ctrl+u` | Half a screen, clamped. |
+| `pgdown` / `ctrl+f`, `pgup` / `ctrl+b` | A full screen, clamped. |
+| `home` | First row. |
+| `G` / `end` | Last row. |
+
+While a filter query has focus the arrows and the `ctrl` chords still move the
+selection; `j` and `k` stay text and reach the input.
+
+A left click selects the row under the pointer on any of the five tabs, and on
+the Tools tab it also picks the provider and group filter pills. Clicking the
+tab bar switches tabs. A click below the last row, or anywhere while an overlay
+is open, reaches nothing. The wheel moves the selection one row, exactly as
+`j`/`k` do, except over an open trace log or dots preview, which it scrolls.
+
 ## Agent status
 
 The Agents view is a navigable per-package list: one row per declared or locked
@@ -80,7 +104,8 @@ plugins, MCP servers and marketplaces this host has installed outside APM. It
 is the same inventory `omni agents drift` prints, so a row here means the
 artifact exists on the host but no APM manifest declares it. Rows read
 `unavailable`, except an ignored one, which reads `orphaned`: it is deliberately
-outside APM, not damaged. The tab summary counts them as `N native`. The
+outside APM, not damaged. The tab header counts them as `N native`, beside the
+package, `mcp` and `lsp` counts it carries for every other section. The
 section is omitted when there is nothing to report and when the clients cannot
 be read.
 
@@ -96,10 +121,10 @@ in its own detail block:
 | Key | Action |
 | --- | --- |
 | `x` | Ignore the artifact, or unignore it when it is already ignored. Writes only `agents.ignored` in `settings.json`; the host template is never touched. |
-| `A` | Adopt: declare the artifact in the host template. Offered only for a row the classifier can import, and refused while APM is running, because adopt writes the template sync reads. |
+| `a` | Adopt: declare the artifact in the host template. Offered only for a row the classifier can import, and refused while APM is running, because adopt writes the template sync reads. |
 | `d` | Remove the artifact through its own client CLI, after a second press. |
 
-`x` and `A` report `select a row under Not managed by APM first` when the
+`x` and `a` report `select a row under Not managed by APM first` when the
 selection is elsewhere; `d` falls through to the package uninstall it also
 serves. An ignored row offers neither adopt nor remove — the entry exists to
 say this one stays — and says to press `x` first.

@@ -49,8 +49,10 @@ omni agents sync
 
 The Agents view checks package updates on startup; press `R` to check again.
 Use `omni agents outdated` for a read-only CLI check and `omni agents update`
-to apply updates. Ownership, migration, and Doctor behavior are covered in the
-[Agents guide](docs/agents.md).
+to apply updates. Artifacts installed outside APM are listed by
+`omni agents drift` and under `Not managed by APM` in the Agents view; record a
+deliberate one with `omni agents ignore`. Ownership, migration, and Doctor
+behavior are covered in the [Agents guide](docs/agents.md).
 
 ## Docs
 

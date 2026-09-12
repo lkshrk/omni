@@ -133,7 +133,7 @@ graph TB
 | --- | --- |
 | `internal/app` | Orchestration and policy. Holds the config path, cache and state dirs, the provider registry, the database handle, and the fallback executor. Every mutating flow is a method here. |
 | `internal/cli` | Cobra command tree. Commands are thin: they parse flags, call one App method, and print. |
-| `internal/tui` | Bubbletea model, one tab per domain. Reads the same App methods the CLI calls. |
+| `internal/tui` | Bubbletea model, one tab per domain. Reads the same App methods the CLI calls. The five list tabs share one row composer and scroll window (`view_table.go`), one column shrink ladder (`view_columns.go`), one cursor model (`nav.go`), and one screen-line-to-row map for the mouse (`view_hit.go`), so behavior cannot drift per tab. |
 | `internal/actions` | The action catalog: one registry entry per product-visible action, carrying label, description, TUI key binding, and CLI command variants. |
 | `internal/provider` | The `Provider` interface, the registry, and one subpackage per package manager. |
 | `internal/sync` | The `Syncer`: decides per tool whether to install, skip, prune, or report unavailable. |
