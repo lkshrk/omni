@@ -11,6 +11,8 @@ import (
 	"github.com/lkshrk/omni/internal/app"
 )
 
+const dotsRowsLoadingStatus = "⚠ dots are loading — wait for the list"
+
 func (m *Model) beginDotsOperation(status string) {
 	m.cancelDotsOperation()
 	m.clearDotsProgressState()
@@ -352,6 +354,19 @@ func (m *Model) clearDotsConfirmState() {
 	}
 }
 
+// The launch sync starts before the first snapshot lands, so these keys arrive with nothing to act on.
+func dotsRowActionKey(keys KeyMap, msg tea.KeyPressMsg) bool {
+	for _, binding := range []key.Binding{
+		keys.DotUseRepo, keys.DotUseLocal, keys.DotDelete, keys.DotIgnore,
+		keys.DotVariant, keys.Sync, keys.MoveGroup,
+	} {
+		if key.Matches(msg, binding) {
+			return true
+		}
+	}
+	return false
+}
+
 func (m *Model) handleDotsActionKeyMsg(msg tea.KeyPressMsg, visible []dotsVisibleRow) []tea.Cmd {
 	var cmds []tea.Cmd
 
@@ -367,6 +382,10 @@ func (m *Model) handleDotsActionKeyMsg(msg tea.KeyPressMsg, visible []dotsVisibl
 			m.clearDotsConfirmState()
 		}
 		return cmds
+	}
+
+	if len(visible) == 0 && m.dotsLoading && dotsRowActionKey(m.keys, msg) {
+		return []tea.Cmd{setStatus(m, dotsRowsLoadingStatus, false)}
 	}
 
 	if m.dotsConfirmIdx >= 0 {

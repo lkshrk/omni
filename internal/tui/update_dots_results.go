@@ -390,12 +390,7 @@ func (m *Model) handleDotsVariantChangedMsg(msg dotsVariantChangedMsg) []tea.Cmd
 }
 
 func (m *Model) applyDotsSnapshot(entries []app.DotStatus, gitStatus string, memberships map[string][]string) {
-	m.dotsConfirmIdx = -1
-	m.dotsOverwriteIdx = -1
-	m.dotsLocalIdx = -1
-	m.dotsIgnoreIdx = -1
-	m.dotsVariantIdx = -1
-	m.dotsVariantMode = dotsVariantNone
+	m.clearDotsConfirmState()
 	app.SortDotStatuses(entries)
 	m.dotsEntries = entries
 	m.dotsGitStatus = gitStatus
