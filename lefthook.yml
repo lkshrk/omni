@@ -17,6 +17,9 @@ pre-push:
         - Dockerfile.test
         - Makefile
       run: make test-integration
+    # A tag exists locally before its push, so this is where a release reaches the local build.
+    refresh-local-omni:
+      run: scripts/refresh-local-omni.sh || true
 
 pre-commit:
   commands:
@@ -25,3 +28,23 @@ pre-commit:
     gen-schema:
       glob: "{internal/config/config.go,internal/config/loader.go,scripts/gen-schema/**}"
       run: go run ./scripts/gen-schema && git add spec/omni.settings.v*.schema.json spec/omni.settings.schema.json
+
+post-commit:
+  commands:
+    refresh-local-omni:
+      run: scripts/refresh-local-omni.sh
+
+post-merge:
+  commands:
+    refresh-local-omni:
+      run: scripts/refresh-local-omni.sh
+
+post-rewrite:
+  commands:
+    refresh-local-omni:
+      run: scripts/refresh-local-omni.sh
+
+post-checkout:
+  commands:
+    refresh-local-omni:
+      run: scripts/refresh-local-omni.sh {1} {2} {3}

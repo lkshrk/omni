@@ -12,6 +12,7 @@ DEV_CACHE   ?= $(DEV_DIR)/cache
 DEV_GOCACHE ?= $(DEV_DIR)/go-build
 TEST_SAFE   := bash scripts/run-test-safe.sh
 TEST_PACKAGES ?= ./...
+LOCAL_BIN   ?= $(HOME)/.local/bin/$(BINARY)
 TEST_FLAGS  ?= -race -trimpath
 INTEGRATION_PACKAGES ?= ./integration_tests/... ./internal/provider/... ./internal/apm/... ./internal/app/... ./internal/cli/...
 INTEGRATION_IMAGE ?= omni-integration-test:local
@@ -41,7 +42,7 @@ LDFLAGS     := -X $(MODULE)/internal/buildinfo.Version=$(GIT_VERSION) \
                -X $(MODULE)/internal/buildinfo.Commit=$(GIT_COMMIT) \
                -X $(MODULE)/internal/buildinfo.Date=$(BUILD_DATE)
 
-.PHONY: build run tui-live tui-dev cli cli-live cli-dev dev-bootstrap test test-unit test-scripts test-canary test-package-managers test-all test-integration-build test-integration docs-build lint clean clean-cache clean-docker prune-tmp install gen-schema check-flows gen-flows demo-gif
+.PHONY: build run tui-live tui-dev cli cli-live cli-dev dev-bootstrap test test-unit test-scripts test-canary test-package-managers test-all test-integration-build test-integration docs-build lint clean clean-cache clean-docker prune-tmp install install-local gen-schema check-flows gen-flows demo-gif
 
 ## build: compile the binary to ./bin/omni
 build:
@@ -77,6 +78,14 @@ dev-bootstrap:
 ## install: install the binary to $GOPATH/bin
 install:
 	go install -ldflags "$(LDFLAGS)" $(CMD_PATH)
+
+## install-local: build the working tree into LOCAL_BIN, swapped in atomically
+install-local:
+	@mkdir -p "$(dir $(LOCAL_BIN))"
+	@set -e; tmp=$$(mktemp "$(LOCAL_BIN).XXXXXX"); trap 'rm -f "$$tmp"' EXIT; \
+	go build -trimpath -ldflags "$(LDFLAGS)" -o "$$tmp" $(CMD_PATH); \
+	chmod 755 "$$tmp"; mv -f "$$tmp" "$(LOCAL_BIN)"
+	@"$(LOCAL_BIN)" --version
 
 ## gen-schema: regenerate versioned/current settings JSON schemas from config types
 gen-schema:
