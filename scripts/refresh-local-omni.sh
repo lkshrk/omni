@@ -11,6 +11,12 @@ if [ "$#" -ge 3 ] && { [ "$1" = "$2" ] || [ "$3" = "0" ]; }; then
 	exit 0
 fi
 
+# reference-transaction passes its state and lists "<old> <new> <ref>" on stdin; only a tag moves the version.
+if [ "$#" -eq 1 ]; then
+	[ "$1" = "committed" ] || exit 0
+	grep -q ' refs/tags/' || exit 0
+fi
+
 repo=$(git rev-parse --show-toplevel)
 if ! make -C "$repo" --no-print-directory install-local LOCAL_BIN="$target"; then
 	echo "refresh-local-omni: rebuilding $target failed; it still runs the previous build" >&2

@@ -17,9 +17,6 @@ pre-push:
         - Dockerfile.test
         - Makefile
       run: make test-integration
-    # A tag exists locally before its push, so this is where a release reaches the local build.
-    refresh-local-omni:
-      run: scripts/refresh-local-omni.sh || true
 
 pre-commit:
   commands:
@@ -48,3 +45,10 @@ post-checkout:
   commands:
     refresh-local-omni:
       run: scripts/refresh-local-omni.sh {1} {2} {3}
+
+# Git moves a tag without touching a branch, and lefthook skips pre-push when a push carries no files.
+reference-transaction:
+  commands:
+    refresh-local-omni:
+      use_stdin: true
+      run: scripts/refresh-local-omni.sh {1}
