@@ -39,9 +39,8 @@ func TestDotsResolveKey_ArmsWhileLaunchSyncInFlight(t *testing.T) {
 	if got.dotsOpGen != gen {
 		t.Errorf("dotsOpGen = %d, want %d (arming must not start a new operation)", got.dotsOpGen, gen)
 	}
-	// setStatusFor wipes progressText, so the in-flight sync loses its activity text while still running.
-	if got.progressText != "" {
-		t.Errorf("progressText = %q, want empty", got.progressText)
+	if got.progressText != "Syncing dots…" {
+		t.Errorf("progressText = %q, want the running label to survive the arming status", got.progressText)
 	}
 	if !got.dotsLoading {
 		t.Error("dotsLoading should stay true while the launch sync is in flight")
@@ -198,6 +197,55 @@ func TestDotsResolveArm_ClearedByResultForCurrentGen(t *testing.T) {
 		}
 		if !got.dotsLoading {
 			t.Error("dotsLoading should stay true for a stale-gen result")
+		}
+	})
+}
+
+func TestSetStatusFor_ProgressTextRetention(t *testing.T) {
+	t.Parallel()
+
+	t.Run("keeps the running label while activity is in flight", func(t *testing.T) {
+		m := dotsInFlightConflictModel()
+		m.beginDotsOperation("Syncing dots…")
+
+		setStatus(&m, "something happened", false)
+
+		if m.progressText != "Syncing dots…" {
+			t.Errorf("progressText = %q, want it kept", m.progressText)
+		}
+		if m.statusMsg != "something happened" {
+			t.Errorf("statusMsg = %q, want the new status", m.statusMsg)
+		}
+	})
+
+	t.Run("clears the running label once nothing is in flight", func(t *testing.T) {
+		m := dotsInFlightConflictModel()
+		m.progressText = "Syncing dots…"
+		if m.spinnerActivityActive() {
+			t.Fatal("setup: no activity flag should be set")
+		}
+
+		setStatus(&m, "something happened", false)
+
+		if m.progressText != "" {
+			t.Errorf("progressText = %q, want empty", m.progressText)
+		}
+	})
+
+	t.Run("dots completion clears its flag before the status, so no label strands", func(t *testing.T) {
+		m := dotsInFlightConflictModel()
+		m.beginDotsOperation("Syncing dots…")
+
+		got := drive(m, dotsSyncedMsg{gen: m.dotsOpGen, entries: m.dotsEntries})
+
+		if got.dotsLoading {
+			t.Fatal("dotsLoading should be false after the sync result")
+		}
+		if got.progressText != "" {
+			t.Errorf("progressText = %q, want empty once the operation finished", got.progressText)
+		}
+		if got.statusMsg != "✓ dots synced" {
+			t.Errorf("statusMsg = %q, want the completion status", got.statusMsg)
 		}
 	})
 }

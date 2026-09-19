@@ -159,7 +159,10 @@ func setStatus(m *Model, text string, isErr bool) tea.Cmd {
 
 func setStatusFor(m *Model, text string, isErr bool, okDuration time.Duration) tea.Cmd {
 	m.statusGen++
-	m.progressText = ""
+	// A message raised while work is still running (a confirmation arming, say) must not take the running label with it.
+	if !m.spinnerActivityActive() {
+		m.progressText = ""
+	}
 	if isErr {
 		// Normalize multi-line errors (e.g. stow stderr) to a single readable line.
 		text = strings.ReplaceAll(text, "\n", "  ")
