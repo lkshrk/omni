@@ -150,7 +150,34 @@ func (p *Provider) Upgrade(ctx context.Context, tool provider.Tool) error {
 			}
 		}
 	}
+	if isBrewMissingCaskArtifact(stderr) {
+		return p.reinstallCaskWithMissingArtifacts(ctx, tool.EffectivePackage(), args, err, stderr)
+	}
 	return fmt.Errorf("brew %s: %w (stderr: %s)", strings.Join(args, " "), err, strings.TrimSpace(stderr))
+}
+
+// A cask upgrade first moves the installed version's files aside, so files deleted outside brew
+// fail it on every attempt; only a forced uninstall clears the record they left behind.
+func (p *Provider) reinstallCaskWithMissingArtifacts(ctx context.Context, pkg string, upgradeArgs []string, upgradeErr error, upgradeStderr string) error {
+	if _, ustderr, uerr := p.exec.Run(ctx, "brew", "uninstall", "--cask", "--force", pkg); uerr != nil {
+		return fmt.Errorf("brew %s: %w (stderr: %s); clearing the install whose files are gone also failed: %w (stderr: %s)",
+			strings.Join(upgradeArgs, " "), upgradeErr, strings.TrimSpace(upgradeStderr), uerr, strings.TrimSpace(ustderr))
+	}
+	if _, istderr, ierr := p.exec.Run(ctx, "brew", "install", "--cask", pkg); ierr != nil {
+		return fmt.Errorf("brew install --cask %s after clearing an install whose files were already gone: %w (stderr: %s)",
+			pkg, ierr, strings.TrimSpace(istderr))
+	}
+	return nil
+}
+
+// Matches brew's "It seems the <artifact> source '<path>' is not there." from cask/artifact/moved.rb.
+func isBrewMissingCaskArtifact(stderr string) bool {
+	_, rest, found := strings.Cut(stderr, "It seems the ")
+	if !found {
+		return false
+	}
+	_, rest, found = strings.Cut(rest, " source '")
+	return found && strings.Contains(rest, "' is not there.")
 }
 
 func (p *Provider) upgradeArgsWithKind(ctx context.Context, pkg, kind string) []string {

@@ -1189,3 +1189,87 @@ func TestListInstalledSurfacesStdoutDetailWhenStderrEmpty(t *testing.T) {
 		t.Fatalf("ListInstalled() error = %v, want stdout detail", err)
 	}
 }
+
+func caskTool(name string) provider.Tool {
+	t := tool(name)
+	t.Options = map[string]string{"brew_kind": "cask"}
+	return t
+}
+
+const missingFontStderr = "Error: It seems the Font source '/Users/me/Library/Fonts/HackNerdFontPropo-Regular.ttf' is not there."
+
+func TestUpgrade_ReinstallsCaskWhoseFilesAreGone(t *testing.T) {
+	p, m := newBrew(
+		executor.MockCall{Err: errors.New("exit 1"), Stderr: missingFontStderr},
+		executor.MockCall{Stdout: "==> Uninstalling Cask font-hack-nerd-font"},
+		executor.MockCall{Stdout: "==> Installing Cask font-hack-nerd-font"},
+	)
+	if err := p.Upgrade(context.Background(), caskTool("font-hack-nerd-font")); err != nil {
+		t.Fatalf("Upgrade: %v", err)
+	}
+	want := []string{
+		"upgrade --cask --greedy font-hack-nerd-font",
+		"uninstall --cask --force font-hack-nerd-font",
+		"install --cask font-hack-nerd-font",
+	}
+	if len(m.Calls) != len(want) {
+		t.Fatalf("calls = %+v, want %v", m.Calls, want)
+	}
+	for i, w := range want {
+		if got := strings.Join(m.Calls[i].Args, " "); got != w {
+			t.Fatalf("call[%d] = %q, want %q", i, got, w)
+		}
+	}
+}
+
+func TestUpgrade_ReportsWhenClearingTheStaleCaskFails(t *testing.T) {
+	p, m := newBrew(
+		executor.MockCall{Err: errors.New("exit 1"), Stderr: missingFontStderr},
+		executor.MockCall{Err: errors.New("exit 1"), Stderr: "Error: permission denied"},
+	)
+	err := p.Upgrade(context.Background(), caskTool("font-hack-nerd-font"))
+	if err == nil || !strings.Contains(err.Error(), "is not there") || !strings.Contains(err.Error(), "permission denied") {
+		t.Fatalf("err = %v, want both the upgrade and the clearing failure", err)
+	}
+	if len(m.Calls) != 2 {
+		t.Fatalf("calls = %+v, want no install after a failed uninstall", m.Calls)
+	}
+}
+
+func TestUpgrade_ReportsAFailedReinstallAfterClearing(t *testing.T) {
+	p, _ := newBrew(
+		executor.MockCall{Err: errors.New("exit 1"), Stderr: missingFontStderr},
+		executor.MockCall{},
+		executor.MockCall{Err: errors.New("exit 1"), Stderr: "Error: Download failed"},
+	)
+	err := p.Upgrade(context.Background(), caskTool("font-hack-nerd-font"))
+	if err == nil || !strings.Contains(err.Error(), "already gone") || !strings.Contains(err.Error(), "Download failed") {
+		t.Fatalf("err = %v, want the reinstall failure and why the record was cleared", err)
+	}
+}
+
+func TestUpgrade_OnlyReinstallsOnBrewsMissingSourceMessage(t *testing.T) {
+	for _, stderr := range []string{
+		"Error: It seems there is already an App at '/Applications/Foo.app'.",
+		"Error: Download failed",
+	} {
+		p, m := newBrew(executor.MockCall{Err: errors.New("exit 1"), Stderr: stderr})
+		if err := p.Upgrade(context.Background(), caskTool("foo")); err == nil {
+			t.Fatalf("stderr %q: Upgrade succeeded, want the original failure", stderr)
+		}
+		if len(m.Calls) != 1 {
+			t.Fatalf("stderr %q: calls = %+v, want no forced uninstall", stderr, m.Calls)
+		}
+	}
+	p, m := newBrew(
+		executor.MockCall{Err: errors.New("exit 1"), Stderr: "Error: It seems the App source '/Applications/Foo.app' is not there."},
+		executor.MockCall{},
+		executor.MockCall{},
+	)
+	if err := p.Upgrade(context.Background(), caskTool("foo")); err != nil {
+		t.Fatalf("App artifact: Upgrade: %v", err)
+	}
+	if len(m.Calls) != 3 {
+		t.Fatalf("App artifact: calls = %+v, want the reinstall for any artifact type", m.Calls)
+	}
+}
