@@ -118,7 +118,7 @@ func TestRunAPMForwardsStableTargets(t *testing.T) {
 }
 
 func TestRunAPMRejectsUnpinnedVersionBeforeMutation(t *testing.T) {
-	for _, version := range []string{"0.27.9", "0.29.1", "0.28", "0.28.0rc1", "0.28.0-dev", "0.28.0+build.1"} {
+	for _, version := range []string{"0.27.9", "0.31.1", "0.28", "0.28.0rc1", "0.28.0-dev", "0.28.0+build.1"} {
 		t.Run(version, func(t *testing.T) {
 			t.Setenv("HOME", t.TempDir())
 			mock := &executor.MockExecutor{Responses: []executor.MockCall{{Stdout: "APM CLI version " + version + "\n"}}}

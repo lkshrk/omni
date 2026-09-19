@@ -41,7 +41,7 @@ func TestAgentsSyncAllGoesThroughTheTemplateAwareSync(t *testing.T) {
 	writeTUIFile(t, filepath.Join(home, ".config", "omni", "apm.yml"), "name: template\n")
 
 	mock := &executor.MockExecutor{Responses: []executor.MockCall{
-		{Stdout: "APM CLI version 0.29.0\n"},
+		{Stdout: "APM CLI version 0.31.0\n"},
 		{Stdout: "installed\n"},
 	}}
 	a := app.New(filepath.Join(home, "settings.json"))

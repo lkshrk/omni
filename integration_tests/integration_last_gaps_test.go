@@ -51,7 +51,7 @@ func TestTUIAgentsUpdateInvokesSelectedPackage(t *testing.T) {
 	writeExecutable(t, filepath.Join(root.root, "bin", "apm"), `#!/bin/sh
 set -eu
 if [ "${1:-}" = "--version" ]; then
-  echo 'Agent Package Manager (APM) CLI version 0.29.0'
+  echo 'Agent Package Manager (APM) CLI version 0.31.0'
   exit 0
 fi
 printf '%s|%s\n' "$PWD" "$*" >> "${OMNI_TEST_APM_LOG:?}"

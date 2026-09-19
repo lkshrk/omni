@@ -233,7 +233,7 @@ func TestCLIBinaryDoctorDryRunPreservesConfig(t *testing.T) {
 func TestCLIBinaryDoctorReportsPinnedAPM(t *testing.T) {
 	root, _, cache, env, configPath, _ := doctorBinaryFixture(t)
 	out := runOmniOutput(t, buildOmniBinary(t), root, env, "--config", configPath, "--cache-dir", cache, "doctor")
-	if !strings.Contains(out, "APM version") || !strings.Contains(out, "apm 0.29.0") {
+	if !strings.Contains(out, "APM version") || !strings.Contains(out, "apm 0.31.0") {
 		t.Fatalf("doctor omitted pinned APM health: %s", out)
 	}
 }
@@ -338,7 +338,7 @@ func agentsCommandBinaryFixture(t *testing.T) (root, home, cache string, env []s
 	writeExecutable(t, filepath.Join(binDir, "apm"), `#!/bin/sh
 set -eu
 if [ "${1:-}" = "--version" ]; then
-  echo 'Agent Package Manager (APM) CLI version 0.29.0'
+  echo 'Agent Package Manager (APM) CLI version 0.31.0'
   exit 0
 fi
 printf '%s\n' "$*" >> "$OMNI_TEST_APM_LOG"
@@ -393,7 +393,7 @@ func doctorBinaryFixture(t *testing.T) (root, home, cache string, env []string, 
 	t.Helper()
 	root, home, cache, env = newCLIBinarySandbox(t)
 	binDir := filepath.Join(root, "bin")
-	writeExecutable(t, filepath.Join(binDir, "apm"), "#!/bin/sh\n[ \"${1:-}\" = \"--version\" ] || exit 64\necho 'Agent Package Manager (APM) CLI version 0.29.0'\n")
+	writeExecutable(t, filepath.Join(binDir, "apm"), "#!/bin/sh\n[ \"${1:-}\" = \"--version\" ] || exit 64\necho 'Agent Package Manager (APM) CLI version 0.31.0'\n")
 	env = replaceIntegrationEnv(env, "PATH", binDir+string(os.PathListSeparator)+integrationEnvValue(env, "PATH"))
 	configPath = filepath.Join(root, "settings.json")
 	original = `{

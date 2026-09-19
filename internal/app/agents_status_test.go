@@ -296,7 +296,7 @@ func TestAgentsPackagesSourceDisplayDropsTrailingSlash(t *testing.T) {
 	}
 }
 
-// Mirrors the shape apm 0.29.0 writes for a filesystem-path dependency.
+// Mirrors the shape apm 0.31.0 writes for a filesystem-path dependency.
 const agentsLocalLock = `dependencies:
 - repo_url: _local/fixture-skill
   name: fixture-skill

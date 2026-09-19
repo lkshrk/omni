@@ -68,3 +68,37 @@ func TestOutdatedRejectsMalformedSummaryAndCommandFailure(t *testing.T) {
 		t.Fatalf("error = %v", err)
 	}
 }
+
+// 0.31.0 prints Wanted between Current and Latest whenever any row carries a manifest constraint.
+func TestOutdatedParsesTheWantedColumn(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		stdout string
+	}{
+		{
+			name:   "rich",
+			stdout: "│ acme/tool │ v1.0.0 │ v1.0.9 │ v1.1.0 │ outdated │ github.com/acme/tool │\n[!] 1 outdated dependency found\n",
+		},
+		{
+			name: "plain",
+			stdout: "Package                 Current      Wanted       Latest       Status         Source\n" +
+				"acme/tool               v1.0.0       v1.0.9       v1.1.0       outdated       github.com/acme/tool\n" +
+				"[!] 1 outdated dependency found\n",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mock := &commandexec.MockExecutor{Responses: []commandexec.MockCall{{Stdout: tc.stdout}}}
+			result, err := New(mock, Global).Outdated(t.Context())
+			if err != nil {
+				t.Fatalf("outdated: %v", err)
+			}
+			if len(result.Rows) != 1 {
+				t.Fatalf("rows = %d, want 1: %+v", len(result.Rows), result.Rows)
+			}
+			row := result.Rows[0]
+			if row.Package != "acme/tool" || row.Current != "v1.0.0" || row.Latest != "v1.1.0" {
+				t.Fatalf("row = %+v, want acme/tool v1.0.0 → v1.1.0", row)
+			}
+		})
+	}
+}

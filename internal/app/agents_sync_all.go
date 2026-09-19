@@ -832,7 +832,7 @@ func agentsManifestInstallable(dir string) (bool, error) {
 	return false, nil
 }
 
-// Both hazards are apm 0.29.0 defects: a non-intersecting target aborts the whole install, and --frozen ignores lsp entries.
+// Both hazards were apm 0.29.0 defects, not re-checked on the pinned 0.31.0: a non-intersecting target aborts the whole install, and --frozen ignores lsp entries.
 func checkAgentsLSPHazards(opts AgentsSyncAllOptions) error {
 	manifest, err := readAPMManifest()
 	// An unparseable manifest is apm's own transactional validation to report, not this guard's.

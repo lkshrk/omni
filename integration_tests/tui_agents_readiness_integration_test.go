@@ -33,7 +33,7 @@ func TestTUIAgentsReadinessNeverWritesAndGuidesTheOperator(t *testing.T) {
 		},
 		{
 			name:    "staged template asks for sync",
-			version: "0.29.0",
+			version: "0.31.0",
 			setup: func(t *testing.T, fixture agentsReadinessPTYFixture) {
 				writeIntegrationFile(t, filepath.Join(fixture.home, ".config", "omni", "apm.yml"), "name: staged\nversion: 1.0.0\n")
 			},
@@ -41,7 +41,7 @@ func TestTUIAgentsReadinessNeverWritesAndGuidesTheOperator(t *testing.T) {
 		},
 		{
 			name:    "live manifest without a lock asks for sync",
-			version: "0.29.0",
+			version: "0.31.0",
 			setup: func(t *testing.T, fixture agentsReadinessPTYFixture) {
 				writeIntegrationFile(t, filepath.Join(fixture.home, ".apm", "apm.yml"), "name: live\nversion: 1.0.0\ntargets: [codex]\ndependencies:\n  apm:\n    - git: https://github.com/acme/tool.git\n")
 			},
@@ -49,7 +49,7 @@ func TestTUIAgentsReadinessNeverWritesAndGuidesTheOperator(t *testing.T) {
 		},
 		{
 			name:    "lock without a manifest is invalid",
-			version: "0.29.0",
+			version: "0.31.0",
 			setup: func(t *testing.T, fixture agentsReadinessPTYFixture) {
 				writeIntegrationFile(t, filepath.Join(fixture.home, ".apm", "apm.lock.yaml"), "dependencies: []\n")
 			},

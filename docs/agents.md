@@ -123,7 +123,7 @@ all of these facts are proven:
 - each inventoried skill has its canonical regular `SKILL.md` in the installed
   module; and
 - `apm.yml` and every plugin, MCP, and LSP carrier recognized by pinned APM
-  0.29.0 are absent.
+  0.31.0 are absent.
 
 This recognizes `sopaco/deepwiki-rs` as a manifestless `skill_bundle` and the
 `shiplight` virtual package from `ShiplightAI/agent-skills-v2` as a
@@ -275,7 +275,7 @@ candidate before mutation, so a concurrent edit fails before the live manifest
 or APM changes. Do not run `apm` directly in parallel with sync; external APM
 processes do not participate in Omni's lock.
 
-> **Known APM 0.29.0 limitation:** a global `apm audit --ci` may falsely
+> **Known APM limitation, seen on 0.29.0 and not re-checked since:** a global `apm audit --ci` may falsely
 > report managed `.agents/**` files as missing or unintegrated because audit
 > can resolve primitive deployment paths from `~/.apm` instead of the global
 > deployment root. Install and runtime behavior are unaffected. Until APM fixes
@@ -340,11 +340,11 @@ and `d` to remove it through its own client. See
 
 ## APM Main Build
 
-Omni requires APM `0.29.0` built from `microsoft/apm` commit `656f3d6e` (main, 2026-09-04).
+Omni requires APM `0.31.0` built from `microsoft/apm` commit `98616b94` (main, 2026-09-18).
 Installers use this source specification:
 
 ```text
-git+https://github.com/microsoft/apm.git@656f3d6e6dbade369b6fc8727a4eb7b164409b6d
+git+https://github.com/microsoft/apm.git@98616b9430140275a3a7c8fefb25d8d111cecc4e
 ```
 
 The `lkshrk/apm` fork Omni previously required is retired. Its capabilities are

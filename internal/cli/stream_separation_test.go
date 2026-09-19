@@ -54,9 +54,9 @@ func writeDoctorFixtureWithDuplicates(t *testing.T) (cfgPath, cacheDir string) {
 func setPinnedAPMPath(t *testing.T) {
 	t.Helper()
 	dir := t.TempDir()
-	name, script := "apm", "#!/bin/sh\necho 'Agent Package Manager (APM) CLI version 0.29.0'\n"
+	name, script := "apm", "#!/bin/sh\necho 'Agent Package Manager (APM) CLI version 0.31.0'\n"
 	if runtime.GOOS == "windows" {
-		name, script = "apm.bat", "@echo Agent Package Manager (APM) CLI version 0.29.0\r\n"
+		name, script = "apm.bat", "@echo Agent Package Manager (APM) CLI version 0.31.0\r\n"
 	}
 	if err := os.WriteFile(filepath.Join(dir, name), []byte(script), 0o755); err != nil {
 		t.Fatal(err)

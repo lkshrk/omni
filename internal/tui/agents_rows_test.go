@@ -898,7 +898,7 @@ func agentsRowOpModel(t *testing.T) (Model, *executor.MatchMockExecutor) {
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	mock := executor.NewMatchMock(
-		executor.MatchRule{Pattern: "apm --version", Response: executor.MockCall{Stdout: "APM CLI version 0.29.0\n"}},
+		executor.MatchRule{Pattern: "apm --version", Response: executor.MockCall{Stdout: "APM CLI version 0.31.0\n"}},
 	).WithFallback(executor.MockCall{Stdout: "[*] done\n"})
 	a := app.New(filepath.Join(home, "settings.json"))
 	a.SetFallbackExecutor(mock)

@@ -45,6 +45,7 @@ func parseOutdated(output string) (OutdatedResult, int) {
 		reported, _ = strconv.Atoi(match[1])
 	}
 	var plainHeader []int
+	plainWanted := -1
 	for _, raw := range strings.Split(clean, "\n") {
 		if strings.Contains(raw, "│") {
 			var fields []string
@@ -53,20 +54,29 @@ func parseOutdated(output string) (OutdatedResult, int) {
 					fields = append(fields, field)
 				}
 			}
-			if len(fields) == 5 {
+			// 0.31.0 adds a Wanted column between Current and Latest whenever any row carries a constraint.
+			switch len(fields) {
+			case 5:
 				appendOutdatedRow(&result, fields[0], fields[1], fields[2], fields[3], fields[4])
+			case 6:
+				appendOutdatedRow(&result, fields[0], fields[1], fields[3], fields[4], fields[5])
 			}
 			continue
 		}
 		if strings.HasPrefix(raw, "Package") {
 			plainHeader = []int{strings.Index(raw, "Package"), strings.Index(raw, "Current"), strings.Index(raw, "Latest"), strings.Index(raw, "Status"), strings.Index(raw, "Source")}
+			plainWanted = strings.Index(raw, "Wanted")
 			continue
 		}
 		if len(plainHeader) != 5 || len(raw) <= plainHeader[2] {
 			continue
 		}
+		currentEnd := plainHeader[2]
+		if plainWanted >= 0 {
+			currentEnd = plainWanted
+		}
 		packageID := sliceColumn(raw, plainHeader[0], plainHeader[1])
-		current := sliceColumn(raw, plainHeader[1], plainHeader[2])
+		current := sliceColumn(raw, plainHeader[1], currentEnd)
 		tail := raw[plainHeader[2]:]
 		status, at := plainStatus(tail, max(plainHeader[3]-plainHeader[2], 0))
 		if at < 0 {

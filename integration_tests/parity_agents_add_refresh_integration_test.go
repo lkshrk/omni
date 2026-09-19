@@ -30,7 +30,7 @@ func seedAgentsAddParity(t *testing.T, sandbox *paritySandbox) {
 	writeIntegrationFile(t, filepath.Join(apmDir, "cache", "marketplace", "superpowers-dev.json"), `{"name":"superpowers-dev","owner":{"name":"obra"},"plugins":[{"name":"zz-brainstorming","description":"ideas","source":{"source":"git-subdir","url":"https://github.com/obra/superpowers","path":"plugins/brainstorming"}}]}`)
 	writeExecutable(t, filepath.Join(sandbox.root, "bin", "apm"), `#!/bin/sh
 set -eu
-if [ "${1:-}" = "--version" ]; then echo 'Agent Package Manager (APM) CLI version 0.29.0'; exit 0; fi
+if [ "${1:-}" = "--version" ]; then echo 'Agent Package Manager (APM) CLI version 0.31.0'; exit 0; fi
 printf '%s|%s\n' "$PWD" "$*" >> "${OMNI_TEST_APM_LOG:?}"
 case "$*" in
   outdated*) echo '[✓] All dependencies are up-to-date' ;;

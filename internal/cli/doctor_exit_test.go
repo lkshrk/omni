@@ -12,9 +12,9 @@ import (
 func TestDoctorFixDryRun_ExitsNonZeroOnFailingCheck(t *testing.T) {
 	t.Setenv("OMNI_HOSTNAME", "testhost")
 	binDir := t.TempDir()
-	apmName, apmBody := "apm", "#!/bin/sh\necho 'APM CLI version 0.29.0'\n"
+	apmName, apmBody := "apm", "#!/bin/sh\necho 'APM CLI version 0.31.0'\n"
 	if runtime.GOOS == "windows" {
-		apmName, apmBody = "apm.cmd", "@echo APM CLI version 0.29.0\r\n"
+		apmName, apmBody = "apm.cmd", "@echo APM CLI version 0.31.0\r\n"
 	}
 	if err := os.WriteFile(filepath.Join(binDir, apmName), []byte(apmBody), 0o755); err != nil {
 		t.Fatal(err)
