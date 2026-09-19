@@ -99,13 +99,13 @@ value is ever rendered. LSP entries never drift: APM rewrites them from
 `lsp_configs` on every install. Codex-side value drift is not detected; codex
 gets orphan detection only.
 
-Sync fails closed on two defects seen in APM 0.29.0, before APM is invoked at all
+Sync fails closed on two APM 0.31.0 hazards, before APM is invoked at all
 (dry runs included, so a preview that would fail for real says so): a `--frozen`
 sync whose manifest declares an LSP server missing from the lockfile is refused,
 because `--frozen` does not check LSP entries and would silently install and lock
 it; and declaring `lsp` entries whose `targets:` intersect neither `claude` nor
-`copilot` is refused, because APM aborts the entire install — MCP included — on
-that combination.
+`copilot` is refused, because APM deploys and locks everything else before it
+fails on that combination, leaving the sync half done.
 
 Sync also fails closed on exact package-child duplicates, differing
 definitions, multi-owner ambiguity, and unavailable package evidence when the

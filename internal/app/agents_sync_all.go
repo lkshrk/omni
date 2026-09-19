@@ -832,7 +832,9 @@ func agentsManifestInstallable(dir string) (bool, error) {
 	return false, nil
 }
 
-// Both hazards were apm 0.29.0 defects, not re-checked on the pinned 0.31.0: a non-intersecting target aborts the whole install, and --frozen ignores lsp entries.
+// Checked against the pinned 0.31.0: --frozen still installs and locks an lsp entry the lockfile
+// lacks, and a manifest whose targets exclude claude and copilot deploys everything else before
+// failing, so refusing first is what keeps a sync from leaving half its work behind.
 func checkAgentsLSPHazards(opts AgentsSyncAllOptions) error {
 	manifest, err := readAPMManifest()
 	// An unparseable manifest is apm's own transactional validation to report, not this guard's.
