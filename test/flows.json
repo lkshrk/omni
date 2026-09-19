@@ -2411,6 +2411,22 @@
                   "linux"
                 ]
               }
+            },
+            {
+              "type": "tui_blackbox",
+              "role": "supplemental",
+              "reference": "Covers the sync the TUI runs at launch, which adopts a local file newer than its repo source.",
+              "selector": {
+                "package": "github.com/lkshrk/omni/integration_tests",
+                "test": "TestTUILaunchSyncAdoptsAModifiedDotEntry",
+                "tags": [
+                  "integration"
+                ],
+                "lane": "docker-realism",
+                "os": [
+                  "linux"
+                ]
+              }
             }
           ]
         },
