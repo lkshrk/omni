@@ -535,16 +535,41 @@ func TestAgentsViewRendersDriftedRows(t *testing.T) {
 }
 
 func TestAgentsHarnessNoticesStayVisibleBesideAPMNotices(t *testing.T) {
+	const harness = "claude: ~/.claude.json could not be parsed"
 	m := agentsSectionedModel(t)
-	m.height = 12
+	m.height = 16
 	m.apmCommand = "omni agents sync"
 	m.apmNotices = []string{"note: 4 package file(s) shadowed by user-managed files"}
-	m.agentsNotices = []string{"claude: ~/.claude.json could not be parsed, skipped"}
-	view := m.viewSkillsBody()
-	for _, want := range []string{"4 package file(s) shadowed", "no action is needed", "claude: ~/.claude.json could not be parsed"} {
-		if !strings.Contains(view, want) {
-			t.Fatalf("footer missing %q:\n%s", want, view)
+	m.agentsNotices = []string{harness + ", skipped"}
+
+	bodyTop := strings.Join(m.agentsBodyTopLines(), "\n")
+	if !strings.Contains(bodyTop, harness) {
+		t.Fatalf("body top missing the harness notice:\n%s", bodyTop)
+	}
+	footer := strings.Join(m.agentsFooterLines(), "\n")
+	for _, want := range []string{"4 package file(s) shadowed", "no action is needed"} {
+		if !strings.Contains(footer, want) {
+			t.Fatalf("footer missing %q:\n%s", want, footer)
 		}
+	}
+
+	view := m.viewSkillsBody()
+	for _, want := range []string{"4 package file(s) shadowed", "no action is needed", harness} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("view missing %q:\n%s", want, view)
+		}
+	}
+
+	withoutAPM := m
+	withoutAPM.apmCommand = ""
+	withoutAPM.apmNotices = nil
+	if !strings.Contains(strings.Join(withoutAPM.agentsBodyTopLines(), "\n"), harness) {
+		t.Error("harness notice depends on the APM notices being present")
+	}
+	withoutHarness := m
+	withoutHarness.agentsNotices = nil
+	if !strings.Contains(strings.Join(withoutHarness.agentsFooterLines(), "\n"), "4 package file(s) shadowed") {
+		t.Error("APM notice depends on the harness notice being present")
 	}
 }
 

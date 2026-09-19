@@ -394,10 +394,9 @@ func (m Model) agentsAPMNoticeLines() []string {
 // The op block sits outside the scroll window, so a running sync stays visible however long the row list is.
 // The footer reads as state first, then what is happening, then the summary,
 // so the workspace's condition is not buried under whichever command last ran.
+// What is happening. What is true sits under the workspace path, where the dots repo state sits.
 func (m Model) agentsFooterLines() []string {
-	lines := m.agentsStateLines()
-	lines = append(lines, m.agentsActivityLines()...)
-	// Counts belong to the header on every tab; the registry is a mode of its own and keeps its own line.
+	lines := m.agentsActivityLines()
 	if m.agentsRegistryMode {
 		lines = append(lines, m.agentsSummaryLines()...)
 	}
@@ -713,7 +712,7 @@ func (m Model) agentsBodyTopLines() []string {
 		width := max(rowAvailableWidth(m.width)-2, 1)
 		lines = append(lines, m.palette.styleHelp.PaddingLeft(2).Render(truncatePath(tildePath(path), width)))
 	}
-	return lines
+	return append(lines, m.agentsStateLines()...)
 }
 
 // installed, missing, and orphaned always show so the three baseline counts never jump position.
