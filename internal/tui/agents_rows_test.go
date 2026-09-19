@@ -718,7 +718,7 @@ func TestAgentsFilterNarrowsEverySection(t *testing.T) {
 	}
 }
 
-func TestAgentsFilterIsCaseInsensitiveOverNameAndDetail(t *testing.T) {
+func TestAgentsFilterIsCaseInsensitiveOverNameAndAttribute(t *testing.T) {
 	m := agentsFilterModel(t)
 	m.openAgentsFilter()
 	m.filter.SetValue("ACME/ALPHA")
@@ -727,7 +727,7 @@ func TestAgentsFilterIsCaseInsensitiveOverNameAndDetail(t *testing.T) {
 	}
 	m.filter.SetValue("HTTP")
 	if got := m.agentsRowCount(); got != 1 {
-		t.Fatalf("detail match = %d rows", got)
+		t.Fatalf("attribute match = %d rows", got)
 	}
 }
 

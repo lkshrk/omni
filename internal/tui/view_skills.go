@@ -504,13 +504,14 @@ func agentsReadinessGuidanceParts(m Model) (cause, remedy string) {
 	}
 }
 
+// attribute is the one thing that identifies a row inside its section: a package's author, a service's transport, a native artifact's kind.
 type agentsColWidths struct {
-	name, detail, version, targets int
+	name, attribute, version, targets int
 }
 
 var agentsTableColumns = []tableColumn{
 	{key: "name", seed: 20, align: rowCellAlignLeft},
-	{key: "detail", align: rowCellAlignRight},
+	{key: "attribute", align: rowCellAlignRight},
 	{key: "version", align: rowCellAlignRight},
 	{key: "targets", align: rowCellAlignRight},
 }
@@ -518,11 +519,11 @@ var agentsTableColumns = []tableColumn{
 // name gives up its comfortable width first but is crushed last; the
 // right-hand columns may collapse away entirely.
 var agentsShrinkLadder = []tableShrinkStep{
-	shrinkStep("detail", 12),
+	shrinkStep("attribute", 12),
 	shrinkStep("name", 12),
 	shrinkStep("targets", 6),
 	shrinkStep("version", 7),
-	shrinkStep("detail", 0),
+	shrinkStep("attribute", 0),
 	shrinkStep("targets", 0),
 	shrinkStep("version", 0),
 	shrinkStep("name", 8),
@@ -534,7 +535,7 @@ func agentsColumnByKey(key string) tableColumn {
 	return agentsColumnsByKey[key]
 }
 
-type agentsRowCells struct{ name, detail, version, targets string }
+type agentsRowCells struct{ name, attribute, version, targets string }
 
 func agentsMeasuredRows(m Model) []agentsRowCells {
 	var rows []agentsRowCells
@@ -558,24 +559,24 @@ func agentsColumnWidths(m Model) agentsColWidths {
 		switch key {
 		case "name":
 			return rows[i].name
-		case "detail":
-			return rows[i].detail
+		case "attribute":
+			return rows[i].attribute
 		case "version":
 			return rows[i].version
 		default:
 			return rows[i].targets
 		}
 	})
-	cols := agentsColWidths{name: widths["name"], detail: widths["detail"], version: widths["version"], targets: widths["targets"]}
+	cols := agentsColWidths{name: widths["name"], attribute: widths["attribute"], version: widths["version"], targets: widths["targets"]}
 	layout := agentsTableLayout()
 	over := layout.iconWidth + layout.iconGap + cols.name + layout.columnGap + agentsRightGroupWidth(cols) - rowAvailableWidth(m.width)
 	widths.fit(over, agentsShrinkLadder...)
-	return agentsColWidths{name: widths["name"], detail: widths["detail"], version: widths["version"], targets: widths["targets"]}
+	return agentsColWidths{name: widths["name"], attribute: widths["attribute"], version: widths["version"], targets: widths["targets"]}
 }
 
 func agentsRightGroupWidth(cols agentsColWidths) int {
 	width := 0
-	for _, w := range []int{cols.detail, cols.version, cols.targets} {
+	for _, w := range []int{cols.attribute, cols.version, cols.targets} {
 		if w > 0 {
 			width += w + listColumnGap
 		}
@@ -583,7 +584,7 @@ func agentsRightGroupWidth(cols agentsColWidths) int {
 	return max(width-listColumnGap, 0)
 }
 
-func (m Model) agentsRowLine(name, detail, version, latest, targets string, status app.AgentsPackageStatus, cols agentsColWidths, selected bool) string {
+func (m Model) agentsRowLine(name, attribute, version, latest, targets string, status app.AgentsPackageStatus, cols agentsColWidths, selected bool) string {
 	p := m.palette
 	glyph, glyphStyle := agentsStatusGlyph(p, status)
 	if latest != "" {
@@ -593,8 +594,8 @@ func (m Model) agentsRowLine(name, detail, version, latest, targets string, stat
 	if selected {
 		nameStyle = p.styleActiveText
 	}
-	widths := tableWidths{"name": cols.name, "detail": cols.detail, "version": cols.version, "targets": cols.targets}
-	right := []rowCell{widths.cell(agentsColumnByKey("detail"), detail, p.styleHelp)}
+	widths := tableWidths{"name": cols.name, "attribute": cols.attribute, "version": cols.version, "targets": cols.targets}
+	right := []rowCell{widths.cell(agentsColumnByKey("attribute"), attribute, p.styleHelp)}
 	if latest != "" && cols.version > 0 {
 		current, upgrade := fitUpgradeVersionText(compactVersion(version), compactVersion(latest), cols.version)
 		right = append(right, rightCell(p.styleVersionMuted.Render(current)+p.styleOutdated.Render(upgrade), cols.version))

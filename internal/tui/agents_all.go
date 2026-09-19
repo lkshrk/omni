@@ -336,11 +336,11 @@ func (m *Model) handleAgentsGlobalActionKeyMsg(msg tea.KeyPressMsg) (bool, []tea
 	}
 }
 
-func agentsRowMatches(query, name, detail string) bool {
+func agentsRowMatches(query, name, attribute string) bool {
 	if query == "" {
 		return true
 	}
-	return strings.Contains(strings.ToLower(name+" "+detail), query)
+	return strings.Contains(strings.ToLower(name+" "+attribute), query)
 }
 
 func (m Model) agentsVisiblePackages() []app.AgentsPackageRow {

@@ -229,7 +229,7 @@ func TestColumnKeysUsedByRenderersAreDeclared(t *testing.T) {
 		cols []tableColumn
 		used []string
 	}{
-		{"agents", agentsTableColumns, []string{"name", "detail", "version", "targets"}},
+		{"agents", agentsTableColumns, []string{"name", "attribute", "version", "targets"}},
 		{"agents registry", agentsRegistryColumns, []string{"name", "targets"}},
 		{"tools", toolsTableColumns, []string{"name", "prov", "ver", "group"}},
 		{"dots", dotsTableColumnSpec, []string{"name", "status", "ratio", "ignore", "group"}},

@@ -18,6 +18,13 @@ actually renders, so the scroll window matches what is on screen.
 While a filter query has focus the arrows and the `ctrl` chords still move the
 selection; `j` and `k` stay text and reach the input.
 
+Every list tab puts the same thing in the same place. The header counts what the
+tab holds. The body opens with the source of truth the tab reads — the dotfiles
+repo, `~/.apm/apm.yml` — followed by that source's own state: `✓ clean` or
+`✗ dirty` with the pending changes, a workspace that is not ready with what to
+do about it. The footer carries what is happening right now: the command running
+and how it ended. Short-lived messages go to the status bar instead.
+
 A left click selects the row under the pointer on any of the five tabs, and on
 the Tools tab it also picks the provider and group filter pills. Clicking the
 tab bar switches tabs. A click below the last row, or anywhere while an overlay
@@ -170,8 +177,8 @@ are removed by editing `~/.apm/apm.yml` and re-running `S`. A key pressed while
 the tab is checking for updates is queued rather than refused, because that check
 is an APM command of its own and two cannot run at once; it runs when the check
 finishes. Queueing sits behind the uninstall confirmation, so it never turns one
-press into a removal. Both keys act on the live workspace only, so the footer shows
-the host-template hint: a package the template still declares comes back on the
+press into a removal. Both keys act on the live workspace only, so the
+host-template hint sits under the workspace path: a package the template still declares comes back on the
 next sync, and a package installed without being declared is lost at the next
 one. An uninstall re-deploys the surviving packages and can drop their trusted
 `bin/` executables; the repair is `apm install -g --trust-bin <pkg>`. A row op
