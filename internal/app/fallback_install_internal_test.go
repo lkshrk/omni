@@ -1525,3 +1525,62 @@ func TestGitHubRequest_RetryExhaustionHasSanitizedDiagnostics(t *testing.T) {
 		t.Fatalf("requests = %d, want %d", calls, downloadRetries)
 	}
 }
+
+func stubGHAuthToken(t *testing.T, token string) *int {
+	t.Helper()
+	calls := 0
+	orig := ghAuthToken
+	ghAuthToken = func() string {
+		calls++
+		return token
+	}
+	t.Cleanup(func() { ghAuthToken = orig })
+	return &calls
+}
+
+func TestAttachGitHubToken_FallsBackToGHWhenNoEnvToken(t *testing.T) {
+	t.Setenv("GH_TOKEN", "")
+	t.Setenv("GITHUB_TOKEN", "")
+	stubGHAuthToken(t, "keyring-token")
+	req, err := http.NewRequest(http.MethodGet, "https://api.github.com/repos/o/r/releases/latest", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	attachGitHubToken(req, req.URL.String())
+	if got := req.Header.Get("Authorization"); got != "Bearer keyring-token" {
+		t.Fatalf("Authorization = %q, want the gh token", got)
+	}
+}
+
+func TestAttachGitHubToken_EnvTokenWinsOverGH(t *testing.T) {
+	t.Setenv("GH_TOKEN", "env-token")
+	calls := stubGHAuthToken(t, "keyring-token")
+	req, err := http.NewRequest(http.MethodGet, "https://api.github.com/repos/o/r", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	attachGitHubToken(req, req.URL.String())
+	if got := req.Header.Get("Authorization"); got != "Bearer env-token" {
+		t.Fatalf("Authorization = %q, want GH_TOKEN", got)
+	}
+	if *calls != 0 {
+		t.Fatalf("gh consulted %d times although GH_TOKEN was set", *calls)
+	}
+}
+
+func TestAttachGitHubToken_NeverAsksGHForNonGitHubHost(t *testing.T) {
+	t.Setenv("GH_TOKEN", "")
+	t.Setenv("GITHUB_TOKEN", "")
+	calls := stubGHAuthToken(t, "keyring-token")
+	req, err := http.NewRequest(http.MethodGet, "https://example.com/download", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	attachGitHubToken(req, req.URL.String())
+	if got := req.Header.Get("Authorization"); got != "" {
+		t.Fatalf("Authorization sent to non-GitHub host: %q", got)
+	}
+	if *calls != 0 {
+		t.Fatalf("gh consulted %d times for a non-GitHub host", *calls)
+	}
+}

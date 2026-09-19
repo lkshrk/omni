@@ -16,15 +16,19 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ulikunitz/xz"
 
 	"github.com/lkshrk/omni/internal/config"
+	"github.com/lkshrk/omni/internal/executor"
+	"github.com/lkshrk/omni/internal/testguard"
 )
 
 const (
@@ -804,19 +808,42 @@ func (a *App) newGitHubAPIRequest(ctx context.Context, pathSuffix string) (*http
 // Prevents credential leakage to non-GitHub hosts.
 func attachGitHubToken(req *http.Request, rawURL string) {
 	req.Header.Del("Authorization")
+	parsed, err := url.Parse(rawURL)
+	if err != nil || !isGitHubHost(parsed.Host) {
+		return
+	}
 	token := strings.TrimSpace(os.Getenv("GH_TOKEN"))
 	if token == "" {
 		token = strings.TrimSpace(os.Getenv("GITHUB_TOKEN"))
 	}
 	if token == "" {
-		return
+		token = ghAuthToken()
 	}
-	parsed, err := url.Parse(rawURL)
-	if err != nil || !isGitHubHost(parsed.Host) {
+	if token == "" {
 		return
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 }
+
+// gh keeps its token in the OS keyring, where neither environment variable sees it, and an
+// anonymous caller gets 60 API requests an hour — one outdated scan can spend them all.
+var ghAuthToken = sync.OnceValue(func() string {
+	if testguard.Active() {
+		return ""
+	}
+	path, err := exec.LookPath("gh")
+	if err != nil {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	out, _, err := executor.New().Run(ctx, path, "auth", "token")
+	// A gh that is not logged in leaves requests anonymous, exactly as before gh was consulted.
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(out)
+})
 
 type githubHTTPError struct {
 	statusCode int
