@@ -340,7 +340,7 @@ func (m *Model) pruneDotsExpandedChildren(entry app.DotStatus) {
 
 func (m *Model) clearDotsConfirmState() {
 	clearResolveStatus := m.dotsOverwriteIdx >= 0 || m.dotsLocalIdx >= 0
-	if m.dotsConfirmIdx >= 0 || m.dotsOverwriteIdx >= 0 || m.dotsLocalIdx >= 0 || m.dotsIgnoreIdx >= 0 || m.dotsVariantIdx >= 0 {
+	if m.dotsConfirmIdx >= 0 || m.dotsOverwriteIdx >= 0 || m.dotsLocalIdx >= 0 || m.dotsIgnoreIdx >= 0 || m.dotsVariantIdx >= 0 || m.dotsForceResolve != "" {
 		m.cancelConfirmationTimeout()
 	}
 	m.dotsConfirmIdx = -1
@@ -348,6 +348,7 @@ func (m *Model) clearDotsConfirmState() {
 	m.dotsLocalIdx = -1
 	m.dotsIgnoreIdx = -1
 	m.dotsVariantIdx = -1
+	m.dotsForceResolve = ""
 	m.dotsVariantMode = dotsVariantNone
 	if clearResolveStatus {
 		clearStatus(m)

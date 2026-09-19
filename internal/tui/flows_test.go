@@ -3806,3 +3806,73 @@ func TestFlow_UC66_DotChildExtractHintVisible(t *testing.T) {
 		}
 	})
 }
+
+func TestFlow_UC67_DotForceResolveAll_ArmDoesNotSurviveAClear(t *testing.T) {
+	armed := func(t *testing.T) Model {
+		t.Helper()
+		m, _ := newDotsModelForCmdsReady(t)
+		m.dotsEntries = twoConflictEntries()
+		m = drive(m, pressRune('U'))
+		if m.dotsForceResolve != "use_repo" {
+			t.Fatalf("setup: dotsForceResolve = %q, want use_repo", m.dotsForceResolve)
+		}
+		return m
+	}
+
+	t.Run("navigation clears the arm and the next U re-arms", func(t *testing.T) {
+		for _, nav := range map[string]tea.Msg{"j": pressRune('j'), "k": pressRune('k')} {
+			m := drive(armed(t), nav)
+			if m.dotsForceResolve != "" {
+				t.Fatalf("dotsForceResolve = %q, want cleared by navigation", m.dotsForceResolve)
+			}
+			again := drive(m, pressRune('U'))
+			if again.dotsForceResolve != "use_repo" {
+				t.Errorf("dotsForceResolve = %q, want a fresh arm", again.dotsForceResolve)
+			}
+			if again.dotsLoading {
+				t.Error("U after a cleared arm resolved instead of re-arming")
+			}
+		}
+	})
+
+	t.Run("navigation cancels the confirmation timeout", func(t *testing.T) {
+		m := armed(t)
+		armedGen := m.confirmGen
+		if got := drive(m, pressRune('j')); got.confirmGen == armedGen {
+			t.Errorf("confirmGen = %d, want it advanced past %d", got.confirmGen, armedGen)
+		}
+	})
+
+	t.Run("a landing snapshot clears the arm", func(t *testing.T) {
+		for name, msg := range map[string]func(Model) tea.Msg{
+			"dotsSyncedMsg": func(m Model) tea.Msg {
+				return dotsSyncedMsg{gen: m.dotsOpGen, entries: twoConflictEntries()}
+			},
+			"dotsLoadedMsg": func(m Model) tea.Msg {
+				return dotsLoadedMsg{gen: m.dotsOpGen, entries: twoConflictEntries()}
+			},
+		} {
+			t.Run(name, func(t *testing.T) {
+				m := armed(t)
+				armedGen := m.confirmGen
+				got := drive(m, msg(m))
+				if got.dotsForceResolve != "" {
+					t.Errorf("dotsForceResolve = %q, want cleared by the snapshot", got.dotsForceResolve)
+				}
+				if got.confirmGen == armedGen {
+					t.Errorf("confirmGen = %d, want the timeout cancelled", got.confirmGen)
+				}
+			})
+		}
+	})
+
+	t.Run("two presses in a row still resolve", func(t *testing.T) {
+		got := drive(armed(t), pressRune('U'))
+		if got.dotsForceResolve != "" {
+			t.Errorf("dotsForceResolve = %q, want consumed by the second press", got.dotsForceResolve)
+		}
+		if !got.dotsLoading {
+			t.Error("the second U did not start the force-resolve operation")
+		}
+	})
+}
