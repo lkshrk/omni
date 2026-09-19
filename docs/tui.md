@@ -24,6 +24,14 @@ tab bar switches tabs. A click below the last row, or anywhere while an overlay
 is open, reaches nothing. The wheel moves the selection one row, exactly as
 `j`/`k` do, except over an open trace log or dots preview, which it scrolls.
 
+## Dots at launch
+
+Starting the TUI runs a dotfile link repair before the first frame settles —
+missing links are created and a local file newer than its repo source is
+adopted into the repo. The footer reads `Syncing dots…` while it runs, row keys
+are ignored until it finishes, and conflicts are left for `u`/`l`. The rules are
+in [Dotfiles](dotfiles.md#launch-sync).
+
 ## Agent status
 
 The Agents view is a navigable per-package list: one row per declared or locked

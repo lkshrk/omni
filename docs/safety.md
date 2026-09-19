@@ -111,6 +111,14 @@ Before replacing local dotfiles, Omni writes safety copies under:
 
 Keep that directory until you have verified the synced files.
 
+## Launching The TUI
+
+Opening the TUI repairs dotfile links before you touch anything: it runs the
+launch sync described in [Dotfiles](dotfiles.md#launch-sync), which links
+missing entries and adopts a local file that is newer than its repo source,
+committing the repo's prior state first. Conflicts are left for you. To read
+dotfile state without changing it, use `omni dots status`.
+
 ## Conflict Choices
 
 Dotfile conflict resolution is explicit:

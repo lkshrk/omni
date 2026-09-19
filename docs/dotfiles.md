@@ -74,6 +74,35 @@ omni dots sync --dry-run
 `status` includes symlink health and dotfiles repo Git state. `sync` creates or
 repairs Stow links.
 
+## Launch Sync
+
+Opening the TUI runs that same link repair once, for every entry, whenever a
+dotfiles repo is configured. It pulls nothing; it is `omni dots sync` without
+the Git step, and the footer reads `Syncing dots…` while it runs. So starting
+the TUI is a mutating action, not a read-only look at state.
+
+What it settles on its own:
+
+| Entry state | Launch sync |
+| --- | --- |
+| Missing or broken link | Creates or repairs the link. |
+| Local path with no repo source | Adopts the path into the repo, then links it. |
+| Local file newer than its repo source | Adopts the local content: copies it into the repo and relinks the target. |
+| Local file differs but is not newer | Left alone as a conflict. |
+
+Adoption of a newer local file commits the repo's current state first
+(`dots: pre-sync <name>`), so the replaced sources stay recoverable from Git
+history. "Newer" is strictly by modification time, so a local file and its repo
+source written within the same timestamp tick count as a conflict, not as an
+edit to adopt.
+
+A conflict is never resolved for you — it waits for `u`/`l` on the dots tab or
+for `omni dots resolve`. A row key pressed while the launch sync is still
+running is ignored, so let it finish before acting on a row.
+
+For a look at dotfile state that changes nothing, use the CLI: `omni dots
+status` and `omni dots list` are read-only.
+
 ## Ignore Patterns
 
 Ignore an entire logical dot entry:
