@@ -451,9 +451,7 @@ func renderAgentsHeaderInfo(m Model) string {
 	if updates := m.agentsUpdateCount(); updates > 0 {
 		counts += strconv.Itoa(updates) + " updates  "
 	}
-	counts += strconv.Itoa(len(m.agentsVisiblePackages())) + " pkg  " +
-		strconv.Itoa(len(m.agentsVisibleServices(m.agentsMCPRows))) + " mcp  " +
-		strconv.Itoa(len(m.agentsVisibleServices(m.agentsLSPRows))) + " lsp"
+	counts += agentsSummaryText(m)
 	if natives := len(m.agentsVisibleNatives()); natives > 0 {
 		counts += "  " + strconv.Itoa(natives) + " native"
 	}

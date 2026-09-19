@@ -284,6 +284,8 @@ func TestSectionedTabHeightModelCoversTheFooteredTab(t *testing.T) {
 	m.width, m.height = 100, 24
 	m.mode = viewSkills
 	m.agentsRowsKnown = true
+	// Counts moved to the header, so the footer needs a real state line to still exercise the budget.
+	m.agentsReadiness = app.AgentsReadiness{State: app.AgentsReadinessLiveIncomplete}
 	for i := range 12 {
 		m.agentsRows = append(m.agentsRows, app.AgentsPackageRow{Name: "pkg-" + strconv.Itoa(i)})
 	}

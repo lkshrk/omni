@@ -113,7 +113,7 @@ is the same inventory `omni agents drift` prints, so a row here means the
 artifact exists on the host but no APM manifest declares it. Rows read
 `unavailable`, except an ignored one, which reads `orphaned`: it is deliberately
 outside APM, not damaged. The tab header counts them as `N native`, beside the
-package, `mcp` and `lsp` counts it carries for every other section. The
+per-status rollup it carries for the packages and services. The
 section is omitted when there is nothing to report and when the clients cannot
 be read.
 

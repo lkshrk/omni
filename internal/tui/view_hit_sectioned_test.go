@@ -354,6 +354,7 @@ func TestAgentsRowClick_PinnedChromeIsNotARow(t *testing.T) {
 	t.Parallel()
 	m := agentsClickModel(t)
 	m.agentsCursor = 1
+	m.apmCommand = "omni agents sync"
 
 	pastEndY := frameLineOf(t, m, "0.9.0") + 1
 	assertBlankFrameLine(t, m, pastEndY)
@@ -363,7 +364,7 @@ func TestAgentsRowClick_PinnedChromeIsNotARow(t *testing.T) {
 		frameLineOf(t, m, "~/.apm/apm.yml"),
 		frameLineOf(t, m, "Packages ─"),
 		pastEndY,
-		frameLineOf(t, m, "1 installed"),
+		frameLineOf(t, m, "omni agents sync"),
 	} {
 		if sectionedHit(m, y) {
 			t.Errorf("non-row y=%d resolved to an agents row", y)

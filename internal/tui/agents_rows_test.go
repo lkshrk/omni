@@ -49,11 +49,15 @@ func agentsSectionedModel(t *testing.T) Model {
 }
 
 func TestAgentsViewRendersServiceSections(t *testing.T) {
-	view := agentsSectionedModel(t).viewSkillsBody()
-	for _, want := range []string{"Packages", "MCP servers", "LSP servers", "litellm-tools", "http", "ghost-mcp", "unavailable", "gopls"} {
+	m := agentsSectionedModel(t)
+	view := m.viewSkillsBody()
+	for _, want := range []string{"Packages", "MCP servers", "LSP servers", "litellm-tools", "http", "ghost-mcp", "gopls"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("view missing %q:\n%s", want, view)
 		}
+	}
+	if header := renderAgentsHeaderInfo(m); !strings.Contains(header, "1 unavailable") {
+		t.Fatalf("header %q missing the unavailable service count", header)
 	}
 }
 
@@ -93,25 +97,47 @@ func TestAgentsCursorTraversesEverySection(t *testing.T) {
 func TestAgentsSummaryCountsEverySurface(t *testing.T) {
 	m := agentsSectionedModel(t)
 	summary := agentsSummaryText(m)
-	if !strings.Contains(summary, "1 unavailable") {
-		t.Fatalf("summary %q missing %q", summary, "1 unavailable")
-	}
-	header := renderAgentsHeaderInfo(m)
-	for _, want := range []string{"3 pkg", "2 mcp", "1 lsp"} {
-		if !strings.Contains(header, want) {
-			t.Fatalf("header %q missing %q", header, want)
+	for _, want := range []string{"3 installed", "1 unavailable", "1 missing", "1 orphaned"} {
+		if !strings.Contains(summary, want) {
+			t.Fatalf("summary %q missing %q", summary, want)
 		}
 	}
-	if !strings.Contains(m.viewSkillsBody(), summary) {
-		t.Fatal("summary not rendered")
+	if header := renderAgentsHeaderInfo(m); !strings.Contains(header, summary) {
+		t.Fatalf("header %q does not carry the summary %q", header, summary)
+	}
+
+	// Each surface must move the rollup on its own: drop one and the installed count drops with it.
+	for name, drop := range map[string]func(*Model){
+		"packages": func(m *Model) { m.agentsRows = nil },
+		"mcp":      func(m *Model) { m.agentsMCPRows = nil },
+		"lsp":      func(m *Model) { m.agentsLSPRows = nil },
+	} {
+		t.Run(name, func(t *testing.T) {
+			reduced := agentsSectionedModel(t)
+			drop(&reduced)
+			if got := agentsSummaryText(reduced); !strings.Contains(got, "2 installed") {
+				t.Fatalf("dropping %s gave %q, want an installed count of 2 (surface not counted)", name, got)
+			}
+		})
+	}
+
+	if strings.Contains(m.viewSkillsBody(), summary) {
+		t.Fatalf("summary still renders in the body; counts belong to the header only:\n%s", m.viewSkillsBody())
 	}
 }
 
 func TestAgentsViewRendersPackageRows(t *testing.T) {
-	view := agentsRowsModel(t).viewSkillsBody()
-	for _, want := range []string{"alpha", "1.2.3", "claude", "files: 12", "installed", "bravo", "missing", "ghost", "orphaned"} {
+	m := agentsRowsModel(t)
+	view := m.viewSkillsBody()
+	for _, want := range []string{"alpha", "1.2.3", "claude", "files: 12", iconInstalled, "bravo", iconMissing, "ghost", iconOrphan} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("view missing %q:\n%s", want, view)
+		}
+	}
+	header := renderAgentsHeaderInfo(m)
+	for _, want := range []string{"1 installed", "1 missing", "1 orphaned"} {
+		if !strings.Contains(header, want) {
+			t.Fatalf("header %q missing %q", header, want)
 		}
 	}
 }
@@ -429,10 +455,13 @@ func TestAgentsFooterSurfacesShadowNoteAndStaysVisible(t *testing.T) {
 	m.apmCommand = "omni agents sync"
 	m.apmNotices = []string{"note: 4 package file(s) shadowed by user-managed files"}
 	view := m.viewSkillsBody()
-	for _, want := range []string{"4 package file(s) shadowed", "no action is needed", "omni agents sync", "installed"} {
+	for _, want := range []string{"4 package file(s) shadowed", "no action is needed", "omni agents sync"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("footer missing %q:\n%s", want, view)
 		}
+	}
+	if header := renderAgentsHeaderInfo(m); !strings.Contains(header, "installed") {
+		t.Fatalf("header %q lost the rollup while the footer carried notices", header)
 	}
 }
 
@@ -441,8 +470,12 @@ func TestAgentsStatusColumnSurvivesNarrowWidth(t *testing.T) {
 	m.width = 80
 	m.agentsRows[0].Source = "https://git.example.invalid/a-very/long/organisation/path/to/a/package/repository"
 	view := m.viewSkillsBody()
-	if !strings.Contains(view, "installed") || !strings.Contains(view, "orphaned") {
-		t.Fatalf("status column clipped at width 80:\n%s", view)
+	if !strings.Contains(view, iconInstalled) || !strings.Contains(view, iconOrphan) {
+		t.Fatalf("row status column clipped at width 80:\n%s", view)
+	}
+	header := renderAgentsHeaderInfo(m)
+	if !strings.Contains(header, "1 installed") || !strings.Contains(header, "1 orphaned") {
+		t.Fatalf("header rollup clipped at width 80: %q", header)
 	}
 }
 
@@ -493,11 +526,11 @@ func TestAgentsViewRendersDriftedRows(t *testing.T) {
 	m := agentsSectionedModel(t)
 	m.agentsMCPRows[0].Status = app.AgentsPackageDrifted
 	view := m.viewSkillsBody()
-	if !strings.Contains(view, "drifted") || !strings.Contains(view, iconDrifted) {
+	if !strings.Contains(view, iconDrifted) {
 		t.Fatalf("drifted row not rendered:\n%s", view)
 	}
-	if !strings.Contains(view, "1 drifted") {
-		t.Fatalf("summary missing the drifted count:\n%s", view)
+	if header := renderAgentsHeaderInfo(m); !strings.Contains(header, "1 drifted") {
+		t.Fatalf("header %q missing the drifted count", header)
 	}
 }
 

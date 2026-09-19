@@ -397,7 +397,11 @@ func (m Model) agentsAPMNoticeLines() []string {
 func (m Model) agentsFooterLines() []string {
 	lines := m.agentsStateLines()
 	lines = append(lines, m.agentsActivityLines()...)
-	return append(lines, m.agentsSummaryLines()...)
+	// Counts belong to the header on every tab; the registry is a mode of its own and keeps its own line.
+	if m.agentsRegistryMode {
+		lines = append(lines, m.agentsSummaryLines()...)
+	}
+	return lines
 }
 
 // What is true about the workspace right now.
