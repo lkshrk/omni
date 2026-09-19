@@ -184,6 +184,7 @@ func setStatusFor(m *Model, text string, isErr bool, okDuration time.Duration) t
 	}
 }
 
+// Blanks the label unconditionally, unlike setStatusFor: a new operation owns it from here.
 func startOp(m *Model, message string) {
 	m.statusGen++
 	m.progressText = ""
@@ -195,6 +196,7 @@ func finishOpOK(m *Model, message string) tea.Cmd {
 	return setStatus(m, "✓ "+message, false)
 }
 
+// Blanks the label too, so a caller starting work of its own renders its label rather than the last one.
 func clearStatus(m *Model) {
 	m.statusGen++
 	m.progressText = ""
