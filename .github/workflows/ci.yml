@@ -290,8 +290,8 @@ jobs:
 
   flow-evidence:
     name: Flow Evidence
-    if: always() && needs.changes.outputs.code == 'true'
-    needs: [changes, unit-tests, integration]
+    if: always() && needs.unit-tests.result != 'skipped'
+    needs: [unit-tests, integration]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
