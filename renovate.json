@@ -8,7 +8,7 @@
 	"packageRules": [
 		{
 			"description": "Automerge non-major updates after CI passes",
-			"matchUpdateTypes": ["patch", "minor"],
+			"matchUpdateTypes": ["patch", "minor", "digest", "pin"],
 			"automerge": true
 		},
 		{
