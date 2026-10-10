@@ -3,13 +3,10 @@ name: CI Pipeline
 on:
   push:
     branches:
-      - '**'
+      - main
   pull_request:
     branches:
       - '**'
-    paths-ignore:
-      - 'docs/**'
-      - '**/*.md'
   workflow_dispatch:
 
 permissions:
@@ -21,6 +18,30 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
+  changes:
+    name: Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+
+      # Inverted on purpose: any path not listed as non-code runs the full suite.
+      - id: diff
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          code=true
+          if [ "$GITHUB_EVENT_NAME" != workflow_dispatch ] && [ -n "$BASE" ] && [ "$BASE" != 0000000000000000000000000000000000000000 ] \
+            && changed=$(git diff --name-only "$BASE" HEAD) \
+            && ! grep -qvE '^(docs/|mkdocs\.yml$|Dockerfile\.docs$|\.github/workflows/docs\.yml$|renovate\.json$|LICENSE$)|\.md$' <<<"$changed"; then
+            code=false
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
   release-config:
     name: Release Configuration
     runs-on: ubuntu-latest
@@ -36,6 +57,8 @@ jobs:
 
   vet:
     name: Go Vet
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -52,6 +75,8 @@ jobs:
 
   lint:
     name: Lint
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -70,6 +95,8 @@ jobs:
 
   script-tests:
     name: Script Tests
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -80,6 +107,8 @@ jobs:
 
   unit-tests:
     name: Unit Tests (${{ matrix.name }})
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -135,6 +164,8 @@ jobs:
 
   apm-platform-contracts:
     name: APM Platform Contracts (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     env:
@@ -181,6 +212,8 @@ jobs:
 
   onboarding-unit:
     name: Onboarding Unit (race)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -194,6 +227,8 @@ jobs:
 
   integration:
     name: Docker Integration Tests (${{ matrix.name }})
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -255,7 +290,7 @@ jobs:
 
   flow-evidence:
     name: Flow Evidence
-    if: always()
+    if: always() && needs.unit-tests.result != 'skipped'
     needs: [unit-tests, integration]
     runs-on: ubuntu-latest
     timeout-minutes: 10
