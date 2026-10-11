@@ -322,6 +322,10 @@ func (db *DB) RecordCommandTrace(ctx context.Context, trace *CommandTrace) error
 		trace.DurationMS = 0
 	}
 	trace.ID = 0
+	// bun rejects NUL in string values; captured process output can contain it.
+	for _, field := range []*string{&trace.Reason, &trace.Command, &trace.Status, &trace.Error, &trace.Stdout, &trace.Stderr} {
+		*field = strings.ReplaceAll(*field, "\x00", "")
+	}
 	if _, err := db.bun.NewInsert().Model(trace).Exec(ctx); err != nil {
 		return fmt.Errorf("recording command trace: %w", err)
 	}
@@ -354,7 +358,7 @@ func (db *DB) ListCommandTraces(ctx context.Context, limit int) ([]CommandTrace,
 	if err := db.bun.NewSelect().
 		Model(&traces).
 		Order("started_at DESC", "id DESC").
-		Limit(limit).
+		Limit(int64(limit)).
 		Scan(ctx); err != nil {
 		return nil, fmt.Errorf("listing command traces: %w", err)
 	}
