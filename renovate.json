@@ -19,6 +19,15 @@
 		{
 			"matchDepTypes": ["engines"],
 			"enabled": false
+		},
+		{
+			"description": "Bun Group (bun panics unless its dialects share its exact version)",
+			"groupName": "bun",
+			"matchPackageNames": ["github.com/uptrace/bun", "github.com/uptrace/bun/**"],
+			"group": {
+				"commitMessageTopic": "{{{groupName}}} group"
+			},
+			"minimumGroupSize": 2
 		}
 	],
 	"lockFileMaintenance": {
