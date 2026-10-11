@@ -18,13 +18,16 @@ require (
 	github.com/spf13/pflag v1.0.10
 	github.com/ulikunitz/xz v0.5.17
 	github.com/uptrace/bun v1.3.0
-	github.com/uptrace/bun/dialect/sqlitedialect v1.2.18
+	github.com/uptrace/bun/dialect/sqlitedialect v1.3.0
 	golang.org/x/sync v0.22.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.57.0
 )
 
-require golang.org/x/exp v0.0.0-20260727155853-b88d891fe743 // indirect
+require (
+	github.com/kr/text v0.2.0 // indirect
+	golang.org/x/exp v0.0.0-20260727155853-b88d891fe743 // indirect
+)
 
 require (
 	github.com/atotto/clipboard v0.1.4 // indirect

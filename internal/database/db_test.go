@@ -177,6 +177,29 @@ func TestPackageAvailability_UpsertAndGet(t *testing.T) {
 	}
 }
 
+func TestCommandTrace_RecordStripsNUL(t *testing.T) {
+	ctx := context.Background()
+	db := newTestDB(t)
+	if err := db.RecordCommandTrace(ctx, &database.CommandTrace{
+		Command: "brew\x00 install",
+		Status:  "failed\x00",
+		Stderr:  "partial\x00output",
+	}); err != nil {
+		t.Fatalf("RecordCommandTrace: %v", err)
+	}
+	traces, err := db.ListCommandTraces(ctx, 1)
+	if err != nil {
+		t.Fatalf("ListCommandTraces: %v", err)
+	}
+	if len(traces) != 1 {
+		t.Fatalf("got %d traces, want 1", len(traces))
+	}
+	got := traces[0]
+	if got.Command != "brew install" || got.Status != "failed" || got.Stderr != "partialoutput" {
+		t.Fatalf("NUL not stripped: command=%q status=%q stderr=%q", got.Command, got.Status, got.Stderr)
+	}
+}
+
 func TestCommandTrace_RecordListAndPrune(t *testing.T) {
 	ctx := context.Background()
 	db := newTestDB(t)
