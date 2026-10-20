@@ -42,7 +42,7 @@ func TestInstall_Success(t *testing.T) {
 		t.Fatalf("Install: %v", err)
 	}
 	args := m.Calls[0].Args
-	if args[0] != "-S" || args[1] != "--noconfirm" || args[2] != "ripgrep" {
+	if strings.Join(args, " ") != "-S --needed --noconfirm ripgrep" {
 		t.Errorf("unexpected args: %v", args)
 	}
 }
@@ -73,8 +73,8 @@ func TestUninstall_Success(t *testing.T) {
 	if err := p.Uninstall(context.Background(), tool("ripgrep")); err != nil {
 		t.Fatalf("Uninstall: %v", err)
 	}
-	if m.Calls[0].Args[0] != "-R" {
-		t.Errorf("expected '-R', got %q", m.Calls[0].Args[0])
+	if m.Calls[0].Args[0] != "-Rs" {
+		t.Errorf("expected '-Rs', got %q", m.Calls[0].Args[0])
 	}
 }
 

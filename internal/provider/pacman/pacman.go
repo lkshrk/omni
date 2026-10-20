@@ -39,11 +39,11 @@ func (p *Provider) Uninstall(ctx context.Context, tool provider.Tool) error {
 	pkg := tool.EffectivePackage()
 	rawCmd, rawArgs, _ := p.PrivilegeCommand(provider.PrivilegeActionUninstall, tool)
 	cmd, args := provider.PrivilegedCommand(rawCmd, rawArgs...)
-	return provider.RunCmd(ctx, p.exec, "pacman -R "+pkg, cmd, args...)
+	return provider.RunCmd(ctx, p.exec, "pacman -Rs "+pkg, cmd, args...)
 }
 
 func (p *Provider) Upgrade(ctx context.Context, tool provider.Tool) error {
-	// pacman has no upgrade-single-package command; -S reinstalls the latest version.
+	// pacman has no upgrade-single-package command; -S --needed installs the newer synced version or no-ops.
 	pkg := tool.EffectivePackage()
 	rawCmd, rawArgs, _ := p.PrivilegeCommand(provider.PrivilegeActionUpgrade, tool)
 	cmd, args := provider.PrivilegedCommand(rawCmd, rawArgs...)
@@ -58,9 +58,9 @@ func (p *Provider) PrivilegeCommand(action provider.PrivilegeAction, tool provid
 	pkg := tool.EffectivePackage()
 	switch action {
 	case provider.PrivilegeActionUninstall:
-		return "pacman", []string{"-R", "--noconfirm", pkg}, true
+		return "pacman", []string{"-Rs", "--noconfirm", pkg}, true
 	default:
-		return "pacman", []string{"-S", "--noconfirm", pkg}, true
+		return "pacman", []string{"-S", "--needed", "--noconfirm", pkg}, true
 	}
 }
 

@@ -171,7 +171,7 @@ func TestPrivilegedToolCommand_SudoBackedProviders(t *testing.T) {
 			name:   "pacman upgrade",
 			action: provider.PrivilegeActionUpgrade,
 			tool:   database.ToolCache{Name: "vim", Provider: "pacman", Package: "vim"},
-			want:   "pacman -S --noconfirm vim",
+			want:   "pacman -S --needed --noconfirm vim",
 		},
 		{
 			name:   "zypper uninstall",
