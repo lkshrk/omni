@@ -289,7 +289,7 @@ func TestConcreteProviderPriorityDraft_SeedsThenAppendsAll(t *testing.T) {
 func TestDefaultConcreteProviderPriorityDraft_NoApp(t *testing.T) {
 	t.Parallel()
 	draft := app.DefaultConcreteProviderPriorityDraft(nil)
-	want := []string{"brew", "apt", "apk", "dnf", "pacman", "zypper", "bun", "pnpm", "npm", "uv", "pip", "cargo"}
+	want := []string{"brew", "apt", "apk", "dnf", "pacman", "aur", "zypper", "bun", "pnpm", "npm", "uv", "pip", "cargo"}
 	if strings.Join(draft, ",") != strings.Join(want, ",") {
 		t.Fatalf("draft = %v, want %v", draft, want)
 	}

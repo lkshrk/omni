@@ -1,0 +1,82 @@
+# tools sync falls back to paru with --skipreview when yay is absent
+exec chmod 755 bin/yay bin/paru bin/pacman bin/sudo
+mkdir .omni-cache/fake-aur
+cp foreign.txt .omni-cache/fake-aur/installed
+env PATH=$WORK/bin:$PATH
+
+exec omni --config settings.json hosts ensure testhost
+
+exec omni --config settings.json tools sync
+stdout 'installed: walker \(aur\)'
+
+exec cat .omni-cache/fake-aur/paru.args
+stdout '^--sudoflags=-n -S --needed --noconfirm --skipreview walker-bin$'
+! exec test -f .omni-cache/fake-aur/yay.args
+! exec test -f .omni-cache/fake-aur/sudo.args
+
+exec omni --config settings.json tools sync
+stdout 'already installed: walker \(aur\)'
+
+-- bin/yay --
+#!/bin/sh
+mkdir -p "${OMNI_CACHE_DIR}/fake-aur"
+[ "${1:-}" = "--version" ] || echo "$*" > "${OMNI_CACHE_DIR}/fake-aur/yay.args"
+exit 127
+
+-- bin/paru --
+#!/bin/sh
+set -eu
+state="${OMNI_CACHE_DIR}/fake-aur"
+mkdir -p "$state"
+if [ "${1:-}" = "--version" ]; then
+  echo "paru v2.0.4 - libalpm v15.0.0"
+  exit 0
+fi
+echo "$*" > "$state/paru.args"
+for pkg in "$@"; do :; done
+echo "$pkg 0.12.0-1" >> "$state/installed"
+
+-- bin/sudo --
+#!/bin/sh
+mkdir -p "${OMNI_CACHE_DIR}/fake-aur"
+echo "$*" > "${OMNI_CACHE_DIR}/fake-aur/sudo.args"
+exit 1
+
+-- bin/pacman --
+#!/bin/sh
+state="${OMNI_CACHE_DIR}/fake-aur/installed"
+case "${1:-}" in
+  --version) echo "Pacman v7.0.0" ;;
+  -Qm)
+    [ -f "$state" ] || exit 1
+    if [ -n "${2:-}" ]; then
+      grep "^$2 " "$state" || exit 1
+    else
+      cat "$state"
+    fi
+    ;;
+  -Qqem)
+    [ -f "$state" ] && cut -d' ' -f1 "$state"
+    exit 0
+    ;;
+  -Qn|-Qqen) exit 0 ;;
+  *) exit 1 ;;
+esac
+
+-- foreign.txt --
+paru-bin 2.0.4-1
+
+-- settings.json --
+{
+  "version": 26,
+  "settings": {
+    "disabled_providers": ["brew", "npm", "pip", "node", "python", "pip3", "apt", "apk", "dnf", "zypper"]
+  },
+  "tools": {
+    "walker": { "providers": [{ "provider": "aur", "package": "walker-bin" }] }
+  },
+  "hosts": { "testhost": [] },
+  "groups": [
+    { "name": "testhost", "special": "host", "tools": ["walker"] }
+  ]
+}

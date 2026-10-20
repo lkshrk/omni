@@ -304,6 +304,7 @@ func privilegeReasonFromRowError(message string) string {
 		"dnf install ",
 		"pacman install ",
 		"zypper install ",
+		"aur install ",
 	} {
 		if idx := strings.Index(lower, marker); idx >= 0 {
 			return strings.TrimSpace(message[idx:])
@@ -484,8 +485,17 @@ var privilegedCommandAllowlist = map[string]bool{
 	"zypper":  true,
 }
 
+// AUR helpers elevate through sudo themselves and abort when started as root.
+var selfElevatingCommandAllowlist = map[string]bool{
+	"paru": true,
+	"yay":  true,
+}
+
 // Callers must treat ok=false as refuse-to-run rather than falling back to the raw command.
 func interactivePrivilegedCommand(cmd string, args ...string) (string, []string, bool) {
+	if selfElevatingCommandAllowlist[cmd] {
+		return cmd, args, true
+	}
 	if !privilegedCommandAllowlist[cmd] {
 		return "", nil, false
 	}

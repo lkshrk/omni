@@ -60,10 +60,10 @@ func TestV25ConfigRoundTripsThroughSave(t *testing.T) {
 	if err := json.Unmarshal(data, &saved); err != nil {
 		t.Fatalf("parse saved config: %v", err)
 	}
-	if saved.Version != 25 {
-		t.Fatalf("saved version = %d, want 25", saved.Version)
+	if saved.Version != config.CurrentVersion {
+		t.Fatalf("saved version = %d, want %d", saved.Version, config.CurrentVersion)
 	}
-	if saved.Schema != config.SchemaURL || !strings.Contains(saved.Schema, ".v25.") {
+	if saved.Schema != config.SchemaURL {
 		t.Fatalf("saved $schema = %q, want %q", saved.Schema, config.SchemaURL)
 	}
 	want := config.AgentIgnoreEntry{Host: "work", Target: "claude", Kind: "plugin", ID: "acme/tool", Reason: "local pin"}

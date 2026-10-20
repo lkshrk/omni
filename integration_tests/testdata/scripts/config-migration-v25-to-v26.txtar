@@ -1,0 +1,84 @@
+# The v25->v26 step is a version stamp only and must carry every block through.
+
+cp settings.json settings.json.orig
+
+exec omni --config settings.json settings show
+cmp settings.json settings.json.orig
+
+exec omni --config settings.json hosts ensure otherhost
+
+exec grep '"version"' settings.json
+stdout '"version": 26'
+exec grep 'omni.settings' settings.json
+stdout 'omni.settings.v26.schema.json'
+
+exec grep '"local-only"' settings.json
+stdout '"id": "local-only"'
+exec grep '"hand-managed"' settings.json
+stdout '"reason": "hand-managed"'
+exec grep '"auto_import"' settings.json
+stdout '"auto_import": true'
+exec grep '"package"' settings.json
+stdout '"package": "ripgrep"'
+exec grep '"special"' settings.json
+stdout '"special": "host"'
+exec grep '"~/.config/nvim"' settings.json
+stdout '"path": "~/.config/nvim"'
+exec grep '"otherhost"' settings.json
+stdout '"otherhost"'
+
+# The raw v25 step still rejects the retired agents shape.
+cp retired.json retired.json.orig
+! exec omni --config retired.json settings show
+stderr 'config field ".\.agents\.ai" was removed in v24'
+cmp retired.json retired.json.orig
+
+-- settings.json --
+{
+  "version": 25,
+  "settings": {
+    "auto_import": true
+  },
+  "tools": {
+    "ripgrep": {
+      "providers": [
+        {
+          "provider": "brew",
+          "package": "ripgrep"
+        }
+      ]
+    }
+  },
+  "groups": [
+    {
+      "name": "testhost",
+      "special": "host",
+      "tools": [
+        "ripgrep"
+      ],
+      "dots": [
+        {
+          "name": "nvim",
+          "path": "~/.config/nvim"
+        }
+      ]
+    }
+  ],
+  "hosts": {
+    "testhost": []
+  },
+  "agents": {
+    "ignored": [
+      {
+        "host": "testhost",
+        "target": "claude",
+        "kind": "plugin",
+        "id": "local-only",
+        "reason": "hand-managed"
+      }
+    ]
+  }
+}
+
+-- retired.json --
+{"version":25,"agents":{"ai":{"skills":[]}}}

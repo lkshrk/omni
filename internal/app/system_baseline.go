@@ -71,10 +71,11 @@ func (a *App) RebaselineSystemInventory(ctx context.Context, dryRun bool) (Syste
 			return SystemInventoryRebaseline{}, fmt.Errorf("reading system inventory baseline for %s: %w", p.Name(), err)
 		}
 		baseline := systemInventoryBaselineSet(current)
+		profile := baseProfilePackages(ctx, p)
 		var absorbed []string
 		for _, t := range installed {
 			// A tracked or explicitly ignored tool keeps its own state; absorbing it would silently retire that decision.
-			if baseline[t.Name] || protected[t.Name] {
+			if baseline[t.Name] || protected[t.Name] || profile[t.Name] {
 				continue
 			}
 			baseline[t.Name] = true

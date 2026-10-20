@@ -50,6 +50,7 @@ var builtinMetadata = map[string]Metadata{
 	"dnf":    {Kind: ProviderKindConcrete, Ecosystem: EcosystemSystem, DisplayOrder: 130, RequiresPrivilege: true},
 	"pacman": {Kind: ProviderKindConcrete, Ecosystem: EcosystemSystem, DisplayOrder: 140, RequiresPrivilege: true},
 	"zypper": {Kind: ProviderKindConcrete, Ecosystem: EcosystemSystem, DisplayOrder: 150, RequiresPrivilege: true},
+	"aur":    {Kind: ProviderKindConcrete, DisplayOrder: 145, RequiresPrivilege: true},
 	"bun":    {Kind: ProviderKindConcrete, Ecosystem: EcosystemNode, DisplayOrder: 200},
 	"pnpm":   {Kind: ProviderKindConcrete, Ecosystem: EcosystemNode, DisplayOrder: 210},
 	"npm":    {Kind: ProviderKindConcrete, Ecosystem: EcosystemNode, DisplayOrder: 220},

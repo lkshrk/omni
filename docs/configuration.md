@@ -19,7 +19,12 @@ ordinary dotfile-managed file, not Omni configuration.
 `omni agents migrate --host <name>` previews one from a pre-APM snapshot;
 `--write` publishes wrappers and updates the migration-owned template.
 
-Current settings schema version: 25. The top-level `agents` field accepts only
+Current settings schema version: 26. Version 26 adds the `aur` provider;
+older files are migrated in memory on read and rewritten on the first command
+that saves settings. Omni builds older than v26 reject a v26 file, so update
+every host that shares the settings repository before adding `aur` entries.
+
+The top-level `agents` field accepts only
 an `ignored` list of host-local agent artifacts omni must leave alone; every
 other `agents` shape is rejected with instructions to use APM.
 

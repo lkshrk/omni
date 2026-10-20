@@ -321,6 +321,7 @@ var configMigrations = []configMigration{
 	{from: 22, to: 23, apply: migrateConfigV22ToV23, applyRaw: migrateRawConfigV22ToV23},
 	{from: 23, to: 24, apply: migrateConfigV23ToV24, applyRaw: migrateRawConfigV23ToV24},
 	{from: 24, to: 25, apply: migrateConfigV24ToV25, applyRaw: migrateRawConfigV24ToV25},
+	{from: 25, to: 26, apply: migrateConfigV25ToV26, applyRaw: migrateRawConfigV25ToV26},
 }
 
 func configMigrationFrom(version int) (configMigration, bool) {
@@ -1189,6 +1190,20 @@ func migrateRawConfigV24ToV25(raw map[string]json.RawMessage) error {
 		return err
 	}
 	raw["version"] = json.RawMessage(`25`)
+	return nil
+}
+
+// No-op: v26 only adds the aur provider to the schema's provider enums.
+func migrateConfigV25ToV26(cfg *RootConfig) error {
+	cfg.Version = 26
+	return nil
+}
+
+func migrateRawConfigV25ToV26(raw map[string]json.RawMessage) error {
+	if err := validateRemovedAgentConfigFields(raw); err != nil {
+		return err
+	}
+	raw["version"] = json.RawMessage(`26`)
 	return nil
 }
 

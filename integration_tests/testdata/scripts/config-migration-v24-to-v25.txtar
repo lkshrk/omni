@@ -1,5 +1,5 @@
 # v24 is the last version released binaries wrote, so it is a real on-disk state.
-# The v24->v25 step is a version stamp only and must carry every block through.
+# The v24->v25->v26 steps are version stamps only and must carry every block through.
 
 cp settings.json settings.json.orig
 
@@ -11,9 +11,9 @@ cmp settings.json settings.json.orig
 exec omni --config settings.json hosts ensure otherhost
 
 exec grep '"version"' settings.json
-stdout '"version": 25'
+stdout '"version": 26'
 exec grep 'omni.settings' settings.json
-stdout 'omni.settings.v25.schema.json'
+stdout 'omni.settings.v26.schema.json'
 
 # agents.ignored is schema-described in v25 and must survive the stamp intact.
 exec grep '"local-only"' settings.json

@@ -238,6 +238,11 @@ type ErrorAdvisor interface {
 	ErrorSolutions(code ErrorCode, tool Tool) []ErrorSolution
 }
 
+// BaseProfileLister — Optional. Packages a detected distro profile installs by default; nil when no profile applies.
+type BaseProfileLister interface {
+	BaseProfilePackages(ctx context.Context) (map[string]bool, error)
+}
+
 type Descriptor interface {
 	Describe(ctx context.Context, tool Tool) (string, error)
 }

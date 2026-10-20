@@ -33,7 +33,7 @@ dependencies, such as `apt install ./omni.deb`, `dnf install ./omni.rpm`,
 | Platform | Status | Notes |
 | --- | --- | --- |
 | macOS | supported | Homebrew is the expected system package manager. User services use launchd where available. |
-| Linux | supported | Native managers include `apt`, `apk`, `dnf`, `zypper`, and `pacman`. User services use systemd where available. |
+| Linux | supported | Native managers include `apt`, `apk`, `dnf`, `zypper`, and `pacman`; `aur` covers AUR packages through `yay` or `paru`. User services use systemd where available. |
 | Windows | not documented | Windows support is not part of the current tested contract. |
 
 Supported built-in concrete providers:

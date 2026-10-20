@@ -148,3 +148,49 @@ func TestRebaselineSystemInventory_ProtectsPerProviderPackageNames(t *testing.T)
 		t.Fatalf("absorbed = %v, want [xvfb]", absorbed)
 	}
 }
+
+type profileStubProvider struct {
+	stubProvider
+	profile map[string]bool
+}
+
+func (p *profileStubProvider) BaseProfilePackages(context.Context) (map[string]bool, error) {
+	return p.profile, nil
+}
+
+func TestDistroProfilePackagesNeverSurfaceOrPersist(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	pacman := &profileStubProvider{
+		stubProvider: stubProvider{name: "pacman", available: true, installed: aptInstalled("bat")},
+		profile:      map[string]bool{"hyprland": true},
+	}
+	a, cfgPath := newImportApp(t, pacman)
+	if err := saveAppConfig(t, cfgPath, &config.RootConfig{
+		Tools:  map[string]config.ToolSpec{"ripgrep": {Providers: []config.ToolInstallSpec{{Provider: "pacman"}}}},
+		Groups: []*config.GroupConfig{{Tools: groupTools("ripgrep")}},
+	}); err != nil {
+		t.Fatalf("config.Save: %v", err)
+	}
+	if err := a.RefreshDiscovered(ctx); err != nil {
+		t.Fatalf("seed baseline: %v", err)
+	}
+
+	pacman.installed = aptInstalled("bat", "hyprland", "waybar", "lazygit")
+	pacman.profile = map[string]bool{"hyprland": true, "waybar": true}
+	got := discoveredNames(t, ctx, a)
+	if got["hyprland"] || got["waybar"] || got["bat"] {
+		t.Fatalf("discovered = %v; profile and pre-baseline packages must not surface", got)
+	}
+	if !got["lazygit"] {
+		t.Fatalf("discovered = %v; a user-installed package must still surface", got)
+	}
+
+	preview, err := a.RebaselineSystemInventory(ctx, true)
+	if err != nil {
+		t.Fatalf("RebaselineSystemInventory: %v", err)
+	}
+	if len(preview.Providers) != 1 || len(preview.Providers[0].Absorbed) != 1 || preview.Providers[0].Absorbed[0] != "lazygit" {
+		t.Fatalf("absorbed = %+v; want lazygit only, profile packages are already excluded", preview.Providers)
+	}
+}

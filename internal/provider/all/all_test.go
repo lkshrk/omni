@@ -10,7 +10,7 @@ import (
 
 // The node/python named managers are parameterized and wired in internal/app, so they are absent here.
 var wantConcrete = []string{
-	"apk", "apt", "apt_repo", "brew", "cargo", "dnf", "pacman", "pip", "script", "zypper",
+	"apk", "apt", "apt_repo", "aur", "brew", "cargo", "dnf", "pacman", "pip", "script", "zypper",
 }
 
 // A new provider must both register a factory and be blank-imported by package all, or this list diverges.

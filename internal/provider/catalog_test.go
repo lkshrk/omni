@@ -8,7 +8,7 @@ import (
 
 func TestBuiltinConcreteProviderPriorityNames(t *testing.T) {
 	got := provider.BuiltinConcreteProviderPriorityNames()
-	want := []string{"brew", "apt", "apk", "dnf", "pacman", "zypper", "bun", "pnpm", "npm", "uv", "pip", "cargo"}
+	want := []string{"brew", "apt", "apk", "dnf", "pacman", "aur", "zypper", "bun", "pnpm", "npm", "uv", "pip", "cargo"}
 	if len(got) != len(want) {
 		t.Fatalf("got %v (len %d), want %v (len %d)", got, len(got), want, len(want))
 	}
@@ -26,8 +26,8 @@ func TestBuiltinConcreteProviderPriorityNames(t *testing.T) {
 
 func TestBuiltinMetadata_RequiresPrivilege(t *testing.T) {
 	// Single source of truth for the privilege display marker: only sudo-backed system PMs carry the flag.
-	privileged := map[string]bool{"apt": true, "apk": true, "dnf": true, "pacman": true, "zypper": true}
-	for _, name := range []string{"apt", "apk", "dnf", "pacman", "zypper", "brew", "system", "pip", "pip3", "uv", "npm", "bun", "cargo", "script", "unknown"} {
+	privileged := map[string]bool{"apt": true, "apk": true, "dnf": true, "pacman": true, "aur": true, "zypper": true}
+	for _, name := range []string{"apt", "apk", "dnf", "pacman", "aur", "zypper", "brew", "system", "pip", "pip3", "uv", "npm", "bun", "cargo", "script", "unknown"} {
 		want := privileged[name]
 		if got := provider.BuiltinMetadata(name).RequiresPrivilege; got != want {
 			t.Errorf("BuiltinMetadata(%q).RequiresPrivilege = %v, want %v", name, got, want)

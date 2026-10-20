@@ -7,7 +7,7 @@ the current machine.
 
 | Type | Examples | Role |
 | --- | --- | --- |
-| Concrete provider | `brew`, `apt`, `apk`, `dnf`, `pacman`, `zypper`, `bun`, `pnpm`, `npm`, `uv`, `pip`, `cargo` | Actual package manager or registry client. |
+| Concrete provider | `brew`, `apt`, `apk`, `dnf`, `pacman`, `aur`, `zypper`, `bun`, `pnpm`, `npm`, `uv`, `pip`, `cargo` | Actual package manager or registry client. |
 | Script provider | `script` | User-authored shell install/check/uninstall commands. |
 | Bootstrap provider tool | `uv` installed by `brew` | A provider executable managed before dependent tools. |
 
@@ -44,8 +44,24 @@ omni tools sync --allow-weak
 | System packages | `apt`, `apk`, `dnf`, `zypper`, `pacman`, `brew` |
 | Node packages | `bun`, `pnpm`, `npm` |
 | Python packages | `uv`, `pip` |
+| Arch User Repository | `aur` (via `yay` or `paru`) |
 | Rust binary crates | `cargo` |
 | Script installs | `script` |
+
+## AUR Provider
+
+`aur` installs Arch User Repository packages through `yay`, falling back to
+`paru`. It is available only when one of them is on `PATH`, as on Omarchy.
+`pacman` reports explicitly installed repo packages and `aur` reports explicitly
+installed foreign ones, so no package appears under both.
+
+The helper elevates through `sudo` itself. Non-interactive installs pass
+`--sudoflags=-n`, so a missing sudo credential fails fast and the tool is queued
+for an admin terminal, where the helper runs unwrapped and prompts normally.
+
+```json
+{ "tools": { "walker": { "providers": [{ "provider": "aur", "package": "walker-bin" }] } } }
+```
 
 ## Script Provider
 

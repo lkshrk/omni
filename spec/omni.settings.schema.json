@@ -136,12 +136,12 @@
     },
     "version": {
       "description": "settings.json format version. Missing means legacy unversioned config; omni migrates it to the current version on write.",
-      "default": 25,
+      "default": 26,
       "examples": [
-        25
+        26
       ],
       "type": "integer",
-      "const": 25
+      "const": 26
     }
   },
   "required": [
@@ -796,6 +796,7 @@
             "apk",
             "dnf",
             "pacman",
+            "aur",
             "zypper",
             "bun",
             "pnpm",
@@ -839,6 +840,7 @@
             "apk",
             "dnf",
             "pacman",
+            "aur",
             "zypper",
             "bun",
             "pnpm",
@@ -1026,6 +1028,7 @@
             "apk",
             "dnf",
             "pacman",
+            "aur",
             "zypper",
             "bun",
             "pnpm",
@@ -1065,6 +1068,7 @@
             "apk",
             "dnf",
             "pacman",
+            "aur",
             "zypper",
             "bun",
             "pnpm",
@@ -1141,6 +1145,7 @@
             "apk",
             "dnf",
             "pacman",
+            "aur",
             "zypper",
             "bun",
             "pnpm",
@@ -1180,6 +1185,7 @@
             "apk",
             "dnf",
             "pacman",
+            "aur",
             "zypper",
             "bun",
             "pnpm",

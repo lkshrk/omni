@@ -2560,8 +2560,9 @@ func TestModel_PriorityEditor_Open(t *testing.T) {
 	if !m.editingPriority {
 		t.Fatal("editingPriority should be true after enter on priority row")
 	}
-	if len(m.priorityDraft) != 12 {
-		t.Fatalf("priorityDraft len = %d, want 12 (all concrete providers)", len(m.priorityDraft))
+	want := len(provider.BuiltinConcreteProviderPriorityNames())
+	if len(m.priorityDraft) != want {
+		t.Fatalf("priorityDraft len = %d, want %d (all concrete providers)", len(m.priorityDraft), want)
 	}
 	if m.priorityCursor != 0 {
 		t.Errorf("priorityCursor = %d, want 0", m.priorityCursor)
@@ -2586,7 +2587,7 @@ func TestModel_PriorityEditor_OpenFromSettings(t *testing.T) {
 	if !m.editingPriority {
 		t.Fatal("editingPriority should be true")
 	}
-	if len(m.priorityDraft) != 12 || m.priorityDraft[0] != "brew" || m.priorityDraft[1] != "apt" {
+	if len(m.priorityDraft) != len(provider.BuiltinConcreteProviderPriorityNames()) || m.priorityDraft[0] != "brew" || m.priorityDraft[1] != "apt" {
 		t.Errorf("priorityDraft = %v, want [brew apt ...all concrete defaults]", m.priorityDraft)
 	}
 }
@@ -2615,14 +2616,15 @@ func TestModel_PriorityEditor_CursorClamps(t *testing.T) {
 		t.Errorf("priorityCursor = %d, want 0 (clamped at top)", m.priorityCursor)
 	}
 
-	manyJ := make([]tea.Msg, 15)
+	n := len(provider.BuiltinConcreteProviderPriorityNames())
+	manyJ := make([]tea.Msg, n+3)
 	for i := range manyJ {
 		manyJ[i] = pressRune('j')
 	}
 	msgs = append(goToPriorityRow(), append([]tea.Msg{pressEnter()}, manyJ...)...)
 	m = drive(baseModel(nil), msgs...)
-	if m.priorityCursor != 11 {
-		t.Errorf("priorityCursor = %d, want 11 (clamped at bottom of 12 items)", m.priorityCursor)
+	if m.priorityCursor != n-1 {
+		t.Errorf("priorityCursor = %d, want %d (clamped at bottom of %d items)", m.priorityCursor, n-1, n)
 	}
 }
 

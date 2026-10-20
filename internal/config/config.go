@@ -11,7 +11,7 @@ import (
 )
 
 // CurrentVersion — Version 0 is the legacy unversioned format.
-const CurrentVersion = 25
+const CurrentVersion = 26
 
 const (
 	FallbackSourceGitHub = "github"

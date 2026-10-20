@@ -11,7 +11,7 @@ func TestBuiltinKnownNames_OrderedByDisplayOrder(t *testing.T) {
 	got := provider.BuiltinKnownNames()
 	want := []string{
 		"system", "node", "python", "brew", "apt_repo", "apt", "apk", "dnf",
-		"pacman", "zypper", "bun", "pnpm", "npm", "uv", "pip3", "pip", "cargo", "script",
+		"pacman", "aur", "zypper", "bun", "pnpm", "npm", "uv", "pip3", "pip", "cargo", "script",
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("BuiltinKnownNames = %v, want %v", got, want)

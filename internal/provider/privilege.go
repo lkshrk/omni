@@ -58,7 +58,7 @@ func SystemPrivilegePlanProvider(plan PrivilegePlan) string {
 		return ""
 	}
 	switch fields[0] {
-	case "apt", "apk", "dnf", "pacman", "zypper", "brew":
+	case "apt", "apk", "dnf", "pacman", "aur", "zypper", "brew":
 		return fields[0]
 	default:
 		return ""

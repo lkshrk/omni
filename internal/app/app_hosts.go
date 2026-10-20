@@ -651,7 +651,7 @@ func (a *App) syncOrphansToMachineGroup(ctx context.Context, activeGroups []*con
 			}
 			var systemBaseline map[string]bool
 			if isSystemInventoryProvider(p.Name()) {
-				systemBaseline, err = a.systemInventoryBaseline(ctx, p.Name(), installed)
+				systemBaseline, err = a.systemInventoryBaseline(ctx, p, installed)
 				if err != nil {
 					scanErrs = append(scanErrs, fmt.Errorf("recording system inventory baseline for %s: %w", p.Name(), err))
 					return nil

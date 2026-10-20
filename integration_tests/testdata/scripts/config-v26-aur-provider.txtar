@@ -1,0 +1,33 @@
+# A v26 config with an aur tool loads, validates on write and keeps the aur spec
+exec omni --config settings.json settings show
+exec omni --config settings.json hosts ensure testhost
+exec omni --config settings.json settings lint
+stdout 'no issues found'
+
+exec grep '"version"' settings.json
+stdout '"version": 26'
+exec grep 'omni.settings' settings.json
+stdout 'omni.settings.v26.schema.json'
+exec grep '"provider": "aur"' settings.json
+stdout '"provider": "aur"'
+exec grep '"package": "walker-bin"' settings.json
+stdout '"package": "walker-bin"'
+
+! exec omni --config bogus.json hosts ensure testhost
+stderr 'unknown provider "aurx"'
+
+-- settings.json --
+{
+  "version": 26,
+  "tools": {
+    "walker": { "providers": [{ "provider": "aur", "package": "walker-bin" }] }
+  }
+}
+
+-- bogus.json --
+{
+  "version": 26,
+  "tools": {
+    "walker": { "providers": [{ "provider": "aurx", "package": "walker-bin" }] }
+  }
+}

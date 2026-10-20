@@ -155,6 +155,31 @@ Config shape:
 }
 ```
 
+## Per-OS Dotfiles
+
+Omni links the dots of every group assigned to the host, so keep
+platform-specific entries (window managers, launch agents, input tools) in a
+group of their own, such as `mac`, and assign it only to macOS hosts. A mixed
+group links those configs on every host it is assigned to.
+
+## Distro-Managed Config (Omarchy)
+
+Omarchy writes and refreshes its own defaults under `~/.config` (`hypr`,
+`waybar`, `walker` and others), and its refresh commands overwrite them.
+Managing those whole directories conflicts on first sync and fights every
+refresh. Track only the files you own and ignore the rest:
+
+```json
+{
+  "name": "hypr",
+  "path": "~/.config/hypr",
+  "ignore": ["*", "!/bindings.conf", "!/monitors.conf", "!/input.conf"]
+}
+```
+
+Adopt your copies with `omni dots add hypr --adopt`; the distro keeps the
+ignored files.
+
 ## Resolve Conflicts
 
 When local files and repo files disagree, choose the source explicitly:

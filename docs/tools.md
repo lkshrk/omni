@@ -248,6 +248,13 @@ System package managers report every image-baked package as manually installed,
 so Omni records the inventory it sees on its first scan and treats that snapshot
 as the baseline. Packages present at that point are never reported as discovered.
 
+On Omarchy, `pacman` and `aur` also exclude the distro's default package set,
+read live from `omarchy-pkg-defaults` (or `install/omarchy-base.packages` under
+`$OMARCHY_PATH`, `/usr/share/omarchy` or `~/.local/share/omarchy`). Packages an
+Omarchy update adds to its defaults stay hidden without a re-snapshot, and they
+are never written into the stored baseline. Optional packages you chose during
+setup are not part of that set and still surface.
+
 Anything a later `apt-get install` pulls in — Playwright's and Chrome's runtime
 dependencies, for example — lands outside that baseline and fills the Tools tab
 **Out of Sync** section. Re-snapshot the current inventory to absorb them:
@@ -259,7 +266,7 @@ omni tools baseline
 
 The command lists what it is absorbing and asks for confirmation, because the
 absorbed packages stop being reported permanently on this host. It covers apt,
-dnf, pacman, apk, and zypper only; configured and explicitly ignored tools keep
+dnf, pacman, aur, apk, and zypper only; configured and explicitly ignored tools keep
 their own state, and packages installed after the re-snapshot still surface.
 
 ## NVM-Managed Provider Drift

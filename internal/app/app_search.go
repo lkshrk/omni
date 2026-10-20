@@ -1510,7 +1510,7 @@ func (a *App) RefreshDiscoveredWithProgress(ctx context.Context, progress func(R
 
 func isSystemInventoryProvider(name string) bool {
 	switch name {
-	case "apt", "dnf", "pacman", "apk", "zypper":
+	case "apt", "dnf", "pacman", "aur", "apk", "zypper":
 		return true
 	default:
 		return false
@@ -1655,7 +1655,7 @@ func (a *App) discoverUntrackedInstalled(ctx context.Context, cfg *config.RootCo
 		}
 		var systemBaseline map[string]bool
 		if isSystemInventoryProvider(p.Name()) {
-			systemBaseline, err = a.systemInventoryBaseline(ctx, p.Name(), installed)
+			systemBaseline, err = a.systemInventoryBaseline(ctx, p, installed)
 			if err != nil {
 				continue // best-effort: skip providers whose baseline can't be read/recorded
 			}
@@ -1701,24 +1701,48 @@ func systemInventoryBaselineStateKey(providerName string) string {
 }
 
 // System PMs report every image-baked package as manually installed, so the first observation becomes the baseline.
-func (a *App) systemInventoryBaseline(ctx context.Context, providerName string, installed []provider.InstalledTool) (map[string]bool, error) {
-	key := systemInventoryBaselineStateKey(providerName)
+// systemInventoryBaseline — The recorded snapshot plus the live distro profile set; profile packages are never persisted.
+func (a *App) systemInventoryBaseline(ctx context.Context, p provider.Provider, installed []provider.InstalledTool) (map[string]bool, error) {
+	profile := baseProfilePackages(ctx, p)
+	key := systemInventoryBaselineStateKey(p.Name())
 	stored, err := a.readDB().GetState(ctx, key)
 	if err == nil {
-		return systemInventoryBaselineSet(stored), nil
+		return mergeBaseline(systemInventoryBaselineSet(stored), profile), nil
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
 	}
 	names := make([]string, 0, len(installed))
 	for _, t := range installed {
-		names = append(names, t.Name)
+		if !profile[t.Name] {
+			names = append(names, t.Name)
+		}
 	}
 	sort.Strings(names)
 	if err := a.readDB().SetState(ctx, key, strings.Join(names, "\n")); err != nil {
 		return nil, err
 	}
-	return systemInventoryBaselineSet(strings.Join(names, "\n")), nil
+	return mergeBaseline(systemInventoryBaselineSet(strings.Join(names, "\n")), profile), nil
+}
+
+// A profile probe failure degrades to no profile so discovery falls back to the recorded baseline.
+func baseProfilePackages(ctx context.Context, p provider.Provider) map[string]bool {
+	lister, ok := p.(provider.BaseProfileLister)
+	if !ok {
+		return nil
+	}
+	set, err := lister.BaseProfilePackages(ctx)
+	if err != nil {
+		return nil
+	}
+	return set
+}
+
+func mergeBaseline(baseline, profile map[string]bool) map[string]bool {
+	for name := range profile {
+		baseline[name] = true
+	}
+	return baseline
 }
 
 func systemInventoryBaselineSet(stored string) map[string]bool {

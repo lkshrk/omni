@@ -3,6 +3,7 @@ package pacman
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/lkshrk/omni/internal/executor"
@@ -74,59 +75,68 @@ func (p *Provider) IsInstalled(ctx context.Context, tool provider.Tool) (bool, s
 }
 
 func (p *Provider) ListInstalled(ctx context.Context) ([]provider.InstalledTool, error) {
-	explicit, err := p.explicitPackages(ctx)
+	return listQueried(ctx, p.exec, p.Name(), "-Qqen", "-Qn")
+}
+
+// InstalledMap returns explicitly installed native pacman packages as lowercase-name→version; foreign packages belong to aur.
+func (p *Provider) InstalledMap(ctx context.Context) (map[string]string, error) {
+	return installedMapQueried(ctx, p.exec, "-Qqen", "-Qn")
+}
+
+func listQueried(ctx context.Context, exec executor.Executor, providerName, explicitFlag, listFlag string) ([]provider.InstalledTool, error) {
+	m, err := queryExplicit(ctx, exec, explicitFlag, listFlag, func(name string) string { return name })
 	if err != nil {
 		return nil, err
 	}
-	stdout, stderr, err := p.exec.Run(ctx, "pacman", "-Q")
-	if err != nil {
-		return nil, executor.WrapError(err, "pacman -Q", stdout, stderr)
-	}
-	var tools []provider.InstalledTool
-	for _, line := range strings.Split(stdout, "\n") {
-		name, version := parsePacmanQLine(line)
-		if name == "" {
-			continue
-		}
-		if !explicit[strings.ToLower(name)] {
-			continue
-		}
+	tools := make([]provider.InstalledTool, 0, len(m))
+	for _, e := range m {
 		tools = append(tools, provider.InstalledTool{
-			Tool:    provider.Tool{Name: name, Provider: "pacman"},
-			Version: version,
+			Tool:    provider.Tool{Name: e.name, Provider: providerName},
+			Version: e.version,
 		})
 	}
+	sort.Slice(tools, func(i, j int) bool { return tools[i].Name < tools[j].Name })
 	return tools, nil
 }
 
-// InstalledMap returns explicitly installed pacman packages as lowercase-name→version.
-func (p *Provider) InstalledMap(ctx context.Context) (map[string]string, error) {
-	explicit, err := p.explicitPackages(ctx)
+func installedMapQueried(ctx context.Context, exec executor.Executor, explicitFlag, listFlag string) (map[string]string, error) {
+	m, err := queryExplicit(ctx, exec, explicitFlag, listFlag, strings.ToLower)
 	if err != nil {
 		return nil, err
 	}
-	stdout, stderr, err := p.exec.Run(ctx, "pacman", "-Q")
-	if err != nil {
-		return nil, executor.WrapError(err, "pacman -Q", stdout, stderr)
+	out := make(map[string]string, len(m))
+	for key, e := range m {
+		out[key] = e.version
 	}
-	m := make(map[string]string)
-	for _, line := range strings.Split(stdout, "\n") {
-		name, version := parsePacmanQLine(line)
-		if name == "" {
-			continue
-		}
-		if !explicit[strings.ToLower(name)] {
-			continue
-		}
-		m[strings.ToLower(name)] = version
-	}
-	return m, nil
+	return out, nil
 }
 
-func (p *Provider) explicitPackages(ctx context.Context) (map[string]bool, error) {
-	stdout, stderr, err := p.exec.Run(ctx, "pacman", "-Qqe")
+type queriedPackage struct{ name, version string }
+
+func queryExplicit(ctx context.Context, exec executor.Executor, explicitFlag, listFlag string, key func(string) string) (map[string]queriedPackage, error) {
+	explicit, err := explicitPackages(ctx, exec, explicitFlag)
 	if err != nil {
-		return nil, executor.WrapError(err, "pacman -Qqe", stdout, stderr)
+		return nil, err
+	}
+	stdout, err := runQuery(ctx, exec, listFlag)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]queriedPackage)
+	for _, line := range strings.Split(stdout, "\n") {
+		name, version := parsePacmanQLine(line)
+		if name == "" || !explicit[strings.ToLower(name)] {
+			continue
+		}
+		out[key(name)] = queriedPackage{name: name, version: version}
+	}
+	return out, nil
+}
+
+func explicitPackages(ctx context.Context, exec executor.Executor, flag string) (map[string]bool, error) {
+	stdout, err := runQuery(ctx, exec, flag)
+	if err != nil {
+		return nil, err
 	}
 	m := make(map[string]bool)
 	for _, line := range strings.Split(stdout, "\n") {
@@ -136,6 +146,18 @@ func (p *Provider) explicitPackages(ctx context.Context) (map[string]bool, error
 		}
 	}
 	return m, nil
+}
+
+// pacman exits 1 without output when a filtered query (-Qm, -Qe) matches nothing.
+func runQuery(ctx context.Context, exec executor.Executor, flag string) (string, error) {
+	stdout, stderr, err := exec.Run(ctx, "pacman", flag)
+	if err != nil {
+		if strings.TrimSpace(stdout) == "" && strings.TrimSpace(stderr) == "" {
+			return "", nil
+		}
+		return "", executor.WrapError(err, "pacman "+flag, stdout, stderr)
+	}
+	return stdout, nil
 }
 
 // BulkDescribe fetches descriptions for multiple tools via a single `pacman -Si` call.

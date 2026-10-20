@@ -39,3 +39,13 @@ func TestInteractivePrivilegedCommand_AllowsPackageManagers(t *testing.T) {
 		}
 	}
 }
+
+func TestInteractivePrivilegedCommand_AURHelpersRunUnwrapped(t *testing.T) {
+	t.Parallel()
+	for _, cmd := range []string{"yay", "paru"} {
+		gotCmd, gotArgs, ok := interactivePrivilegedCommand(cmd, "-S", "ripgrep")
+		if !ok || gotCmd != cmd || !slices.Equal(gotArgs, []string{"-S", "ripgrep"}) {
+			t.Errorf("interactivePrivilegedCommand(%q) = (%q, %v, %v), want (%q, [-S ripgrep], true)", cmd, gotCmd, gotArgs, ok, cmd)
+		}
+	}
+}
