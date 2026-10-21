@@ -916,3 +916,27 @@ func TestInstalledMapSurfacesStdoutDetailWhenStderrEmpty(t *testing.T) {
 		t.Fatalf("InstalledMap() error = %v, want stdout detail", err)
 	}
 }
+
+func TestListInstalled_SkipsNPMGlobalsOwnedBySystemPackages(t *testing.T) {
+	out := listOutput("semver@7.8.5", "mytool@1.0.0")
+	m := executor.NewMatchMock(
+		executor.MatchRule{Pattern: "npm --version", Response: executor.MockCall{Stdout: "11.6.0"}},
+		executor.MatchRule{Pattern: "npm list -g --depth=0", Response: executor.MockCall{Stdout: out}},
+		executor.MatchRule{Pattern: "npm root -g", Response: executor.MockCall{Stdout: "/usr/lib/node_modules\n"}},
+		executor.MatchRule{Pattern: "pacman --version", Response: executor.MockCall{Stdout: "Pacman v7.1.0"}},
+		// pacman exits 1 when a path is unowned but still lists the owned ones.
+		executor.MatchRule{Pattern: "pacman -Qo", Response: executor.MockCall{
+			Stdout: "/usr/lib/node_modules/semver/ is owned by semver 7.8.5-1\n",
+			Stderr: "error: No package owns /usr/lib/node_modules/mytool\n",
+			Err:    errors.New("exit status 1"),
+		}},
+	).WithFallback(executor.MockCall{Err: errors.New("not found")})
+	p := node.New(m, "npm")
+	tools, err := p.ListInstalled(context.Background())
+	if err != nil {
+		t.Fatalf("ListInstalled: %v", err)
+	}
+	if len(tools) != 1 || tools[0].Name != "mytool" {
+		t.Fatalf("want only mytool (semver belongs to pacman), got %+v", tools)
+	}
+}

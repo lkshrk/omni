@@ -948,3 +948,44 @@ func TestSync_OrphanScanProviderError_SurfacedAsWarning(t *testing.T) {
 		t.Errorf("expected a warning mentioning provider %q, got warnings: %v", "brew", result.Warnings)
 	}
 }
+
+func TestSync_HostActive_ConfiguredPackageNameIsNotAnOrphan(t *testing.T) {
+	t.Parallel()
+	// Providers report packages; devcontainer installs as @devcontainers/cli.
+	brew := &stubProvider{
+		name:      "brew",
+		available: true,
+		installed: []provider.InstalledTool{installedTool("@devcontainers/cli", "0.89.0", "brew")},
+	}
+	a, cfgPath := newImportApp(t, brew)
+	short := testShortHostname()
+
+	rootCfg := &config.RootConfig{
+		Tools: map[string]config.ToolSpec{
+			"devcontainer": {Providers: []config.ToolInstallSpec{{Provider: "brew", Package: "@devcontainers/cli"}}},
+		},
+		Groups: []*config.GroupConfig{
+			{Name: short, Special: "host"},
+			{Name: "work", Tools: groupTools("devcontainer")},
+		},
+		Hosts: map[string][]string{short: {"work"}},
+	}
+	if err := saveAppConfig(t, cfgPath, rootCfg); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Sync(context.Background(), gosync.SyncOptions{}); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	updated, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+	for _, g := range updated.Groups {
+		for _, tool := range g.Tools {
+			if tool.Name == "@devcontainers/cli" {
+				t.Fatalf("configured package recorded as a separate orphan tool in group %q", g.Name)
+			}
+		}
+	}
+}

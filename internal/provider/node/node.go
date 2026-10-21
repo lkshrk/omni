@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -278,14 +279,74 @@ func (p *Provider) ListInstalled(ctx context.Context) ([]provider.InstalledTool,
 	if err != nil {
 		return nil, err
 	}
+	var npmNames []string
+	for name, e := range entries {
+		if e.ConcreteManager == "npm" {
+			npmNames = append(npmNames, name)
+		}
+	}
+	systemOwned := p.systemOwnedNPMGlobals(ctx, npmNames)
 	tools := make([]provider.InstalledTool, 0, len(entries))
 	for name, e := range entries {
+		if systemOwned[name] {
+			continue
+		}
 		tools = append(tools, provider.InstalledTool{
 			Tool:    provider.Tool{Name: name, Provider: "node", Package: name},
 			Version: e.Version,
 		})
 	}
 	return tools, nil
+}
+
+// npm on a distro-packaged Node shares its global root with the distro's own node
+// packages (/usr/lib/node_modules on Arch). Those belong to the system package
+// manager, so discovery must not report them as npm globals.
+func (p *Provider) systemOwnedNPMGlobals(ctx context.Context, names []string) map[string]bool {
+	if len(names) == 0 {
+		return nil
+	}
+	root, _, err := p.exec.Run(ctx, "npm", "root", "-g")
+	root = strings.TrimSpace(root)
+	if err != nil || root == "" {
+		return nil
+	}
+	byPath := make(map[string]string, len(names))
+	paths := make([]string, 0, len(names))
+	for _, name := range names {
+		path := filepath.Join(root, name)
+		byPath[path] = name
+		paths = append(paths, path)
+	}
+	owned := make(map[string]bool)
+	record := func(path string) {
+		if name, ok := byPath[strings.TrimRight(strings.TrimSpace(path), "/")]; ok {
+			owned[name] = true
+		}
+	}
+	switch {
+	case p.commandAvailable(ctx, "pacman"):
+		// Exits 1 when any path is unowned, but still reports the owned ones.
+		stdout, _, _ := p.exec.Run(ctx, "pacman", append([]string{"-Qo"}, paths...)...)
+		for _, line := range strings.Split(stdout, "\n") {
+			if path, _, ok := strings.Cut(line, " is owned by "); ok {
+				record(path)
+			}
+		}
+	case p.commandAvailable(ctx, "dpkg-query"):
+		stdout, _, _ := p.exec.Run(ctx, "dpkg-query", append([]string{"-S"}, paths...)...)
+		for _, line := range strings.Split(stdout, "\n") {
+			if _, path, ok := strings.Cut(line, ": "); ok {
+				record(path)
+			}
+		}
+	}
+	return owned
+}
+
+func (p *Provider) commandAvailable(ctx context.Context, name string) bool {
+	_, _, err := p.exec.Run(ctx, name, "--version")
+	return err == nil
 }
 
 // InstalledMap — Lowercase-name to version for the effective manager only; use InstalledByManager for attribution.
