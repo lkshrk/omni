@@ -458,6 +458,8 @@ func (a *App) refreshWithCachedOwner(ctx context.Context, t config.ToolEntry, ke
 				if err != nil {
 					return nil, nil, true, nil
 				}
+			} else if !installed {
+				installed, ver = probeBulkMiss(ctx, ownerProv, owner, t)
 			}
 			return installedOwnerUpsert(t, owner, installed, ver), nil, true, nil
 		}
@@ -489,6 +491,8 @@ func (a *App) refreshWithCachedOwner(ctx context.Context, t config.ToolEntry, ke
 				if err != nil {
 					return nil, nil, true, nil
 				}
+			} else if !installed {
+				installed, ver = probeBulkMiss(ctx, ownerProv, owner, t)
 			}
 			return installedOwnerUpsert(t, owner, installed, ver), nil, true, nil
 		}
@@ -499,6 +503,16 @@ func (a *App) refreshWithCachedOwner(ctx context.Context, t config.ToolEntry, ke
 		return nil, nil, true, nil
 	}
 	return installedOwnerUpsert(t, owner, installed, ver), nil, true, nil
+}
+
+// System managers' bulk maps hold only explicitly installed packages, so a dependency install needs a per-tool probe.
+func probeBulkMiss(ctx context.Context, prov provider.Provider, owner string, t config.ToolEntry) (bool, string) {
+	tool := provider.Tool{Name: t.Name, Provider: owner, Package: t.EffectivePackage(), Options: t.Options}
+	installed, ver, err := prov.IsInstalled(ctx, tool)
+	if err != nil {
+		return false, ""
+	}
+	return installed, ver
 }
 
 func installedOwnerUpsert(t config.ToolEntry, owner string, installed bool, ver string) *database.ToolCache {
@@ -990,6 +1004,10 @@ func (a *App) buildInstalledUpserts(ctx context.Context, cfg *config.RootConfig,
 				installed, ver, err = a.resolveExactPinBulkVersion(ctx, opProv, opProvider, t, installedWith, ver, required, installed)
 				if err != nil {
 					continue
+				}
+			} else if !installed && hasOpProvider {
+				if probed, probedVer, probedErr := a.isInstalledWithEntry(ctx, opProv, opProvider, t); probedErr == nil && probed {
+					installed, ver = true, probedVer
 				}
 			}
 			if !installed {

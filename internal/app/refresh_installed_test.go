@@ -484,6 +484,53 @@ func TestRefreshInstalled_BulkPath_MarksNotInstalled(t *testing.T) {
 	}
 }
 
+type dependencyInstallStub struct {
+	bulkCheckingStub
+	dependencies map[string]string
+}
+
+func (s *dependencyInstallStub) IsInstalled(_ context.Context, t provider.Tool) (bool, string, error) {
+	ver, ok := s.dependencies[t.EffectivePackage()]
+	return ok, ver, nil
+}
+
+func TestRefreshInstalled_BulkMissProbesDependencyInstall(t *testing.T) {
+	t.Parallel()
+	prov := &dependencyInstallStub{
+		bulkCheckingStub: bulkCheckingStub{
+			stubProvider: stubProvider{name: "pacman", available: true},
+			bulk:         map[string]string{},
+		},
+		dependencies: map[string]string{"make": "4.4.1-3"},
+	}
+	a, cfgPath := newImportApp(t, prov)
+
+	if err := saveAppConfig(t, cfgPath, &config.RootConfig{
+		Tools: logicalToolSpecs(logicalTool("make", "pacman")),
+		Groups: []*config.GroupConfig{{
+			Tools: groupTools("make"),
+		}},
+	}); err != nil {
+		t.Fatalf("saving config: %v", err)
+	}
+
+	for pass := 1; pass <= 2; pass++ {
+		if err := a.RefreshInstalled(context.Background(), nil); err != nil {
+			t.Fatalf("pass %d: RefreshInstalled: %v", pass, err)
+		}
+		tools, err := a.ListTools(context.Background(), "")
+		if err != nil {
+			t.Fatalf("pass %d: ListTools: %v", pass, err)
+		}
+		if len(tools) != 1 {
+			t.Fatalf("pass %d: got %d tools, want 1", pass, len(tools))
+		}
+		if !tools[0].Installed || tools[0].Version.String != "4.4.1-3" {
+			t.Errorf("pass %d: make installed=%v version=%q; want true, 4.4.1-3", pass, tools[0].Installed, tools[0].Version.String)
+		}
+	}
+}
+
 func TestRefreshInstalled_MissingToolPreservesFailureState(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
