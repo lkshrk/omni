@@ -676,7 +676,7 @@ func (a *App) syncOrphansToMachineGroup(ctx context.Context, activeGroups []*con
 				if _, ok := covered[key]; ok {
 					continue
 				}
-				if _, ok := coveredNames[t.Name]; ok {
+				if _, ok := coveredNames[t.Name]; ok || isOmniManagedPackage(t.Name) {
 					continue
 				}
 				if cfg.Tools == nil {

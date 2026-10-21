@@ -462,3 +462,50 @@ func migrationGuardManifest(first, second string) string {
 	}
 	return manifest
 }
+
+func frozenPackageManifest(t *testing.T) (manifest, pkg string) {
+	t.Helper()
+	pkg = filepath.Join(t.TempDir(), "skills-pkg")
+	writeFile(t, filepath.Join(pkg, "apm.yml"), "name: skills-pkg\nversion: 1.0.0\n")
+	return "name: host\ntargets:\n- claude\ndependencies:\n  apm:\n  - path: " + pkg + "\n", pkg
+}
+
+func TestAgentsFrozenSyncRefusesPackagesMissingFromLockfile(t *testing.T) {
+	manifest, _ := frozenPackageManifest(t)
+	setupGuardEnv(t, manifest, "dependencies: []\n")
+	parsed, err := readAPMManifest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = checkAgentsFrozenPackages(AgentsSyncAllOptions{Frozen: true}, parsed)
+	if err == nil || !strings.Contains(err.Error(), "skills-pkg not in the lockfile") {
+		t.Fatalf("err = %v, want the unlocked package named", err)
+	}
+	if err := checkAgentsFrozenPackages(AgentsSyncAllOptions{}, parsed); err != nil {
+		t.Fatalf("a non-frozen sync records the package itself; got %v", err)
+	}
+}
+
+func TestAgentsFrozenSyncAllowsLockedPackages(t *testing.T) {
+	manifest, pkg := frozenPackageManifest(t)
+	setupGuardEnv(t, manifest, "dependencies:\n- repo_url: _local/skills-pkg\n  name: skills-pkg\n  source: local\n  local_path: "+pkg+"\n")
+	parsed, err := readAPMManifest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := checkAgentsFrozenPackages(AgentsSyncAllOptions{Frozen: true}, parsed); err != nil {
+		t.Fatalf("locked package refused: %v", err)
+	}
+}
+
+func TestAgentsFrozenSyncAllLeavesAPMUntouched(t *testing.T) {
+	manifest, _ := frozenPackageManifest(t)
+	a, mock := setupGuardEnv(t, manifest, "dependencies: []\n")
+	_, err := a.AgentsSyncAll(t.Context(), AgentsSyncAllOptions{Frozen: true})
+	if err == nil || !strings.Contains(err.Error(), "not in the lockfile") {
+		t.Fatalf("err = %v, want the frozen package refusal", err)
+	}
+	if len(mock.Calls) != 0 {
+		t.Fatalf("apm was invoked: %#v", mock.Calls)
+	}
+}

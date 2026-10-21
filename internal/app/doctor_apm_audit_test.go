@@ -88,8 +88,8 @@ func TestDoctorAPMAuditCorrectsVanillaFindings(t *testing.T) {
 	if !strings.Contains(details, ".claude/skills/gone/SKILL.md") {
 		t.Fatalf("genuinely missing file not surfaced: %q", details)
 	}
-	if strings.Contains(details, ".agents/skills/deploy-root/SKILL.md") {
-		t.Fatalf("deploy-root drift reported as real: %q", details)
+	if !strings.Contains(details, ".agents/skills/deploy-root/SKILL.md") {
+		t.Fatalf("drift under the .agents deploy root not surfaced: %q", details)
 	}
 	if strings.Contains(details, ".claude/skills/present/SKILL.md") {
 		t.Fatalf("file present under HOME reported as missing: %q", details)
@@ -100,7 +100,10 @@ func TestDoctorAPMAuditPassesWhenOnlyVanillaQuirksRemain(t *testing.T) {
 	fixture := strings.NewReplacer(
 		`"name": "ref-consistency", "passed": false, "message": "1 dependency ref differs from lockfile", "details": ["owner/repo: main != 0ff1ce"]`,
 		`"name": "ref-consistency", "passed": true, "message": "All dependency refs match lockfile", "details": []`,
-		`      "unintegrated: .claude/skills/hand-edited/SKILL.md"`, `      "unintegrated: .agents/skills/other/SKILL.md"`,
+		`{"name": "drift", "passed": false, "message": "drift detected: 2 file(s)", "details": [
+      "unintegrated: .agents/skills/deploy-root/SKILL.md",
+      "unintegrated: .claude/skills/hand-edited/SKILL.md"
+    ]}`, `{"name": "drift", "passed": true, "message": "No drift", "details": []}`,
 		`      ".claude/skills/gone/SKILL.md"`, `      ".claude/skills/also-present/SKILL.md"`,
 	).Replace(apmAuditFixture)
 
@@ -238,5 +241,19 @@ func TestDoctorAPMAuditFailsWhenDeploymentLedgerIsUnreadable(t *testing.T) {
 
 	if check := apmAuditCheck(t, result); check.Status != DoctorStatusFail {
 		t.Fatalf("status = %q, want fail: %+v", check.Status, check)
+	}
+}
+
+func TestIsHookScriptCoverageNoise(t *testing.T) {
+	for detail, want := range map[string]bool{
+		"incomplete-coverage: .claude/hooks/codex/scripts/package.json: missing native hook container":            true,
+		"incomplete-coverage: .claude/hooks/context-mode/hooks/cursor/hooks.json/hooks/stop/0: requires handlers": true,
+		"incomplete-coverage: .claude/settings.json: missing native hook container":                               false,
+		"incomplete-coverage: .claude/hooks/x.json: missing native hook container":                                false,
+		"unsigned: .claude/hooks/codex/scripts/a.mjs":                                                             false,
+	} {
+		if got := isHookScriptCoverageNoise(detail); got != want {
+			t.Errorf("%q = %v, want %v", detail, got, want)
+		}
 	}
 }

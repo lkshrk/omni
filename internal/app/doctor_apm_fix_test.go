@@ -260,123 +260,35 @@ func TestAgentsSyncAllRefusesToInstallWithoutAPM(t *testing.T) {
 	}
 }
 
-// Without this every test would read the host's own apm install receipt.
-func init() { apmReceiptLocator = func() string { return "" } }
-
-func apmReceiptJSON(commit string) string {
-	url, _ := parseAPMPackagePin(apmPackagePin)
-	return `{"url":"` + url + `","vcs_info":{"vcs":"git","commit_id":"` + commit + `"}}`
-}
-
-func stubAPMReceipt(t *testing.T, contents string) string {
-	t.Helper()
-	path := filepath.Join(t.TempDir(), "direct_url.json")
-	if contents != "" {
-		writeFile(t, path, contents)
-	}
-	previous := apmReceiptLocator
-	apmReceiptLocator = func() string { return path }
-	t.Cleanup(func() { apmReceiptLocator = previous })
-	return path
-}
-
-// Reinstalling rewrites the receipt, so the fix's own verification observes the pinned provenance.
-type receiptExecutor struct {
-	availExecutor
-	path    string
-	receipt string
-}
-
-func (e *receiptExecutor) Run(ctx context.Context, name string, args ...string) (string, string, error) {
-	stdout, stderr, err := e.availExecutor.Run(ctx, name, args...)
-	if err == nil {
-		if writeErr := os.WriteFile(e.path, []byte(e.receipt), 0o600); writeErr != nil {
-			return stdout, stderr, writeErr
-		}
-	}
-	return stdout, stderr, err
-}
-
-func TestFixMissingAPMReinstallsWhenProvenanceDiffersFromThePin(t *testing.T) {
-	_, ref := parseAPMPackagePin(apmPackagePin)
-	path := stubAPMReceipt(t, apmReceiptJSON("0ff1ce0ff1ce"))
-	configPath := filepath.Join(t.TempDir(), "settings.json")
-	if err := config.Save(configPath, &config.RootConfig{Version: config.CurrentVersion}); err != nil {
-		t.Fatal(err)
-	}
-	mock := &receiptExecutor{
-		availExecutor: availExecutor{available: map[string]bool{"apm": true, "uv": true}},
-		path:          path,
-		receipt:       apmReceiptJSON(ref),
-	}
+func TestAgentsSyncAllInstallsPinnedAPMFirst(t *testing.T) {
+	a, _, _ := newSyncWithoutAPMApp(t)
+	mock := &flipExecutor{availExecutor: availExecutor{available: map[string]bool{"uv": true}}, makeAvailable: "apm"}
 	mock.Responses = []executor.MockCall{
-		{Stdout: "Agent Package Manager (APM) CLI version " + apmVersionPin + "\n"},
 		{},
 		{Stdout: "Agent Package Manager (APM) CLI version " + apmVersionPin + "\n"},
 	}
-	a := New(configPath)
 	a.SetFallbackExecutor(mock)
 
-	report, err := a.FixMissingAPM(context.Background(), false)
-	if err != nil || report.Upgraded != "uv tool install --force "+apmPackagePin {
-		t.Fatalf("report = %#v, err = %v", report, err)
+	// The rest of the sync runs against the mock; only the install ordering matters here.
+	_, _ = a.AgentsSyncAll(context.Background(), AgentsSyncAllOptions{})
+	if len(mock.Calls) == 0 {
+		t.Fatal("sync never ran an installer")
 	}
-	want := []string{"apm", "uv", "apm"}
-	if len(mock.Calls) != len(want) {
-		t.Fatalf("calls = %#v, want %v", mock.Calls, want)
+	first := mock.Calls[0]
+	if got := strings.Join(append([]string{first.Name}, first.Args...), " "); got != "uv tool install "+apmPackagePin {
+		t.Fatalf("first command = %q, want the pinned APM install", got)
 	}
-	for i, call := range mock.Calls {
-		if call.Name != want[i] {
-			t.Fatalf("calls = %#v, want %v", mock.Calls, want)
+}
+
+func TestAgentsSyncAllDryRunInstallsNothing(t *testing.T) {
+	a, _, _ := newSyncWithoutAPMApp(t)
+	mock := &flipExecutor{availExecutor: availExecutor{available: map[string]bool{"uv": true}}, makeAvailable: "apm"}
+	a.SetFallbackExecutor(mock)
+
+	_, _ = a.AgentsSyncAll(context.Background(), AgentsSyncAllOptions{DryRun: true})
+	for _, call := range mock.Calls {
+		if call.Name == "uv" {
+			t.Fatalf("dry run installed apm: %#v", call)
 		}
-	}
-}
-
-func TestFixMissingAPMDryRunPlansTheProvenanceReinstall(t *testing.T) {
-	stubAPMReceipt(t, apmReceiptJSON("0ff1ce0ff1ce"))
-	a, mock := newAPMFixApp(t, map[string]bool{"apm": true, "uv": true})
-	mock.Responses = []executor.MockCall{
-		{Stdout: "Agent Package Manager (APM) CLI version " + apmVersionPin + "\n"},
-	}
-
-	report, err := a.FixMissingAPM(context.Background(), true)
-	if err != nil || report.Planned != "uv tool install --force "+apmPackagePin {
-		t.Fatalf("report = %#v, err = %v", report, err)
-	}
-	if len(mock.Calls) != 1 || mock.Calls[0].Name != "apm" {
-		t.Fatalf("dry run executed an installer: %#v", mock.Calls)
-	}
-}
-
-func TestFixMissingAPMKeepsAPMInstalledFromThePinnedCommit(t *testing.T) {
-	_, ref := parseAPMPackagePin(apmPackagePin)
-	stubAPMReceipt(t, apmReceiptJSON(ref))
-	a, mock := newAPMFixApp(t, map[string]bool{"apm": true, "uv": true})
-	mock.Responses = []executor.MockCall{
-		{Stdout: "Agent Package Manager (APM) CLI version " + apmVersionPin + "\n"},
-	}
-
-	report, err := a.FixMissingAPM(context.Background(), false)
-	if err != nil || !report.AlreadyInstalled {
-		t.Fatalf("report = %#v, err = %v", report, err)
-	}
-	if len(mock.Calls) != 1 || mock.Calls[0].Name != "apm" {
-		t.Fatalf("calls = %#v, want the version probe only", mock.Calls)
-	}
-}
-
-func TestFixMissingAPMKeepsAPMWithUnknownProvenance(t *testing.T) {
-	stubAPMReceipt(t, "")
-	a, mock := newAPMFixApp(t, map[string]bool{"apm": true, "uv": true})
-	mock.Responses = []executor.MockCall{
-		{Stdout: "Agent Package Manager (APM) CLI version " + apmVersionPin + "\n"},
-	}
-
-	report, err := a.FixMissingAPM(context.Background(), false)
-	if err != nil || !report.AlreadyInstalled {
-		t.Fatalf("report = %#v, err = %v", report, err)
-	}
-	if len(mock.Calls) != 1 || mock.Calls[0].Name != "apm" {
-		t.Fatalf("calls = %#v, want the version probe only", mock.Calls)
 	}
 }

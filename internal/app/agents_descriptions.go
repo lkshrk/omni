@@ -25,7 +25,7 @@ type apmModuleManifest struct {
 	Dependencies apmDependencies `yaml:"dependencies"`
 }
 
-// Pinned APM 0.31.0 plugin/service discovery surfaces. Presence of any carrier
+// APM plugin/service discovery surfaces (unchanged from 0.31.0 through 0.34.0). Presence of any carrier
 // makes a manifestless package's MCP/LSP ownership unknowable.
 var apmManifestlessServiceCarriers = []string{
 	"plugin.json",

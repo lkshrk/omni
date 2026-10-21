@@ -217,11 +217,7 @@ sequence:
    unchanged.
 3. `omni agents sync` materializes the guarded live manifest and the pinned APM
    installs it on the empty home.
-4. The wrapped MCP handshake succeeds. Global `apm audit --ci` has a known
-   APM 0.29.0 false positive for deployed `.agents/**` paths. Until upstream
-   path resolution is fixed, use `omni agents sync` plus `omni doctor` as the
-   global verification gate. CI may allow only the exact known `.agents/**`
-   findings after independently checking those files; all other findings fail.
+4. The wrapped MCP handshake succeeds, and global `apm audit --ci` passes.
 5. Reinstall is a byte/semantic no-op.
 6. Uninstall removes owner-attributed artifacts while unrelated configuration
    survives.

@@ -91,6 +91,9 @@ func (a *App) Import(ctx context.Context, opts ImportOptions) (*ImportResult, er
 					continue
 				}
 
+				if isOmniManagedPackage(t.Name) {
+					continue
+				}
 				key := configProvider + "\x00" + t.Name
 				if _, exists := configured[key]; exists {
 					result.Skipped = append(result.Skipped, ImportedTool{Name: t.Name, Provider: configProvider, Version: t.Version})

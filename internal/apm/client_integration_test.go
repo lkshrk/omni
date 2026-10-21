@@ -284,8 +284,10 @@ var stableGlobalMCPTargets = []struct {
 	{"claude", ".claude.json"},
 	{"codex", filepath.Join(".codex", "config.toml")},
 	{"copilot", filepath.Join(".copilot", "mcp-config.json")},
+	{"cursor", filepath.Join(".cursor", "mcp.json")},
 	{"gemini", filepath.Join(".gemini", "settings.json")},
 	{"kiro", filepath.Join(".kiro", "settings", "mcp.json")},
+	{"opencode", filepath.Join(".config", "opencode", "opencode.json")},
 	{"windsurf", filepath.Join(".codeium", "windsurf", "mcp_config.json")},
 }
 
@@ -315,26 +317,6 @@ func TestGlobalMCPLifecycleForEveryStableTarget(t *testing.T) {
 				if err != nil || strings.Contains(string(content), "omni-test") {
 					t.Fatalf("%s retained omni-test: err=%v content=%q", path, err, content)
 				}
-			}
-		})
-	}
-}
-
-func TestGlobalMCPInstallRejectsWorkspaceOnlyTargets(t *testing.T) {
-	for _, target := range []string{"cursor", "opencode"} {
-		t.Run(target, func(t *testing.T) {
-			ctx, client, _ := newGlobalMCPIntegrationClient(t, "["+target+"]", `
-    - name: omni-test
-      registry: false
-      transport: stdio
-      command: echo
-`)
-			result, err := client.InstallOnly(ctx, apm.SurfaceMcp, nil, apm.InstallOptions{})
-			if err == nil {
-				t.Fatalf("expected user-scope %s install to fail", target)
-			}
-			if output := result.Stdout + result.Stderr + err.Error(); !strings.Contains(output, "workspace-only") {
-				t.Fatalf("error lacks workspace-only detail: %v\n%s\n%s", err, result.Stdout, result.Stderr)
 			}
 		})
 	}
@@ -709,15 +691,15 @@ func requirePinnedAPM(t *testing.T) {
 	t.Helper()
 	path, err := exec.LookPath("apm")
 	if err != nil {
-		t.Fatalf("integration tests require apm 0.31.0 on PATH: %v", err)
+		t.Fatalf("integration tests require apm 0.34.0 on PATH: %v", err)
 	}
 	output, err := exec.Command(path, "--version").CombinedOutput()
 	if err != nil {
 		t.Fatalf("read APM version: %v\n%s", err, output)
 	}
 	fields := strings.Fields(string(output))
-	if !slices.Contains(fields, "0.31.0") {
-		t.Fatalf("integration tests require exactly apm 0.31.0, got %q", strings.TrimSpace(string(output)))
+	if !slices.Contains(fields, "0.34.0") {
+		t.Fatalf("integration tests require exactly apm 0.34.0, got %q", strings.TrimSpace(string(output)))
 	}
 }
 

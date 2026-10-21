@@ -13,8 +13,15 @@ import (
 )
 
 // APM is contract-tested as an exact dependency; newer releases require rerunning that suite.
-const apmVersionPin = "0.31.0"
-const apmPackagePin = "git+https://github.com/microsoft/apm.git@98616b9430140275a3a7c8fefb25d8d111cecc4e"
+const apmVersionPin = "0.34.0"
+
+// The PyPI release, so installers fetch the published build rather than a git checkout.
+const apmPackagePin = apmDistribution + "==" + apmVersionPin
+
+const apmDistribution = "apm-cli"
+
+// Omni installs and pins APM itself, so tool discovery never offers it as an untracked tool.
+func isOmniManagedPackage(name string) bool { return strings.EqualFold(name, apmDistribution) }
 
 const apmVersionFixHint = "run 'omni doctor --fix' to upgrade apm-cli"
 

@@ -989,3 +989,38 @@ func TestSync_HostActive_ConfiguredPackageNameIsNotAnOrphan(t *testing.T) {
 		}
 	}
 }
+
+func TestSync_HostActive_OmniManagedAPMIsNotAnOrphan(t *testing.T) {
+	t.Parallel()
+	uv := &stubProvider{
+		name:      "uv",
+		available: true,
+		installed: []provider.InstalledTool{installedTool("apm-cli", "0.34.0", "uv"), installedTool("ruff", "0.15.0", "uv")},
+	}
+	a, cfgPath := newImportApp(t, uv)
+	short := testShortHostname()
+	if err := saveAppConfig(t, cfgPath, &config.RootConfig{
+		Groups: []*config.GroupConfig{{Name: short, Special: "host"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Sync(context.Background(), gosync.SyncOptions{}); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+	updated, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+	var names []string
+	for _, g := range updated.Groups {
+		for _, tool := range g.Tools {
+			names = append(names, tool.Name)
+		}
+	}
+	if slices.Contains(names, "apm-cli") {
+		t.Fatalf("omni's own APM install recorded as an orphan tool: %v", names)
+	}
+	if !slices.Contains(names, "ruff") {
+		t.Fatalf("a real orphan was not recorded: %v", names)
+	}
+}

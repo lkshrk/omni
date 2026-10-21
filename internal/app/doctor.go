@@ -63,7 +63,9 @@ func (a *App) Doctor(ctx context.Context) (*DoctorResult, error) {
 		// The version check probes apm fresh and seeds the pinned memo, so the audit below needs no second spawn.
 		a.doctorAPMVersion(ctx, result, cfg)
 		a.doctorAPMAudit(ctx, result)
-		a.doctorAPMPin(result)
+		if home, err := os.UserHomeDir(); err == nil {
+			doctorDuplicateHooks(result, home)
+		}
 	}
 	result.Summary = doctorSummary(result.Checks)
 	return result, nil

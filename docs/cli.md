@@ -70,20 +70,16 @@ before replacement. Any changed input or unsupported exact-candidate layout
 refuses the whole repair; it does not apply a partial removal.
 
 When the `apm` executable is missing and agent features are enabled,
-`omni doctor --fix` installs the exact APM build required by Omni through the
+`omni doctor --fix` installs the exact APM release required by Omni through the
 first available installer (`uv tool install`, `pipx install`, then
-`pip3 install --user`). Until APM is installed, `omni agents sync` refuses to
-run when the config declares agent packages, and reports how to install APM.
+`pip3 install --user`). Agent sync installs or upgrades to that release itself
+once its guards pass; it refuses, and reports how to install APM, only when none
+of those installers is available.
 
-`omni doctor` requires the exact build `0.31.0`; another version or an
-unparseable version fails the "APM version" check. `--fix` restores the required
-build from the upstream `main` branch through the same installer preference.
-See [APM Main Build](agents.md#apm-main-build) for provenance and the
-upgrade procedure.
-
-The "APM provenance" check reads the installer's own receipt, so a build of the
-required version made from another commit is still reported. `--fix` force
-reinstalls in that case; an install with no readable receipt is left alone.
+`omni doctor` requires the exact release `0.34.0`; another version or an
+unparseable version fails the "APM version" check. `--fix` installs the required
+release from PyPI through the same installer preference. See
+[APM Version](agents.md#apm-version) for the upgrade procedure.
 
 `omni doctor` exits nonzero when any check fails, and `--fix` and `--dry-run`
 do not suppress that: `--fix --dry-run` still runs the full diagnostic pass, so
@@ -196,8 +192,7 @@ not provide a native fallback.
 
 APM deploys one host-global MCP surface: every declared server reaches every
 enabled target that supports user-global MCP configuration. MCP entries do not
-accept an `agents` list. Cursor and OpenCode are workspace-only MCP targets and
-are rejected from this surface. Hermes is supported as an explicit target and
+accept an `agents` list. Hermes is supported as an explicit target and
 is not selected by automatic target discovery. APM owns target deployment,
 removal, drift reporting, repair, and lifecycle serialization.
 

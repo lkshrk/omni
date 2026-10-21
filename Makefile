@@ -147,9 +147,9 @@ test-all: test test-integration
 ## test-integration-build: build the isolated integration test environment image
 test-integration-build:
 	@set -eu; \
-	apm_ref=$$(sed -n 's/.*apm\.git@\([0-9a-f]\{40\}\)".*/\1/p' internal/app/apm_version.go); \
-	[ -n "$$apm_ref" ] || { echo "failed to read the apm commit pin from internal/app/apm_version.go" >&2; exit 1; }; \
-	$(DOCKER_SAFE) buildx build -f Dockerfile.test --target integration-test --build-arg "APM_REF=$$apm_ref" $(DOCKER_TEST_CACHE) --load --tag "$(INTEGRATION_IMAGE)" .
+	apm_version=$$(sed -n 's/^const apmVersionPin = "\([0-9][0-9.]*\)"$$/\1/p' internal/app/apm_version.go); \
+	[ -n "$$apm_version" ] || { echo "failed to read apmVersionPin from internal/app/apm_version.go" >&2; exit 1; }; \
+	$(DOCKER_SAFE) buildx build -f Dockerfile.test --target integration-test --build-arg "APM_VERSION=$$apm_version" $(DOCKER_TEST_CACHE) --load --tag "$(INTEGRATION_IMAGE)" .
 
 ## test-integration: run integration-tagged tests inside the isolated Docker environment
 test-integration: test-integration-build

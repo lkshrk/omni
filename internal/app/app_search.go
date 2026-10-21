@@ -1630,7 +1630,7 @@ func (a *App) discoverUntrackedInstalled(ctx context.Context, cfg *config.RootCo
 				}
 			}
 			for name, entry := range entries {
-				if _, ok := configuredNames[name]; ok {
+				if _, ok := configuredNames[name]; ok || isOmniManagedPackage(name) {
 					continue
 				}
 				if !discoverCLIToolAllowed(cliSets, p.Name(), name) {
@@ -1662,8 +1662,8 @@ func (a *App) discoverUntrackedInstalled(ctx context.Context, cfg *config.RootCo
 		}
 		scannedSet[database.DiscoveredProviderScope{Provider: configProvider, InstalledWith: p.Name()}] = struct{}{}
 		for _, t := range installed {
-			if _, ok := configuredNames[t.Name]; ok {
-				continue // already in config; skip
+			if _, ok := configuredNames[t.Name]; ok || isOmniManagedPackage(t.Name) {
+				continue // already in config, or omni's own APM install; skip
 			}
 			if systemBaseline != nil && systemBaseline[t.Name] {
 				// Predates the host's recorded baseline, so not a package the user just installed.

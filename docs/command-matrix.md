@@ -203,8 +203,7 @@ omni dots groups nvim --remove old-host
 existing `~/.apm/apm.yml`. APM owns manifest and lockfile mutation, dependency
 resolution, target deployment, cleanup, and rollback. The MCP surface is
 host-global: every declared server is installed to every enabled user-global
-MCP target. Cursor and OpenCode are workspace-only MCP targets and are
-rejected.
+MCP target.
 
 Steady-state agent lifecycle operations are thin APM wrappers. Omni's only
 additions are the optional host template sync materializes before install, and

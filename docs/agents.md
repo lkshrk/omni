@@ -17,8 +17,9 @@ APM state:
 - `~/.apm/apm.lock.yaml` — resolved dependencies.
 - `~/.apm/marketplaces.json` — marketplace metadata.
 
-MCP is host-global across enabled APM targets that support user-global MCP.
-Cursor and OpenCode are workspace-only and are rejected by global sync.
+MCP is host-global across enabled APM targets that support user-global MCP,
+Cursor (`~/.cursor/mcp.json`) and OpenCode (`~/.config/opencode/opencode.json`)
+included.
 
 Omni has no native steady-state agent implementation or parallel skill/plugin
 store. Migration creates one verified content-addressed local APM wrapper for
@@ -122,8 +123,8 @@ all of these facts are proven:
   `.claude/skills/<name>/`;
 - each inventoried skill has its canonical regular `SKILL.md` in the installed
   module; and
-- `apm.yml` and every plugin, MCP, and LSP carrier recognized by pinned APM
-  0.31.0 are absent.
+- `apm.yml` and every plugin, MCP, and LSP carrier recognized by APM are
+  absent.
 
 This recognizes `sopaco/deepwiki-rs` as a manifestless `skill_bundle` and the
 `shiplight` virtual package from `ShiplightAI/agent-skills-v2` as a
@@ -275,15 +276,13 @@ candidate before mutation, so a concurrent edit fails before the live manifest
 or APM changes. Do not run `apm` directly in parallel with sync; external APM
 processes do not participate in Omni's lock.
 
-> **Known APM limitation, seen on 0.29.0 and not re-checked since:** a global `apm audit --ci` may falsely
-> report managed `.agents/**` files as missing or unintegrated because audit
-> can resolve primitive deployment paths from `~/.apm` instead of the global
-> deployment root. Install and runtime behavior are unaffected. Until APM fixes
-> the path resolution, use `omni agents sync` plus `omni doctor` for global
-> verification. Project-scoped APM audits remain supported. If CI must run the
-> global audit, allow only these exact `.agents/**` findings after independently
-> confirming the expected files exist; every other audit finding must still
-> fail. Do not duplicate the files under `~/.apm/.agents`.
+`omni doctor` runs the global `apm audit --ci`. APM 0.34 replays a global
+install in a temporary root and writes user-scope hook commands with absolute
+paths, so its drift check always reports hook configs (`settings.json`,
+`hooks.json`) and their `apm-hooks.json` sidecar as modified. Doctor drops those
+two findings only while every APM-owned sidecar entry still appears verbatim in
+the live config; an edited or removed APM hook is still reported.
+
 
 ## Native items APM does not manage
 
@@ -338,19 +337,20 @@ The Agents view carries the same inventory under `Not managed by APM`, with
 and `d` to remove it through its own client. See
 [TUI](tui.md#items-apm-does-not-manage).
 
-## APM Main Build
+## APM Version
 
-Omni requires APM `0.31.0` built from `microsoft/apm` commit `98616b94` (main, 2026-09-18).
-Installers use this source specification:
+Omni requires the APM release `0.34.0`, installed from PyPI:
 
 ```text
-git+https://github.com/microsoft/apm.git@98616b9430140275a3a7c8fefb25d8d111cecc4e
+uv tool install apm-cli==0.34.0
 ```
 
-The `lkshrk/apm` fork Omni previously required is retired. Its capabilities are
-recovered by declaring every agent package as a git dependency: git deps accept
-per-dependency `targets:` natively, resolve legacy package roots through an
-explicit `path:` coordinate, and support `--dry-run`.
+`omni doctor --fix` installs that release through the first available installer
+(`uv tool install`, `pipx install`, then `pip3 install --user`). The `lkshrk/apm`
+fork Omni once required is retired: every agent package is declared as a git
+dependency, which accepts per-dependency `targets:`, resolves legacy package
+roots through an explicit `path:` coordinate, and supports `--dry-run`.
 
 Upgrading APM means rerunning Omni's APM contract and integration suites against
-the current upstream `main` build before changing Omni's required version.
+the new release before changing Omni's required version (`apmVersionPin` in
+`internal/app/apm_version.go`; the integration image reads it from there).

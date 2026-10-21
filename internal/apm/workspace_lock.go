@@ -48,7 +48,8 @@ func globalWorkspaceLockHeld(ctx context.Context, workspace string) bool {
 }
 
 // acquireWorkspaceLock serializes global-workspace APM runs across every omni process on the
-// host; APM itself does not serialize its own lifecycle (microsoft/apm#2655).
+// host. APM locks each of its own runs (microsoft/apm#2655), but omni's sync is several steps
+// (template, manifest, marketplaces, install) that must not interleave with another omni.
 func acquireWorkspaceLock(ctx context.Context, workspace string) (*workspaceLock, error) {
 	f, err := os.OpenFile(workspaceLockPath(workspace), os.O_CREATE|os.O_RDWR, 0o644)
 	if err != nil {

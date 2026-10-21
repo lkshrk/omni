@@ -68,6 +68,21 @@ func (a *App) forgetAPMProbes() {
 	a.apmPresentDone, a.pinnedAPMDone, a.pinnedAPMErr = false, false, nil
 }
 
+// Sync installs the APM release Omni is pinned to, as dots sync installs stow.
+// Without any installer the readiness checks refuse as before, with the install hint.
+func (a *App) ensurePinnedAPM(ctx context.Context) error {
+	if a.APMAvailable() && a.requirePinnedAPM(ctx) == nil {
+		return nil
+	}
+	if !slices.ContainsFunc(apmInstallCommands, func(c []string) bool { return a.commandAvailable(c[0]) }) {
+		return nil
+	}
+	if _, err := a.FixMissingAPM(ctx, false); err != nil {
+		return fmt.Errorf("installing apm %s: %w", apmVersionPin, err)
+	}
+	return nil
+}
+
 func errAPMNotInstalled() error {
 	return &APMRepairError{Kind: APMRepairMissing, Required: apmVersionPin,
 		Err: fmt.Errorf("%w: %s", apm.ErrNotInstalled, apm.InstallHint)}
@@ -81,12 +96,15 @@ func (a *App) RunAPM(ctx context.Context, args ...string) (apm.Result, error) {
 	if err := a.requirePinnedAPM(ctx); err != nil {
 		return apm.Result{}, err
 	}
+	home, homeErr := os.UserHomeDir()
+	var link settingsLink
+	if homeErr == nil {
+		link = captureSettingsLink(home)
+	}
 	result, err := a.APMClient(apm.Global).Run(ctx, args...)
-	if apmMutatesHooks(args) {
-		if home, homeErr := os.UserHomeDir(); homeErr == nil {
-			if _, pathErr := portableHookPaths(home); pathErr != nil && err == nil {
-				err = fmt.Errorf("anchor hook paths to $HOME: %w", pathErr)
-			}
+	if apmMutatesHooks(args) && homeErr == nil {
+		if repairErr := repairClaudeHooks(home, link); repairErr != nil && err == nil {
+			err = repairErr
 		}
 	}
 	return result, err
@@ -400,6 +418,15 @@ func (a *App) agentsSyncAllLocked(ctx context.Context, opts AgentsSyncAllOptions
 	// Guards run before ensureMarketplaces because that already invokes apm; a hazard must fail with apm untouched.
 	if err := checkAgentsLSPHazardsManifest(opts, manifest); err != nil {
 		return res, err
+	}
+	if err := checkAgentsFrozenPackages(opts, manifest); err != nil {
+		return res, err
+	}
+	// Every guard has passed, so the sync can proceed: install the pinned APM before its first use.
+	if !opts.DryRun {
+		if err := a.ensurePinnedAPM(ctx); err != nil {
+			return res, err
+		}
 	}
 	// Marketplace-sourced dependencies cannot install before their marketplace is registered.
 	if err := a.ensureMarketplaces(ctx, dir, opts); err != nil {
@@ -832,9 +859,10 @@ func agentsManifestInstallable(dir string) (bool, error) {
 	return false, nil
 }
 
-// Checked against the pinned 0.31.0: --frozen still installs and locks an lsp entry the lockfile
-// lacks, and a manifest whose targets exclude claude and copilot deploys everything else before
-// failing, so refusing first is what keeps a sync from leaving half its work behind.
+// Rechecked on 0.34.0: --frozen still installs and locks an lsp entry the lockfile lacks (fixed on
+// APM main by microsoft/apm#3307, not yet released), and a manifest whose targets exclude claude and
+// copilot deploys everything else before failing, so refusing first is what keeps a sync from leaving
+// half its work behind.
 func checkAgentsLSPHazards(opts AgentsSyncAllOptions) error {
 	manifest, err := readAPMManifest()
 	// An unparseable manifest is apm's own transactional validation to report, not this guard's.
@@ -868,6 +896,30 @@ func checkAgentsLSPHazardsManifest(opts AgentsSyncAllOptions, manifest apmManife
 		if !locked[dep.Name] {
 			return fmt.Errorf("frozen sync: lsp server %q is not in the lockfile (apm --frozen does not check lsp entries)", dep.Name)
 		}
+	}
+	return nil
+}
+
+// Since 0.34 (microsoft/apm#2384) --frozen never writes the lockfile, but a package the lockfile
+// does not record is still deployed before apm fails on it, leaving its files behind. A frozen sync
+// therefore refuses up front when any declared package has no lock entry.
+func checkAgentsFrozenPackages(opts AgentsSyncAllOptions, manifest apmManifest) error {
+	if !opts.Frozen || len(manifest.Dependencies.APM) == 0 {
+		return nil
+	}
+	lock, err := readAPMLockfile()
+	if err != nil {
+		return fmt.Errorf("frozen sync: cannot verify lockfile: %w", err)
+	}
+	var unlocked []string
+	for _, row := range joinAPMPackages(manifest, lock) {
+		if row.Status == AgentsPackageMissing {
+			unlocked = append(unlocked, row.Name)
+		}
+	}
+	if len(unlocked) > 0 {
+		return fmt.Errorf("frozen sync: %s not in the lockfile; run a sync without --frozen first (apm --frozen would deploy them before failing)",
+			strings.Join(unlocked, ", "))
 	}
 	return nil
 }

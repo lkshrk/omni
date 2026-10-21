@@ -63,7 +63,7 @@ func (a *App) FixMissingAPM(ctx context.Context, dryRun bool) (APMInstallFixRepo
 	if len(failures) > 0 {
 		return APMInstallFixReport{}, errors.Join(failures...)
 	}
-	return APMInstallFixReport{}, fmt.Errorf("no supported installer found (uv, pipx, pip3); install pinned APM manually from %s", apmPackagePin)
+	return APMInstallFixReport{}, fmt.Errorf("no supported installer found (uv, pipx, pip3); install pinned APM manually: uv tool install %s", apmPackagePin)
 }
 
 // A successful installer says nothing about which apm now resolves on PATH, so every candidate re-probes.
@@ -75,9 +75,6 @@ func (a *App) verifyPinnedAPMAfter(ctx context.Context, cmdline string) error {
 	case !apmVersionPinned(version):
 		return fmt.Errorf("%s completed but apm %s remains installed; want %s", cmdline, version, apmVersionPin)
 	}
-	if matches, known := apmProvenanceMatchesPin(); known && !matches {
-		return fmt.Errorf("%s completed but apm %s is still installed from another source; want %s", cmdline, version, apmPackagePin)
-	}
 	return nil
 }
 
@@ -85,10 +82,7 @@ func (a *App) verifyPinnedAPMAfter(ctx context.Context, cmdline string) error {
 func (a *App) upgradeOutdatedAPM(ctx context.Context, dryRun bool) (APMInstallFixReport, error) {
 	version, err := a.APMVersion(ctx)
 	if err == nil && apmVersionPinned(version) {
-		// The pinned release also ships from unpinned commits, so a matching version alone proves nothing.
-		if matches, known := apmProvenanceMatchesPin(); !known || matches {
-			return APMInstallFixReport{AlreadyInstalled: true}, nil
-		}
+		return APMInstallFixReport{AlreadyInstalled: true}, nil
 	}
 	var failures []error
 	for _, candidate := range apmUpgradeCommands {
@@ -115,6 +109,6 @@ func (a *App) upgradeOutdatedAPM(ctx context.Context, dryRun bool) (APMInstallFi
 	if len(failures) > 0 {
 		return APMInstallFixReport{}, errors.Join(failures...)
 	}
-	return APMInstallFixReport{}, fmt.Errorf("apm %s is not the pinned build and no supported installer (uv, pipx, pip3) is available; install pinned APM manually from %s",
+	return APMInstallFixReport{}, fmt.Errorf("apm %s is not the pinned version and no supported installer (uv, pipx, pip3) is available; install pinned APM manually: uv tool install %s",
 		version, apmPackagePin)
 }

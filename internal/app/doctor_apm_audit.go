@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/lkshrk/omni/internal/apm"
@@ -15,7 +16,6 @@ import (
 const (
 	apmAuditDeployedFilesCheck = "deployed-files-present"
 	apmAuditDriftCheck         = "drift"
-	apmAuditDeployRootPrefix   = ".agents/"
 	apmAuditDetailSample       = 5
 )
 
@@ -54,8 +54,7 @@ func parseAPMAuditReport(stdout string) (apmAuditReport, error) {
 	return report, nil
 }
 
-// Vanilla apm resolves deployed and drifting paths against the process working directory and knows
-// nothing about the .agents deploy root, so both path-based checks are re-evaluated against home.
+// Deployed paths are re-checked against home, in case apm resolves them against its working directory.
 // Integrity checks scan the whole home tree, so their findings are graded by the deployment ledger.
 func evaluateAPMAudit(report apmAuditReport, home string, deployed map[string]bool) apmAuditFindings {
 	var findings apmAuditFindings
@@ -68,8 +67,10 @@ func evaluateAPMAudit(report apmAuditReport, home string, deployed map[string]bo
 				}
 			}
 		case apmAuditDriftCheck:
+			// Before 0.33 global audit misreported the .agents deploy root; 0.34 reports it correctly.
+			// Hook files still always diff in a global replay; see apmHookDriftIsReplayArtifact.
 			for _, detail := range check.Details {
-				if !strings.HasPrefix(apmAuditDriftPath(detail), apmAuditDeployRootPrefix) {
+				if !apmHookDriftIsReplayArtifact(home, detail) {
 					findings.Drift = append(findings.Drift, detail)
 				}
 			}
@@ -77,9 +78,13 @@ func evaluateAPMAudit(report apmAuditReport, home string, deployed map[string]bo
 			if check.Passed {
 				continue
 			}
-			onDeployed, elsewhere := splitAPMAuditDetails(check.Details, home, deployed)
+			details := slices.DeleteFunc(slices.Clone(check.Details), isHookScriptCoverageNoise)
+			if len(check.Details) > 0 && len(details) == 0 {
+				continue
+			}
+			onDeployed, elsewhere := splitAPMAuditDetails(details, home, deployed)
 			findings.Advisory = append(findings.Advisory, elsewhere...)
-			if len(check.Details) == 0 || len(onDeployed) > 0 {
+			if len(details) == 0 || len(onDeployed) > 0 {
 				findings.Integrity = append(findings.Integrity, check.Name+": "+check.Message)
 				findings.Integrity = append(findings.Integrity, onDeployed...)
 			}
@@ -165,4 +170,14 @@ func (a *App) doctorAPMAudit(ctx context.Context, result *DoctorResult) {
 		return
 	}
 	result.addCheck("apm-audit", "APM audit", DoctorStatusWarn, strings.Join(summary, ", "), details...)
+}
+
+// apm's coverage scan parses every JSON file under a deployed hook script directory (package.json, other agents' hook files) as a Claude hook config.
+func isHookScriptCoverageNoise(detail string) bool {
+	path, found := strings.CutPrefix(detail, "incomplete-coverage: .claude/hooks/")
+	if !found {
+		return false
+	}
+	_, rest, nested := strings.Cut(path, "/")
+	return nested && rest != ""
 }

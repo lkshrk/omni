@@ -22,7 +22,7 @@ Omni never edits manifest fields; it copies files and shells out to `apm`. The r
 | no agents step in onboarding | XXX-335 | there is no omni-side model to onboard into |
 | agent configs drift | XXX-343 | apm rewrites client config files that dotfiles also ship |
 
-## Current state (omni at settings schema v25, apm 0.31.0)
+## Current state (omni at settings schema v26, apm 0.34.0)
 
 - Settings hold only `agents.ignored[]`; any other `agents` key is rejected as retired
   (`internal/config/agents_block.go`).
