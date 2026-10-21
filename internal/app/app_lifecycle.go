@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
@@ -2014,9 +2015,37 @@ func refreshPathAfterScriptInstalls(ctx context.Context, exec executor.Executor,
 	if err != nil {
 		return
 	}
-	if newPath := lastNonEmptyLine(stdout); newPath != "" {
-		setenv(newPath)
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return
 	}
+	if merged, changed := appendHomePathDirs(os.Getenv("PATH"), lastNonEmptyLine(stdout), home); changed {
+		setenv(merged)
+	}
+}
+
+// Script installers put managers under $HOME; taking the login shell's whole PATH would drop the caller's own entries.
+func appendHomePathDirs(current, login, home string) (string, bool) {
+	sep := string(os.PathListSeparator)
+	seen := make(map[string]bool)
+	for _, dir := range filepath.SplitList(current) {
+		seen[dir] = true
+	}
+	prefix := filepath.Clean(home) + string(os.PathSeparator)
+	merged, changed := current, false
+	for _, dir := range filepath.SplitList(login) {
+		if dir == "" || seen[dir] || !strings.HasPrefix(filepath.Clean(dir)+string(os.PathSeparator), prefix) {
+			continue
+		}
+		seen[dir] = true
+		if merged == "" {
+			merged = dir
+		} else {
+			merged += sep + dir
+		}
+		changed = true
+	}
+	return merged, changed
 }
 
 func pass1InstalledScriptTool(pass1 *isync.SyncResult) bool {
