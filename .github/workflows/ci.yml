@@ -189,12 +189,12 @@ jobs:
           python-version: '3.15'
 
       # Reads the pin from the source of truth; a second copy here silently tested the old build.
-      - name: Install APM from main
+      - name: Install the pinned APM release
         shell: bash
         run: |
-          apm_ref=$(sed -n 's/.*apm\.git@\([0-9a-f]\{40\}\)".*/\1/p' internal/app/apm_version.go)
-          [ -n "$apm_ref" ] || { echo "failed to read the apm commit pin from internal/app/apm_version.go" >&2; exit 1; }
-          python -m pip install "git+https://github.com/microsoft/apm.git@${apm_ref}"
+          apm_version=$(sed -n 's/^const apmVersionPin = "\([0-9][0-9.]*\)"$/\1/p' internal/app/apm_version.go)
+          [ -n "$apm_version" ] || { echo "failed to read apmVersionPin from internal/app/apm_version.go" >&2; exit 1; }
+          python -m pip install "apm-cli==${apm_version}"
           python -c 'import os, sysconfig; print(sysconfig.get_path("scripts"), file=open(os.environ["GITHUB_PATH"], "a"))'
 
       - name: Test portable APM target contracts
