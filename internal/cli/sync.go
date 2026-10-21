@@ -46,6 +46,7 @@ installs the global APM workspace once.`,
 			}
 			out := cmdOut(cmd)
 			errOut := cmdErr(cmd)
+			live := newLiveProgress(cmd.OutOrStdout(), out)
 			if all {
 				if !dryRun {
 					ok, err := confirmAction(cmd, state, "Sync all: add discovered tools to config, install missing configured tools, and install the global APM workspace?")
@@ -57,21 +58,20 @@ installs the global APM workspace once.`,
 					DryRun:    dryRun,
 					Group:     group,
 					AllowWeak: allowWeak,
-					Progress: func(msg string) {
-						fmt.Fprintf(out, "  %s\n", msg)
-					},
+					Progress:  live.Step,
 					ToolProgress: func(event gosync.ProgressEvent) {
 						if !event.Done {
 							return
 						}
 						if event.Err != nil {
-							fmt.Fprintf(out, "  ! failed: %s (%s): %v\n", event.Tool.Name, event.Tool.Provider, event.Err)
+							live.Println(fmt.Sprintf("  ! failed: %s (%s): %v", event.Tool.Name, event.Tool.Provider, event.Err))
 							return
 						}
-						fmt.Fprintf(out, "  ✓ done: %s (%s)\n", event.Tool.Name, event.Tool.Provider)
+						live.Println(fmt.Sprintf("  ✓ done: %s (%s)", event.Tool.Name, event.Tool.Provider))
 					},
 				}
-				result, err := state.app.SyncAll(cmd.Context(), syncOpts)
+				result, err := state.app.SyncAll(live.Context(cmd.Context()), syncOpts)
+				live.Done()
 				if err != nil {
 					return err
 				}
@@ -92,21 +92,20 @@ installs the global APM workspace once.`,
 				Group:       group,
 				RetryFailed: retryFailed,
 				AllowWeak:   allowWeak,
-				Progress: func(msg string) {
-					fmt.Fprintf(out, "  %s\n", msg)
-				},
+				Progress:    live.Step,
 				ToolProgress: func(event gosync.ProgressEvent) {
 					if !event.Done {
 						return
 					}
 					if event.Err != nil {
-						fmt.Fprintf(out, "  ! failed: %s (%s): %v\n", event.Tool.Name, event.Tool.Provider, event.Err)
+						live.Println(fmt.Sprintf("  ! failed: %s (%s): %v", event.Tool.Name, event.Tool.Provider, event.Err))
 						return
 					}
-					fmt.Fprintf(out, "  ✓ done: %s (%s)\n", event.Tool.Name, event.Tool.Provider)
+					live.Println(fmt.Sprintf("  ✓ done: %s (%s)", event.Tool.Name, event.Tool.Provider))
 				},
 			}
-			result, err := state.app.Sync(cmd.Context(), opts)
+			result, err := state.app.Sync(live.Context(cmd.Context()), opts)
+			live.Done()
 			if err != nil {
 				return err
 			}

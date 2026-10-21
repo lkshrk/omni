@@ -109,7 +109,8 @@ func ensureDotsStowForCLI(cmd *cobra.Command, state *rootState) error {
 		return nil
 	}
 	installMessage := "GNU Stow (stow) is required for dotfile sync. Install stow with your system package manager, then rerun this command."
-	if !stdinIsTerminal() {
+	// --yes installs it without a terminal; otherwise ask.
+	if !state.yes && !stdinIsTerminal() {
 		return fmt.Errorf("%s", installMessage)
 	}
 	ok, err := confirmAction(cmd, state, "GNU Stow (stow) is required for dotfile sync. Install stow with the system package manager now?")

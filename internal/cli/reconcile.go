@@ -27,30 +27,29 @@ func newReconcileCmd(state *rootState) *cobra.Command {
 			if err != nil || !ok {
 				return err
 			}
-			out := cmdOut(cmd)
-			result, err := state.app.Reconcile(cmd.Context(), app.ReconcileOptions{
+			live := newLiveProgress(cmd.OutOrStdout(), cmdOut(cmd))
+			result, err := state.app.Reconcile(live.Context(cmd.Context()), app.ReconcileOptions{
 				BackupMessage:  message,
 				SkipPrivileged: skipPrivileged,
 				Force:          force,
-				Progress: func(msg string) {
-					fmt.Fprintf(out, "  %s\n", msg)
-				},
+				Progress:       live.Step,
 				ToolProgress: func(event syncprogress.ProgressEvent) {
 					if !event.Done {
 						return
 					}
 					name := app.ToolNameWithVersion(event.Tool.Name, event.TargetVersion)
 					if event.Err != nil {
-						fmt.Fprintf(out, "  ! failed: %s (%s): %v\n", name, event.Tool.Provider, event.Err)
+						live.Println(fmt.Sprintf("  ! failed: %s (%s): %v", name, event.Tool.Provider, event.Err))
 						return
 					}
 					if reason, ok := skippedUpgradeProgressReason(event.Message); ok {
-						fmt.Fprintf(out, "  - skipped: %s (%s): %s\n", name, event.Tool.Provider, reason)
+						live.Println(fmt.Sprintf("  - skipped: %s (%s): %s", name, event.Tool.Provider, reason))
 						return
 					}
-					fmt.Fprintf(out, "  ✓ done: %s (%s)\n", name, event.Tool.Provider)
+					live.Println(fmt.Sprintf("  ✓ done: %s (%s)", name, event.Tool.Provider))
 				},
 			})
+			live.Done()
 			printReconcileSummary(cmd, result)
 			return err
 		},

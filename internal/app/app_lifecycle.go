@@ -47,6 +47,7 @@ func (a *App) Sync(ctx context.Context, opts isync.SyncOptions) (*isync.SyncResu
 
 	opts.IgnoreList = cfg.Ignore.Tools
 	providerTools := a.buildProviderTools(ctx, cfg)
+	providerTools = append(providerTools, a.inferBootstrapProviderTools(ctx, cfg, groups, providerTools)...)
 	var result *isync.SyncResult
 	if len(providerTools) > 0 {
 		pass1Opts := opts
@@ -60,6 +61,15 @@ func (a *App) Sync(ctx context.Context, opts isync.SyncOptions) (*isync.SyncResu
 			return nil, perr
 		}
 		result = pass1
+
+		// A dry run installs nothing, so pass 2 would report every dependent as unavailable.
+		if opts.DryRun {
+			for _, op := range pass1.Ops {
+				if op.Kind == isync.OpInstall {
+					opts.AssumeAvailable = append(opts.AssumeAvailable, op.Tool.Name)
+				}
+			}
+		}
 
 		// A manager installed by a script in pass 1 may land in a dir not yet on PATH.
 		refreshPathAfterScriptInstalls(ctx, a.newExecutor(), pass1, func(p string) {
@@ -1887,6 +1897,59 @@ func (a *App) buildProviderTools(ctx context.Context, cfg *config.RootConfig) []
 		spec := p.ToToolSpec()
 		install := a.resolveInstallSpecWithSettings(ctx, p.Name, spec, availability, settings)
 		tools = append(tools, spec.ToToolEntry(p.Name, install))
+	}
+	return tools
+}
+
+// Group tools named after a provider that is not available yet (bun, uv, cargo, ...)
+// join the provider pass, so their dependents resolve in the same run. Only tools
+// installable right now qualify: one that needs another missing provider (pip via
+// uv) stays in pass 2, where pass 1 has made that provider available.
+func (a *App) inferBootstrapProviderTools(ctx context.Context, cfg *config.RootConfig, groups []*config.GroupConfig, declared []config.ToolEntry) []config.ToolEntry {
+	if a.registry == nil || cfg == nil {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(declared)+len(cfg.Ignore.Tools))
+	for _, t := range declared {
+		seen[t.Name] = struct{}{}
+	}
+	for _, name := range cfg.Ignore.Tools {
+		seen[name] = struct{}{}
+	}
+	providerAvailable := func(name string) bool {
+		prov, ok := a.registry.Get(name)
+		if !ok {
+			return false
+		}
+		avail, err := prov.Available(ctx)
+		return err == nil && avail
+	}
+	settings := a.effectiveSettings(cfg)
+	availability := make(map[string]bool)
+	var tools []config.ToolEntry
+	for _, group := range groups {
+		if group == nil {
+			continue
+		}
+		for _, member := range group.Tools {
+			name := member.Name
+			if _, ok := seen[name]; ok {
+				continue
+			}
+			seen[name] = struct{}{}
+			spec, ok := cfg.Tools[name]
+			if !ok || spec.Ignore {
+				continue
+			}
+			if _, isProvider := a.registry.Get(name); !isProvider || providerAvailable(name) {
+				continue
+			}
+			install := a.resolveInstallSpecWithSettings(ctx, name, spec, availability, settings)
+			if install.Provider == "" || install.Provider == name || !providerAvailable(install.Provider) {
+				continue
+			}
+			tools = append(tools, spec.ToToolEntry(name, install))
+		}
 	}
 	return tools
 }

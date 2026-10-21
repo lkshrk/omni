@@ -284,26 +284,40 @@ func TestSync_InstallWithConcreteProviderKeepsLogicalCacheKey(t *testing.T) {
 	}
 }
 
-func TestSync_IsInstalledErrorStopsBeforeInstall(t *testing.T) {
+func TestSync_IsInstalledErrorFailsOnlyThatTool(t *testing.T) {
 	ctx := context.Background()
-	mock := &mockProvider{
+	broken := &mockProvider{
 		name:         "brew",
 		available:    true,
 		isInstalled:  map[string]bool{},
 		isInstallErr: errors.New("status probe failed"),
 	}
+	healthy := &mockProvider{name: "apt", available: true, isInstalled: map[string]bool{}}
 	reg := provider.NewRegistry()
-	reg.Register(mock)
+	reg.Register(broken)
+	reg.Register(healthy)
 
 	db := newDB(t)
 	s := syncer.New(reg, db)
 
-	_, err := s.Sync(ctx, cfg(entry("ripgrep", "brew")), syncer.SyncOptions{})
-	if err == nil {
-		t.Fatal("Sync returned nil, want status probe error")
+	result, err := s.Sync(ctx, cfg(entry("ripgrep", "brew"), entry("jq", "apt")), syncer.SyncOptions{})
+	if err != nil {
+		t.Fatalf("Sync: %v (one tool's status probe must not stop the sync)", err)
 	}
-	if len(mock.installed) != 0 {
-		t.Fatalf("Install called after status probe failed: %v", mock.installed)
+	if len(broken.installed) != 0 {
+		t.Fatalf("Install called after status probe failed: %v", broken.installed)
+	}
+	if len(healthy.installed) != 1 || healthy.installed[0] != "jq" {
+		t.Fatalf("healthy tool not installed: %v", healthy.installed)
+	}
+	var failed bool
+	for _, op := range result.Ops {
+		if op.Tool.Name == "ripgrep" {
+			failed = op.Kind == syncer.OpFailed && op.Err != nil && strings.Contains(op.Err.Error(), "status probe failed")
+		}
+	}
+	if !failed {
+		t.Fatalf("want ripgrep reported as failed with the probe error, got %+v", result.Ops)
 	}
 }
 

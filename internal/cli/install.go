@@ -159,23 +159,23 @@ func runInstallGroup(cmd *cobra.Command, state *rootState, group string) error {
 	if !state.app.HasConfig() {
 		return fmt.Errorf("no config found; create settings.json first")
 	}
+	live := newLiveProgress(cmd.OutOrStdout(), cmdOut(cmd))
 	opts := gosync.SyncOptions{
-		Group: group,
-		Progress: func(msg string) {
-			fmt.Fprintf(cmdOut(cmd), "  %s\n", msg)
-		},
+		Group:    group,
+		Progress: live.Step,
 		ToolProgress: func(event gosync.ProgressEvent) {
 			if !event.Done {
 				return
 			}
 			if event.Err != nil {
-				fmt.Fprintf(cmdOut(cmd), "  ✗ failed: %s (%s): %v\n", event.Tool.Name, event.Tool.Provider, event.Err)
+				live.Println(fmt.Sprintf("  ✗ failed: %s (%s): %v", event.Tool.Name, event.Tool.Provider, event.Err))
 				return
 			}
-			fmt.Fprintf(cmdOut(cmd), "  ✓ installed: %s (%s)\n", event.Tool.Name, event.Tool.Provider)
+			live.Println(fmt.Sprintf("  ✓ installed: %s (%s)", event.Tool.Name, event.Tool.Provider))
 		},
 	}
-	result, err := state.app.Sync(cmd.Context(), opts)
+	result, err := state.app.Sync(live.Context(cmd.Context()), opts)
+	live.Done()
 	if err != nil {
 		return err
 	}

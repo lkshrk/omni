@@ -5587,7 +5587,7 @@ func TestRunDotsInitSection_EmptyPath_Skips(t *testing.T) {
 	}
 
 	withMockStdin(t, "\n", func() {
-		err := runDotsInitSection(context.Background(), a)
+		err := runDotsInitSection(context.Background(), nil, a)
 		if err != nil {
 			t.Errorf("runDotsInitSection with empty path: %v", err)
 		}
@@ -5609,7 +5609,7 @@ func TestRunDotsInitSection_ValidPath_NoEntries(t *testing.T) {
 	// Enter repoDir; the trailing blank is ignored.
 	stdinInput := repoDir + "\n\n"
 	withMockStdin(t, stdinInput, func() {
-		_ = runDotsInitSection(context.Background(), a)
+		_ = runDotsInitSection(context.Background(), nil, a)
 	})
 }
 
@@ -5644,7 +5644,7 @@ func TestRunDotsInitSection_RelativePath_NormalizesToAbsolute(t *testing.T) {
 	})
 
 	withMockStdin(t, repoName+"\n", func() {
-		if err := runDotsInitSection(context.Background(), a); err != nil {
+		if err := runDotsInitSection(context.Background(), nil, a); err != nil {
 			t.Fatalf("runDotsInitSection: %v", err)
 		}
 	})
@@ -5676,7 +5676,7 @@ func TestRunDotsInitSection_ExpandsEnvironmentVariablePath(t *testing.T) {
 	legacyPath := "$HOME/dotsrepo"
 
 	withMockStdin(t, legacyPath+"\n", func() {
-		if err := runDotsInitSection(context.Background(), a); err != nil {
+		if err := runDotsInitSection(context.Background(), nil, a); err != nil {
 			t.Fatalf("runDotsInitSection: %v", err)
 		}
 	})
@@ -5702,7 +5702,7 @@ func TestRunDotsInitSection_InvalidPath(t *testing.T) {
 
 	nonExistentPath := filepath.Join(t.TempDir(), "does_not_exist")
 	withMockStdin(t, nonExistentPath+"\n", func() {
-		err := runDotsInitSection(context.Background(), a)
+		err := runDotsInitSection(context.Background(), nil, a)
 		if err == nil {
 			t.Error("expected error for non-existent repo path")
 		}
@@ -5738,7 +5738,7 @@ func TestRunDotsInitSection_UnsupportedTildePrefix_DoesNotExpand(t *testing.T) {
 	})
 
 	withMockStdin(t, "~nobody/.config\n", func() {
-		err := runDotsInitSection(context.Background(), a)
+		err := runDotsInitSection(context.Background(), nil, a)
 		if err == nil {
 			t.Fatal("expected error for unsupported ~user prefix")
 		}
@@ -5766,7 +5766,7 @@ func TestRunDotsInitSection_WithDiscoverableEntries(t *testing.T) {
 	// Enter repoDir; trailing legacy answers are ignored.
 	stdinInput := repoDir + "\ny\n\n"
 	withMockStdin(t, stdinInput, func() {
-		_ = runDotsInitSection(context.Background(), a)
+		_ = runDotsInitSection(context.Background(), nil, a)
 	})
 }
 
@@ -5788,7 +5788,7 @@ func TestRunDotsInitSection_WithEntries_PickIndividually(t *testing.T) {
 	// Enter repoDir; trailing legacy answers are ignored.
 	stdinInput := repoDir + "\nn\ny\n\n"
 	withMockStdin(t, stdinInput, func() {
-		_ = runDotsInitSection(context.Background(), a)
+		_ = runDotsInitSection(context.Background(), nil, a)
 	})
 }
 
@@ -5805,6 +5805,6 @@ func TestRunDotsInitSection_NonStandardPath_Nonexistent(t *testing.T) {
 	// Enter repoDir; trailing legacy extra-path input is ignored.
 	stdinInput := repoDir + "\n/nonexistent/path/xyz\n\n"
 	withMockStdin(t, stdinInput, func() {
-		_ = runDotsInitSection(context.Background(), a)
+		_ = runDotsInitSection(context.Background(), nil, a)
 	})
 }

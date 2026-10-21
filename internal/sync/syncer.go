@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -53,6 +54,9 @@ type SyncOptions struct { //nolint:revive // name is intentional for clarity in 
 	SkipPrivileged bool
 	// Accepts the best weak provider-discovery match when no high-confidence one exists.
 	AllowWeak bool
+	// Dry-run only: providers an earlier pass would install. Their tools plan as
+	// installs instead of provider-unavailable.
+	AssumeAvailable []string
 }
 
 type ProgressEvent struct {
@@ -134,6 +138,7 @@ func (r *SyncResult) filter(fn func(SyncOp) bool) []SyncOp {
 
 type provState struct {
 	available          bool
+	assumed            bool                               // dry-run stand-in for a provider not installed yet; nothing to query
 	installed          map[string]string                  // lowercase name → version
 	installedByManager map[string]provider.InstalledEntry // lowercase name → version + concrete manager
 }
@@ -225,6 +230,9 @@ func (s *Syncer) Sync(ctx context.Context, cfg *config.Config, opts SyncOptions)
 					return fmt.Errorf("checking provider %s: %w", name, err)
 				}
 				st.available = avail
+				if !avail && opts.DryRun && slices.Contains(opts.AssumeAvailable, name) {
+					st.available, st.assumed = true, true
+				}
 			}
 			mu.Lock()
 			states[name] = st
@@ -239,7 +247,7 @@ func (s *Syncer) Sync(ctx context.Context, cfg *config.Config, opts SyncOptions)
 	opts.progress("reading installed packages…")
 	g1b, gCtx1b := errgroup.WithContext(ctx)
 	for name, st := range states {
-		if !st.available {
+		if !st.available || st.assumed {
 			continue
 		}
 		name, st := name, st
@@ -276,6 +284,7 @@ func (s *Syncer) Sync(ctx context.Context, cfg *config.Config, opts SyncOptions)
 		installed     bool
 		version       string
 		noProvider    bool
+		checkErr      error // this tool's status probe failed; the rest of the sync goes on
 	}
 
 	decisions := make([]toolDecision, len(tools))
@@ -289,6 +298,10 @@ func (s *Syncer) Sync(ctx context.Context, cfg *config.Config, opts SyncOptions)
 		prov, ok := s.registry.Get(opProvider)
 		if !ok {
 			decisions[i] = toolDecision{entry: entry, opProvider: opProvider, installedWith: entry.InstallWith, noProvider: true}
+			continue
+		}
+		if st.assumed {
+			decisions[i] = toolDecision{entry: entry, opProvider: opProvider, installedWith: entry.InstallWith}
 			continue
 		}
 		installedWith := installedWithForOperation(ctx, prov, opProvider, entry.InstallWith)
@@ -312,7 +325,9 @@ func (s *Syncer) Sync(ctx context.Context, cfg *config.Config, opts SyncOptions)
 			var err error
 			installed, ver, err = s.isInstalled(ctx, prov, opProvider, entry)
 			if err != nil {
-				return nil, fmt.Errorf("checking installed status for %s/%s: %w", entry.Provider, entry.Name, err)
+				decisions[i] = toolDecision{entry: entry, opProvider: opProvider, installedWith: installedWith,
+					checkErr: fmt.Errorf("checking installed status for %s/%s: %w", entry.Provider, entry.Name, err)}
+				continue
 			}
 		}
 
@@ -337,6 +352,11 @@ func (s *Syncer) Sync(ctx context.Context, cfg *config.Config, opts SyncOptions)
 
 		if d.noProvider {
 			result.Ops = append(result.Ops, SyncOp{Tool: tool, Kind: OpProviderUnavailable})
+			continue
+		}
+		if d.checkErr != nil {
+			result.Ops = append(result.Ops, SyncOp{Tool: tool, Kind: OpFailed, Err: d.checkErr})
+			opts.toolProgress(ProgressEvent{Tool: tool, Message: "Failed checking " + d.entry.Name, Err: d.checkErr, Done: true})
 			continue
 		}
 

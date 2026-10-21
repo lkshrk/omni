@@ -209,6 +209,18 @@ Decision table:
 | A package name differs from the logical name | `providers[].package` |
 | A tool can be installed several ways | multiple `providers[]` entries |
 
+## Bootstrap Providers
+
+Sync installs package managers before the tools that need them. Besides the
+entries in `settings.providers`, any tool in the host's groups that is named
+after a provider (`bun`, `uv`, `cargo`, `pnpm`, ...) joins that first pass when
+the provider is not available yet and the tool can be installed right away, for
+example `uv` through `pacman`. A tool that itself needs a missing provider, such
+as `pip` through `uv`, installs in the main pass once `uv` exists.
+
+`--dry-run` installs nothing, so it plans the dependents of those providers as
+installs instead of reporting them unavailable.
+
 ## Concrete Ownership
 
 Omni records the concrete manager that actually owns an installed tool in the

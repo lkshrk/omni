@@ -125,7 +125,7 @@ Run 'omni bootstrap' on every new machine to reproduce your environment.`,
 				}
 			}
 
-			if err := runDotsInitSection(ctx, a); err != nil {
+			if err := runDotsInitSection(ctx, state, a); err != nil {
 				// Non-fatal: dots is optional during bootstrap.
 				fmt.Fprintf(errOut, "warning: dots setup: %v\n", err)
 			}
@@ -216,7 +216,7 @@ func runExistingConfigBootstrap(cmd *cobra.Command, state *rootState, a *app.App
 		}
 	}
 	if promptYesNo(state, "Run dotfile sync now?", false) {
-		if err := runDotsSyncSection(ctx, a); err != nil {
+		if err := runDotsSyncSection(ctx, state, a); err != nil {
 			return err
 		}
 	}
@@ -252,7 +252,7 @@ func runToolSyncSection(ctx context.Context, a *app.App) error {
 	return nil
 }
 
-func runDotsSyncSection(ctx context.Context, a *app.App) error {
+func runDotsSyncSection(ctx context.Context, state *rootState, a *app.App) error {
 	configured, err := a.DotsSyncConfigured()
 	if err != nil {
 		return fmt.Errorf("loading settings: %w", err)
@@ -263,10 +263,11 @@ func runDotsSyncSection(ctx context.Context, a *app.App) error {
 	}
 	if !a.DotsStowInstalled(ctx) {
 		installMessage := "GNU Stow (stow) is required for dotfile sync. Install stow with your system package manager, then rerun bootstrap."
-		if !stdinIsTerminal() {
+		// --yes installs it without a terminal; otherwise ask.
+		if !(state != nil && state.yes) && !stdinIsTerminal() {
 			return fmt.Errorf("%s", installMessage)
 		}
-		if !promptYesNo(nil, "GNU Stow (stow) is required for dotfile sync. Install stow with the system package manager now?", false) {
+		if !promptYesNo(state, "GNU Stow (stow) is required for dotfile sync. Install stow with the system package manager now?", false) {
 			return fmt.Errorf("%s", installMessage)
 		}
 		if err := a.InstallDotsStow(ctx); err != nil {
@@ -307,7 +308,7 @@ func printBootstrapHost(result app.BootstrapHostResult) {
 }
 
 // Non-fatal: a skip or an error only makes the caller warn and continue.
-func runDotsInitSection(ctx context.Context, a *app.App) error {
+func runDotsInitSection(ctx context.Context, state *rootState, a *app.App) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -328,10 +329,11 @@ func runDotsInitSection(ctx context.Context, a *app.App) error {
 
 	if !a.DotsStowInstalled(ctx) {
 		installMessage := "GNU Stow (stow) is required for dotfile sync. Install stow with your system package manager, then rerun bootstrap."
-		if !stdinIsTerminal() {
+		// --yes installs it without a terminal; otherwise ask.
+		if !(state != nil && state.yes) && !stdinIsTerminal() {
 			return fmt.Errorf("%s", installMessage)
 		}
-		if !promptYesNo(nil, "GNU Stow (stow) is required for dotfile sync. Install stow with the system package manager now?", false) {
+		if !promptYesNo(state, "GNU Stow (stow) is required for dotfile sync. Install stow with the system package manager now?", false) {
 			return fmt.Errorf("%s", installMessage)
 		}
 		if err := a.InstallDotsStow(ctx); err != nil {
