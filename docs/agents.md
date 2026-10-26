@@ -11,6 +11,19 @@ Sync passes `--trust-transitive-mcp` so MCP servers declared by dependencies of
 a shared package deploy; the fleet's dependencies are pinned git refs and local
 packages under the operator's dotfiles.
 
+APM parks a package's native extensions, and its other executables when the
+manifest declares an `executables` block, until the package is approved, and it
+has no install flag for that. Every APM command Omni runs, from the CLI and the
+TUI alike, goes through one function. When a global `apm install` or `apm update`
+(not `--dry-run`) leaves packages `gated_pending_approval` in the lockfile, it
+runs `apm approve --all --user` and repeats the same command so they deploy. That
+covers `omni agents sync`, `add` and `update`, and the TUI's install, update and
+sync actions. Packages denied with `apm deny` stay denied.
+The grants live in `~/.apm/config.json`, which the template copy never touches,
+so later syncs deploy without asking again. A grant covers every version of its
+package: updating an approved package deploys the new code without review, the
+same trust the fleet already extends to its pinned dependencies.
+
 APM state:
 
 - `~/.apm/apm.yml` — desired dependencies.
@@ -85,6 +98,82 @@ commands are rewritten would break every MCP server instead of making it
 portable. A dotfiles-tracked `~/.codex/config.toml` needs a per-host
 `[mcp_servers.*]` section.
 
+## omp MCP
+
+The pinned Omni APM fork is based on upstream v0.35.0 and adds the explicit
+`omp` target. Shared skills remain under `~/.agents/skills`; MCP deployment
+uses the regular file `~/.omp/agent/mcp.json`. A nonempty
+`PI_CODING_AGENT_DIR` overrides that directory (relative to the process working
+directory, without tilde expansion). Named omp profiles are not selected
+automatically.
+
+Declare `targets:` on individual `dependencies.mcp` objects to restrict a
+server to selected clients. An omitted list keeps all active clients; an
+empty list deploys nowhere. APM records the per-client ownership and applies
+the same selection during sync, frozen replay, audit, retargeting and removal.
+
+For JSON-producing authentication helpers, declare `extra.headersHelper`
+(or `extra.http_headers_helper`) and `extra.headersHelperKeys` with the header
+names to extract. The omp adapter writes runtime `!command` references using
+`jq -er`; installation never executes the helper or persists its credentials.
+The helper and `jq` must be available when omp connects.
+
+Track the manifest and credential-helper source, not the generated omp MCP
+file. APM preserves unrelated servers, native envelope fields,
+`disabledServers`/`enabledServers`, and per-server `instructions`/`enabled`
+settings. It adopts equivalent entries and refuses different unmanaged
+connections; resolve intentional connection changes explicitly before sync.
+Omni's MCP inventory includes omp deployment evidence and native drift.
+
+Verified APM-owned self-defined Codex connections retain undeclared native
+tool settings, startup/tool timeouts, and additional environment keys during
+updates. Declared fields remain ownership-checked; registry connections keep
+strict native-config checks. Existing unmanaged Codex connections require
+explicit verified adoption, not `--force`.
+
+## omp extensions and hooks
+
+The pinned APM fork supports two generic omp executable surfaces.
+
+- **Native extensions** are first-class package content. Packages opt in with
+  `package.json` `omp.extensions` or `pi.extensions`, or a designated
+  `.apm/extensions`, `.omp/extensions`, or `.pi/extensions` directory. The
+  `omp` object takes precedence over `pi`; APM does not run extension code,
+  builds, package scripts, or npm installation while deploying it. Extensions
+  require their own `executables.allow.<package-key>.extensions: true` approval;
+  hooks and canvas approval do not grant it.
+- **Portable command hooks** use the existing APM hook contract through an
+  APM-owned native bridge. Supported events are PreToolUse, PostToolUse,
+  PostToolUseFailure, Stop, initialization-only SessionStart, shutdown
+  SessionEnd, PreCompact, and PostCompact. The bridge is POSIX-only and rejects
+  unsupported semantics before writes: UserPromptSubmit, permission requests,
+  subagent lifecycle, asynchronous/prompt/agent handlers, lifecycle matchers,
+  `ask`, unsafe edit/task payloads, and Windows command hooks.
+
+Native content takes precedence over portable hooks from the same package. If
+the extension is unapproved, it stays parked and its portable omp hooks are not
+kept as a fallback; that would execute updated package code without native-code
+approval. Project and user bridges are separate:
+`.omp/extensions/apm-hooks-project/` and
+`~/.omp/agent/extensions/apm-hooks-user/` (or the configured
+`PI_CODING_AGENT_DIR`). Both names are reserved against package collisions.
+
+Native extensions may use arbitrary omp ExtensionAPI features. The portable
+bridge is intentionally narrower: SessionStart is native initialization, not
+resume/clear/compact; SessionEnd is shutdown; transcript paths retain omp's
+native format. Use a native extension when a hook needs unsupported native tool
+shapes or lifecycle semantics.
+
+For an Omni-managed host template, commit organization approvals in the
+template or use `apm approve --user <package>` for personal approval. Do not
+edit only `~/.apm/apm.yml`: Omni sync replaces it from the template. A locked
+package can be installed while its extension is parked pending approval.
+
+Generated extensions, bridge state, hooks and MCP configuration are APM-owned
+runtime output. Do not put them under dots. The `omp` dots entry declares only
+`config.yml`, `models.yml`, and `AGENTS.md`; declaration neither adopts nor
+syncs those files.
+
 ## Package-owned MCP and LSP
 
 A package is authoritative for every MCP or LSP child declared by its installed
@@ -119,8 +208,10 @@ all of these facts are proven:
 
 - one installed lock entry identifies the package, with a resolved commit and
   a non-empty deployed-file inventory;
-- every deployed file is under `.agents/skills/<name>/` or
-  `.claude/skills/<name>/`;
+- every deployed file is under a skills root of the pinned APM target catalog,
+  `<root>/<name>/` (`.agents/skills`, `.claude/skills`,
+  `.config/opencode/skills`, `.gemini/antigravity-cli/skills`, `.grok/skills`,
+  `.hermes/skills`, `.kiro/skills`, `.openclaw/skills` or `agent-data/workflows`);
 - each inventoried skill has its canonical regular `SKILL.md` in the installed
   module; and
 - `apm.yml` and every plugin, MCP, and LSP carrier recognized by APM are
@@ -339,18 +430,34 @@ and `d` to remove it through its own client. See
 
 ## APM Version
 
-Omni requires the APM release `0.34.0`, installed from PyPI:
+Omni requires fork version `0.35.0+omni.5`, based on upstream release v0.35.0.
+The pin, `apmPackagePin` in `internal/app/apm_version.go`, is a wheel attached to
+the `apm-cli-0.35.0-omni.5` release of `lkshrk/omni` plus its SHA-256. It is not
+a PyPI release, and the release is neither an Omni version nor marked Latest.
 
 ```text
-uv tool install apm-cli==0.34.0
+omni doctor --fix
 ```
 
-`omni doctor --fix` installs that release through the first available installer
-(`uv tool install`, `pipx install`, then `pip3 install --user`). The `lkshrk/apm`
-fork Omni once required is retired: every agent package is declared as a git
-dependency, which accepts per-dependency `targets:`, resolves legacy package
-roots through an explicit `path:` coordinate, and supports `--dry-run`.
+Doctor downloads the wheel, refuses it unless its SHA-256 matches the pin, keeps
+it in the cache directory (`<cache>/apm/`), and installs that file through the
+first available installer (`uv tool install`, `pipx install`, then
+`pip3 install --user`). A cached wheel that still matches is reused, so a
+reinstall needs no network. A mismatching download is deleted and no installer
+runs. `--dry-run` plans the install with the release URL and downloads nothing.
+Omni checks the digest itself because `uv` and `pipx` reject the `#sha256=`
+fragment that `pip` would verify. CI and the integration image hand the same
+pin to `pip`, which does.
 
-Upgrading APM means rerunning Omni's APM contract and integration suites against
-the new release before changing Omni's required version (`apmVersionPin` in
-`internal/app/apm_version.go`; the integration image reads it from there).
+The fork adds native omp MCP deployment and per-server MCP targets. Package
+dependencies retain upstream Git/path coordinates and per-package target
+selection.
+
+Upgrading APM means rerunning Omni's APM contract and integration suites before
+changing `apmVersionPin` and `apmPackagePin`. To publish the new wheel, set the
+fork commit in `scripts/apm-wheel.sh`, run `scripts/apm-wheel.sh build`, put the
+printed digest and the new release URL into `apmPackagePin`, and run
+`scripts/apm-wheel.sh publish`. The build is reproducible; `scripts/apm-wheel.sh
+verify` rebuilds from the fork commit and fails unless it matches the pin. The
+integration image and CI read the same source pin rather than independently
+selecting a release.

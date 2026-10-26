@@ -25,14 +25,15 @@ type apmModuleManifest struct {
 	Dependencies apmDependencies `yaml:"dependencies"`
 }
 
-// APM plugin/service discovery surfaces (unchanged from 0.31.0 through 0.34.0). Presence of any carrier
-// makes a manifestless package's MCP/LSP ownership unknowable.
+// APM plugin/service discovery surfaces. Any carrier makes a manifestless
+// package's MCP/LSP ownership unknowable, including native Codex opt-in plugins.
 var apmManifestlessServiceCarriers = []string{
 	"plugin.json",
 	".claude-plugin",
 	".github/plugin/plugin.json",
 	".claude-plugin/plugin.json",
 	".cursor-plugin/plugin.json",
+	".codex-plugin/plugin.json",
 	"mcp.json",
 	".mcp.json",
 	".github/.mcp.json",
@@ -49,10 +50,12 @@ var (
 	agentsModuleOpen    = os.Open
 )
 
-// An installed package keeps its own manifest under apm_modules, the only local source of a description.
+// Installed snapshots are preferred; uncached locked local dependencies may
+// retain their canonical manifest only in the proven local source directory.
 func readAPMModuleManifests(dir string, rows []AgentsPackageRow) agentsOwnershipEvidence {
 	var evidence agentsOwnershipEvidence
 	root := filepath.Join(dir, "apm_modules")
+	localSources := newAgentsLocalSourceResolver(dir, rows)
 	for i := range rows {
 		if rows[i].ModuleSource == "" {
 			if rows[i].Source != "" && rows[i].Source != agentsUnrecognizedSource {
@@ -61,15 +64,21 @@ func readAPMModuleManifests(dir string, rows []AgentsPackageRow) agentsOwnership
 			continue
 		}
 		path, ok := resolveModulePath(root, rows[i].ModuleSource)
+		readRoot := root
+		var localEvidence []agentsModuleManifestIdentity
 		if !ok {
-			evidence.Unavailable = append(evidence.Unavailable, rows[i].Name)
-			continue
+			local, found := localSources.fallback(rows[i])
+			if !found {
+				evidence.Unavailable = append(evidence.Unavailable, rows[i].Name)
+				continue
+			}
+			path, readRoot, localEvidence = local.path, local.path, local.identities
 		}
 		manifestPath := filepath.Join(path, "apm.yml")
-		data, info, err := readAPMModuleRegularFile(root, path, manifestPath)
+		data, info, err := readAPMModuleRegularFile(readRoot, path, manifestPath)
 		if err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				if identities, ok := manifestlessSkillOnlyEvidence(root, path, rows[i]); ok {
+			if errors.Is(err, os.ErrNotExist) && len(localEvidence) == 0 {
+				if identities, ok := manifestlessNativeEvidence(root, path, rows[i]); ok {
 					evidence.Manifests = append(evidence.Manifests, identities...)
 					continue
 				}
@@ -81,7 +90,18 @@ func readAPMModuleManifests(dir string, rows []AgentsPackageRow) agentsOwnership
 			continue
 		}
 		sum := sha256.Sum256(data)
-		evidence.Manifests = append(evidence.Manifests, agentsModuleManifestIdentity{Path: manifestPath, Hash: hex.EncodeToString(sum[:]), Info: info})
+		identity := agentsModuleManifestIdentity{Path: manifestPath, Hash: hex.EncodeToString(sum[:]), Info: info}
+		if len(localEvidence) != 0 {
+			walked, exists, safe := inspectAPMModuleEvidencePath(path, "apm.yml")
+			if !safe || !exists || walked.Info == nil || !os.SameFile(info, walked.Info) {
+				evidence.Unavailable = append(evidence.Unavailable, rows[i].Name)
+				continue
+			}
+			walked.Hash, walked.Info, walked.PathOnly = identity.Hash, info, false
+			identity = walked
+			evidence.Manifests = append(evidence.Manifests, localEvidence...)
+		}
+		evidence.Manifests = append(evidence.Manifests, identity)
 		var manifest apmModuleManifest
 		if err := yaml.Unmarshal(data, &manifest); err != nil {
 			evidence.Unavailable = append(evidence.Unavailable, rows[i].Name)
@@ -145,7 +165,7 @@ func readAPMModuleManifest(root, module, manifestPath string) (data []byte, retE
 	return data, retErr
 }
 
-func readAPMModuleRegularFile(root, module, manifestPath string) (data []byte, identity os.FileInfo, retErr error) {
+func openAPMModuleRegularFile(root, module, manifestPath string) (result *os.File, identity os.FileInfo, retErr error) {
 	info, err := agentsModuleLstat(manifestPath)
 	if err != nil {
 		return nil, nil, err
@@ -169,7 +189,11 @@ func readAPMModuleRegularFile(root, module, manifestPath string) (data []byte, i
 	if err != nil {
 		return nil, nil, err
 	}
-	defer func() { retErr = errors.Join(retErr, file.Close()) }()
+	defer func() {
+		if retErr != nil {
+			retErr = errors.Join(retErr, file.Close())
+		}
+	}()
 	opened, err := file.Stat()
 	if err != nil || !opened.Mode().IsRegular() || !os.SameFile(info, opened) {
 		return nil, nil, fmt.Errorf("module manifest changed while opening")
@@ -178,6 +202,15 @@ func readAPMModuleRegularFile(root, module, manifestPath string) (data []byte, i
 	if err != nil || resolvedAfterOpen != resolvedManifest || !agentsPathWithinRoot(resolvedModule, resolvedAfterOpen) {
 		return nil, nil, fmt.Errorf("module manifest changed while opening")
 	}
+	return file, opened, nil
+}
+
+func readAPMModuleRegularFile(root, module, manifestPath string) (data []byte, identity os.FileInfo, retErr error) {
+	file, opened, err := openAPMModuleRegularFile(root, module, manifestPath)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer func() { retErr = errors.Join(retErr, file.Close()) }()
 	data, err = io.ReadAll(io.LimitReader(file, maxBundleManifestBytes+1))
 	if err != nil {
 		return nil, nil, err
@@ -188,32 +221,12 @@ func readAPMModuleRegularFile(root, module, manifestPath string) (data []byte, i
 	return data, opened, nil
 }
 
-func manifestlessSkillOnlyEvidence(root, module string, row AgentsPackageRow) ([]agentsModuleManifestIdentity, bool) {
+func manifestlessNativeEvidence(root, module string, row AgentsPackageRow) ([]agentsModuleManifestIdentity, bool) {
 	lock := row.lockEvidence
-	if lock == nil || (lock.PackageType != "claude_skill" && lock.PackageType != "skill_bundle") ||
-		strings.TrimSpace(lock.ResolvedCommit) == "" || len(lock.DeployedFiles) == 0 {
-		return nil, false
-	}
-
-	skills := make(map[string]struct{})
-	for _, deployed := range lock.DeployedFiles {
-		if deployed == "" || strings.TrimSpace(deployed) != deployed || strings.Contains(deployed, "\\") ||
-			pathpkg.IsAbs(deployed) || pathpkg.Clean(deployed) != deployed {
-			return nil, false
-		}
-		parts := strings.Split(deployed, "/")
-		if len(parts) < 3 || (parts[0] != ".agents" && parts[0] != ".claude") || parts[1] != "skills" ||
-			parts[2] == "" || parts[2] == "." || parts[2] == ".." || strings.EqualFold(parts[2], "SKILL.md") {
-			return nil, false
-		}
-		for prior := range skills {
-			if strings.EqualFold(prior, parts[2]) && prior != parts[2] {
-				return nil, false
-			}
-		}
-		skills[parts[2]] = struct{}{}
-	}
-	if len(skills) == 0 || (lock.PackageType == "claude_skill" && len(skills) != 1) {
+	if lock == nil || (lock.PackageType != "claude_skill" && lock.PackageType != "skill_bundle" &&
+		lock.PackageType != "extension_package" && lock.PackageType != "hook_package") ||
+		strings.TrimSpace(lock.ResolvedCommit) == "" || len(lock.DeployedFiles) > maxBundleEntries ||
+		(len(lock.DeployedFiles) == 0 && !lock.EmptyDeploymentAttested) {
 		return nil, false
 	}
 
@@ -240,33 +253,17 @@ func manifestlessSkillOnlyEvidence(root, module string, row AgentsPackageRow) ([
 	identities := []agentsModuleManifestIdentity{{
 		Path: module, ModuleRoot: module, Info: rootInfo, Directory: true, Lock: &lockCopy,
 	}}
+	skills, nativeIdentities, ok := manifestlessContentEvidence(root, module, row)
+	if !ok {
+		return nil, false
+	}
+	identities = append(identities, nativeIdentities...)
 
-	skillNames := make([]string, 0, len(skills))
-	for name := range skills {
-		skillNames = append(skillNames, name)
+	skillIdentities, ok := manifestlessSkillSourceEvidence(root, module, lock.PackageType, skills)
+	if !ok {
+		return nil, false
 	}
-	sort.Strings(skillNames)
-	if lock.PackageType == "claude_skill" {
-		skillNames = []string{""}
-	}
-	for _, name := range skillNames {
-		rel := "SKILL.md"
-		if name != "" {
-			rel = pathpkg.Join("skills", name, "SKILL.md")
-		}
-		identity, exists, ok := inspectAPMModuleEvidencePath(module, rel)
-		if !ok || !exists || identity.Info == nil || !identity.Info.Mode().IsRegular() {
-			return nil, false
-		}
-		data, info, err := readAPMModuleRegularFile(root, module, identity.Path)
-		if err != nil || !os.SameFile(identity.Info, info) {
-			return nil, false
-		}
-		sum := sha256.Sum256(data)
-		identity.Hash = hex.EncodeToString(sum[:])
-		identity.Info = info
-		identities = append(identities, identity)
-	}
+	identities = append(identities, skillIdentities...)
 
 	for _, rel := range append([]string{"apm.yml"}, apmManifestlessServiceCarriers...) {
 		identity, exists, ok := inspectAPMModuleEvidencePath(module, rel)
@@ -333,6 +330,7 @@ func inspectAPMModuleEvidencePath(module, rel string) (agentsModuleManifestIdent
 			identity.Path = current
 			identity.Info = info
 			identity.Directory = info.IsDir()
+			identity.PathOnly = info.Mode().IsRegular()
 			return identity, true, true
 		}
 	}

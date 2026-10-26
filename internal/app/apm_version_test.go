@@ -35,9 +35,6 @@ func TestParseAPMVersion(t *testing.T) {
 }
 
 func TestAPMVersionPin(t *testing.T) {
-	if apmVersionPin != "0.34.0" || apmPackagePin != "apm-cli==0.34.0" {
-		t.Fatalf("unexpected APM pins: version=%q package=%q", apmVersionPin, apmPackagePin)
-	}
 	for _, tt := range []struct {
 		version string
 		want    bool
@@ -45,8 +42,11 @@ func TestAPMVersionPin(t *testing.T) {
 		{"0.27.9", false},
 		{"0.28.0", false},
 		{"0.31.0", false},
-		{"0.34.0", true},
-		{"0.34.0+omni.5", false},
+		{"0.34.0", false},
+		{"0.35.0", false},
+		{apmVersionPin, true},
+		{"0.35.0+omni.4", false},
+		{"0.35.0+omni.6", false},
 		{"0.28.0+omni.2", false},
 		{"0.28.0+build.1", false},
 		{"0.28.1", false},
@@ -93,7 +93,7 @@ func TestDoctorAPMVersionAcceptsPin(t *testing.T) {
 }
 
 func TestDoctorAPMVersionRejectsMismatch(t *testing.T) {
-	for _, version := range []string{"0.28.0", "0.31.0", "0.33.0", "0.34.0+omni.5", "0.34.1"} {
+	for _, version := range []string{"0.28.0", "0.31.0", "0.34.0", "0.35.0", "0.35.0+omni.1", "0.35.0+omni.3", "0.35.0+omni.4", "0.35.0+omni.6", "0.35.1"} {
 		a, _ := newAPMVersionApp(t, executor.MockCall{Stdout: "Agent Package Manager (APM) CLI version " + version + "\n"})
 		result := &DoctorResult{}
 		a.doctorAPMVersion(context.Background(), result, &config.RootConfig{})
@@ -125,8 +125,9 @@ func TestFixMissingAPMUpgradesBelowFloor(t *testing.T) {
 		{},
 		{Stdout: "APM CLI version " + apmVersionPin + "\n"},
 	}
+	wheel := serveAPMWheel(t, a)
 	report, err := a.FixMissingAPM(context.Background(), false)
-	if err != nil || report.Upgraded != "uv tool install --force "+apmPackagePin || report.AlreadyInstalled {
+	if err != nil || report.Upgraded != "uv tool install --force "+wheel || report.AlreadyInstalled {
 		t.Fatalf("report = %#v, err = %v", report, err)
 	}
 	if len(mock.Calls) != 3 || mock.Calls[1].Name != "uv" || mock.Calls[2].Name != "apm" {
@@ -138,7 +139,7 @@ func TestFixMissingAPMDryRunPlansUpgrade(t *testing.T) {
 	a, mock := newAPMFixApp(t, map[string]bool{"apm": true, "pipx": true})
 	mock.Responses = []executor.MockCall{{Stdout: "APM CLI version 0.27.0\n"}}
 	report, err := a.FixMissingAPM(context.Background(), true)
-	if err != nil || report.Planned != "pipx install --force "+apmPackagePin {
+	if err != nil || report.Planned != "pipx install --force "+a.apmWheel().URL {
 		t.Fatalf("report = %#v, err = %v", report, err)
 	}
 	if len(mock.Calls) != 1 {
@@ -150,7 +151,7 @@ func TestFixMissingAPMRepairsUnparseableVersion(t *testing.T) {
 	a, mock := newAPMFixApp(t, map[string]bool{"apm": true, "uv": true})
 	mock.Responses = []executor.MockCall{{Stdout: "APM CLI version unknown\n"}}
 	report, err := a.FixMissingAPM(context.Background(), true)
-	if err != nil || report.Planned != "uv tool install --force "+apmPackagePin || report.AlreadyInstalled {
+	if err != nil || report.Planned != "uv tool install --force "+a.apmWheel().URL || report.AlreadyInstalled {
 		t.Fatalf("report = %#v, err = %v", report, err)
 	}
 }

@@ -2,6 +2,11 @@
 
 Status: decisions agreed (2026-10-11); implementation not started. Epic: XXX-346.
 
+The MCP target/ownership limitations below describe the original design
+baseline. The pinned `0.35.0+omni.5` fork now implements per-server MCP target
+selection, native omp ownership, and generic native-extension/portable-hook
+deployment; see [Agents](../agents.md#omp-extensions-and-hooks).
+
 ## Problem
 
 Agent state is declared in three places that omni only partly understands:
@@ -22,7 +27,7 @@ Omni never edits manifest fields; it copies files and shells out to `apm`. The r
 | no agents step in onboarding | XXX-335 | there is no omni-side model to onboard into |
 | agent configs drift | XXX-343 | apm rewrites client config files that dotfiles also ship |
 
-## Current state (omni at settings schema v26, apm 0.34.0)
+## Design baseline (omni at settings schema v26, apm 0.34.0)
 
 - Settings hold only `agents.ignored[]`; any other `agents` key is rejected as retired
   (`internal/config/agents_block.go`).

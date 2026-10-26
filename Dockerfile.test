@@ -34,9 +34,9 @@ RUN case "$TARGETARCH" in \
     grok --version
 
 # --break-system-packages is required by externally-managed system Python installs.
-# The Makefile passes omni's apmVersionPin; there is deliberately no default.
-ARG APM_VERSION
-RUN test -n "${APM_VERSION}" && pip3 install --break-system-packages cowsay==6.1 "apm-cli==${APM_VERSION}"
+# The Makefile passes Omni's immutable apmPackagePin; there is deliberately no default.
+ARG APM_PACKAGE
+RUN test -n "${APM_PACKAGE}" && pip3 install --break-system-packages cowsay==6.1 "${APM_PACKAGE}"
 
 WORKDIR /app
 

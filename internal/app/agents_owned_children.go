@@ -56,7 +56,11 @@ type agentsModuleManifestIdentity struct {
 	Parents      []agentsModulePathIdentity
 	Absent       bool
 	Directory    bool
-	Lock         *agentsPackageLockEvidence
+	LocalSource  bool
+	// PathOnly pins a regular resource's identity and containment, not its bytes.
+	// APM audit owns resource integrity; ownership proof hashes declarations and entrypoints.
+	PathOnly bool
+	Lock     *agentsPackageLockEvidence
 }
 
 // agentsModulePathIdentity pins each existing parent used to prove a candidate absent.
@@ -472,8 +476,10 @@ func reconcileAgentsOwnedChildren(
 		provided := make(map[string]bool)
 		for _, child := range children {
 			indexes := packageIndexes[strings.ToLower(child.Owner)]
-			status, actionable := agentsOwnedChildRuntimeStatus(child, mcpInput, lspInput)
 			for _, index := range indexes {
+				packageLSP := lspInput
+				packageLSP.targets = agentsServiceTargets(lspInput.targets, packages[index].Targets)
+				status, actionable := agentsOwnedChildRuntimeStatus(child, mcpInput, packageLSP)
 				packages[index].SyncActionable = packages[index].SyncActionable || actionable
 				providedKey := fmt.Sprintf("%d\x00%s", index, key)
 				if !provided[providedKey] {
@@ -577,19 +583,26 @@ func agentsOwnedChildRuntimeStatus(child agentsOwnedChild, mcpInput, lspInput ag
 	if child.Kind == agentsChildMCP && child.MCP != nil {
 		decl.detail, decl.command, decl.url = child.MCP.Transport, child.MCP.Command, child.MCP.URL
 		decl.remote = child.MCP.URL != ""
+		if child.MCP.Targets != nil {
+			decl.targets = *child.MCP.Targets
+		}
 	} else if child.Kind == agentsChildLSP && child.LSP != nil {
 		in = lspInput
 		decl.command = child.LSP.Command
 	} else {
 		return AgentsPackageUnavailable, false
 	}
+	targets := agentsServiceTargets(in.targets, decl.targets)
+	if child.Kind == agentsChildMCP && targets != nil && len(targets) == 0 {
+		return AgentsPackageInstalled, false
+	}
 	lockedName, locked := agentsEqualFoldString(in.locked, child.Name)
 	if !locked {
 		return AgentsPackageMissing, true
 	}
 	cfg := agentsEqualFoldConfig(in.configs, lockedName)
-	deployed := agentsEqualFoldHarnessConfig(in.configsOnClaude, lockedName)
-	return agentsServiceJoinedStatus(decl, cfg, deployed, in.resolves)
+	deployed := agentsEqualFoldHarnessConfig(in.deployedConfigs, lockedName)
+	return agentsServiceJoinedStatus(decl, cfg, deployed, targets, in.resolves)
 }
 
 func agentsEqualFoldString(values []string, name string) (string, bool) {
@@ -613,10 +626,10 @@ func agentsEqualFoldConfig(values map[string]apmServiceConfig, name string) apmS
 	return apmServiceConfig{}
 }
 
-func agentsEqualFoldHarnessConfig(values map[string]harnessMCPConfig, name string) map[string]harnessMCPConfig {
+func agentsEqualFoldHarnessConfig(values map[string]map[string]harnessMCPConfig, name string) map[string]harnessMCPConfig {
 	for key, value := range values {
 		if strings.EqualFold(key, name) {
-			return map[string]harnessMCPConfig{name: value}
+			return value
 		}
 	}
 	return nil

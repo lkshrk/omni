@@ -63,6 +63,7 @@ type apmPackageDep struct {
 
 type apmMCPDep struct {
 	Name      string            `yaml:"name"`
+	Targets   *[]string         `yaml:"targets,omitempty"`
 	Registry  bool              `yaml:"registry"`
 	Transport string            `yaml:"transport"`
 	Version   string            `yaml:"version,omitempty"`

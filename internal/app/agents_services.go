@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -13,7 +14,7 @@ import (
 	"github.com/lkshrk/omni/internal/apm"
 )
 
-// LSP deploys only to these targets; APM records no per-entry target for either surface.
+// LSP deploys only to these targets.
 var agentsLSPTargets = []string{"claude", "copilot"}
 
 type AgentsServiceRow struct {
@@ -47,7 +48,7 @@ func (a *App) AgentsStatus() (AgentsStatus, error) {
 	}
 	resolves := memoizedLookPath()
 	mcp := mcpServiceInput(manifest, lock)
-	mcp.deployed, mcp.configsOnClaude, mcp.resolves = harness.MCP, harness.MCPConfigs, resolves
+	mcp.deployed, mcp.deployedConfigs, mcp.resolves = harness.MCP, harness.MCPConfigs, resolves
 	lsp := lspServiceInput(manifest, lock)
 	lsp.deployed, lsp.resolves = harness.LSP, resolves
 	packages := joinAPMPackages(manifest, lock)
@@ -84,7 +85,7 @@ type agentsServiceInput struct {
 	configs         map[string]apmServiceConfig
 	targets         []string
 	deployed        map[string][]string
-	configsOnClaude map[string]harnessMCPConfig
+	deployedConfigs map[string]map[string]harnessMCPConfig
 	resolves        func(string) bool
 }
 
@@ -94,17 +95,23 @@ type agentsServiceDecl struct {
 	command string
 	url     string
 	remote  bool
+	targets []string
 }
 
 func mcpServiceInput(manifest apmManifest, lock apmLockfile) agentsServiceInput {
 	declared := make([]agentsServiceDecl, 0, len(manifest.Dependencies.MCP))
 	for _, dep := range manifest.Dependencies.MCP {
+		var targets []string
+		if dep.Targets != nil {
+			targets = *dep.Targets
+		}
 		declared = append(declared, agentsServiceDecl{
 			name:    dep.Name,
 			detail:  dep.Transport,
 			command: dep.Command,
 			url:     dep.URL,
 			remote:  dep.URL != "",
+			targets: targets,
 		})
 	}
 	return agentsServiceInput{declared: declared, locked: lock.MCPServers, configs: lock.MCPConfigs, targets: manifest.Targets}
@@ -145,6 +152,7 @@ func joinAPMServices(in agentsServiceInput) []AgentsServiceRow {
 			continue
 		}
 		declared[dep.name] = true
+		targets := agentsServiceTargets(in.targets, dep.targets)
 		cfg := in.configs[dep.name]
 		row := AgentsServiceRow{
 			Name:           dep.name,
@@ -152,7 +160,7 @@ func joinAPMServices(in agentsServiceInput) []AgentsServiceRow {
 			Command:        path.Base(firstNonEmpty(dep.command, cfg.Command)),
 			URLHost:        apmURLHost(firstNonEmpty(dep.url, cfg.URL)),
 			Harnesses:      in.deployed[dep.name],
-			Targets:        in.targets,
+			Targets:        targets,
 			Status:         AgentsPackageMissing,
 			SyncActionable: true,
 		}
@@ -160,7 +168,10 @@ func joinAPMServices(in agentsServiceInput) []AgentsServiceRow {
 			row.Command = ""
 		}
 		if locked[dep.name] {
-			row.Status, row.SyncActionable = agentsServiceJoinedStatus(dep, cfg, in.configsOnClaude, in.resolves)
+			row.Status, row.SyncActionable = agentsServiceJoinedStatus(dep, cfg, in.deployedConfigs[dep.name], targets, in.resolves)
+		}
+		if dep.targets != nil && len(targets) == 0 {
+			row.Status, row.SyncActionable = AgentsPackageInstalled, false
 		}
 		if row.Detail == "" {
 			row.Detail = agentsServiceDetail(cfg)
@@ -207,11 +218,68 @@ func joinAPMServices(in agentsServiceInput) []AgentsServiceRow {
 	return rows
 }
 
-func agentsServiceJoinedStatus(dep agentsServiceDecl, cfg apmServiceConfig, deployedConfigs map[string]harnessMCPConfig, resolves func(string) bool) (AgentsPackageStatus, bool) {
-	if deployed, ok := deployedConfigs[dep.name]; ok && agentsServiceDrifted(cfg, deployed) {
-		return AgentsPackageDrifted, true
+func agentsServiceTargets(active, selected []string) []string {
+	if selected == nil {
+		return active
+	}
+	if active == nil {
+		return selected
+	}
+	targets := make([]string, 0, len(selected))
+	for _, target := range selected {
+		if slices.Contains(active, target) {
+			targets = append(targets, target)
+		}
+	}
+	return targets
+}
+
+func agentsServiceJoinedStatus(dep agentsServiceDecl, cfg apmServiceConfig, deployedConfigs map[string]harnessMCPConfig, targets []string, resolves func(string) bool) (AgentsPackageStatus, bool) {
+	for harness, deployed := range deployedConfigs {
+		if targets != nil && !slices.Contains(targets, harness) {
+			continue
+		}
+		if agentsServiceDriftedOnHarness(cfg, deployed, harness) {
+			return AgentsPackageDrifted, true
+		}
 	}
 	return agentsServiceInstalledStatus(dep, cfg, resolves), false
+}
+
+var ompEnvPlaceholder = regexp.MustCompile(`\$\{([^}:]+)(?::-([^}]*))?\}`)
+
+// Match omp's nonrecursive expansion, including :- defaults for unset or empty values.
+func expandOmpEnv(value string) string {
+	return ompEnvPlaceholder.ReplaceAllStringFunc(value, func(placeholder string) string {
+		name, fallback, hasFallback := strings.Cut(placeholder[2:len(placeholder)-1], ":-")
+		resolved, present := os.LookupEnv(name)
+		if hasFallback && (!present || resolved == "") {
+			return fallback
+		}
+		if present {
+			return resolved
+		}
+		return placeholder
+	})
+}
+
+func agentsServiceDriftedOnHarness(cfg apmServiceConfig, deployed harnessMCPConfig, harness string) bool {
+	if harness != harnessOmp {
+		return agentsServiceDrifted(cfg, deployed)
+	}
+	// APM's portable spelling is translated before omp loads and expands its config.
+	expandLock := func(value string) string {
+		return expandOmpEnv(strings.ReplaceAll(value, "${env:", "${"))
+	}
+	if expandLock(cfg.Command) != expandOmpEnv(deployed.Command) || expandLock(cfg.URL) != expandOmpEnv(deployed.URL) || len(cfg.Args) != len(deployed.Args) {
+		return true
+	}
+	for i, arg := range cfg.Args {
+		if expandLock(arg) != expandOmpEnv(deployed.Args[i]) {
+			return true
+		}
+	}
+	return false
 }
 
 // One PATH walk per command per refresh: the MCP and LSP joins routinely name the same binaries.

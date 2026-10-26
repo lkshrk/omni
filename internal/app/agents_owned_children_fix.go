@@ -633,8 +633,15 @@ func verifyAgentsModuleManifestIdentities(manifests []agentsModuleManifestIdenti
 			if err != nil || current.Mode()&os.ModeSymlink != 0 || !sameAgentsModuleDirectoryIdentity(identity.Info, current) {
 				return fmt.Errorf("package ownership evidence changed; retry")
 			}
-			if identity.Lock != nil {
-				source := apmPackageSource(identity.Lock.RepoURL, identity.Lock.VirtualPath)
+			if identity.LocalSource {
+				for _, parent := range identity.Parents {
+					current, err := agentsModuleLstat(parent.Path)
+					if err != nil || !current.IsDir() || current.Mode()&os.ModeSymlink != 0 || !os.SameFile(parent.Info, current) {
+						return fmt.Errorf("package ownership evidence changed; retry")
+					}
+				}
+			} else if identity.Lock != nil {
+				source := identity.Lock.moduleSource()
 				modulesRoot := identity.Path
 				for range strings.Split(source, "/") {
 					modulesRoot = filepath.Dir(modulesRoot)
@@ -673,8 +680,15 @@ func verifyAgentsModuleManifestIdentities(manifests []agentsModuleManifestIdenti
 				}
 			}
 		}
-		raw, err := os.ReadFile(identity.Path)
-		if err != nil || manifestHash(raw) != identity.Hash {
+		if identity.PathOnly {
+			continue
+		}
+		module := identity.ModuleRoot
+		if module == "" {
+			module = filepath.Dir(identity.Path)
+		}
+		hash, info, err := hashAPMModuleRegularFile(module, module, identity.Path)
+		if err != nil || !os.SameFile(current, info) || hash != identity.Hash {
 			return fmt.Errorf("package ownership evidence changed: installed package manifest changed during agents repair; retry")
 		}
 	}
@@ -726,7 +740,12 @@ func verifyAgentsPackageOwnershipEvidence(template []byte, identities []agentsMo
 func sameAgentsPackageLockEvidence(left, right *agentsPackageLockEvidence) bool {
 	if left == nil || right == nil || left.RepoURL != right.RepoURL || left.Name != right.Name ||
 		left.VirtualPath != right.VirtualPath || left.LocalPath != right.LocalPath ||
-		left.PackageType != right.PackageType || left.ResolvedCommit != right.ResolvedCommit {
+		left.Source != right.Source || left.ResolvedBy != right.ResolvedBy ||
+		left.DeclaringParent != right.DeclaringParent || left.AnchoredLocalPath != right.AnchoredLocalPath ||
+		left.LocalSourceUnsupported != right.LocalSourceUnsupported ||
+		left.PackageType != right.PackageType || left.ResolvedCommit != right.ResolvedCommit ||
+		left.OwnerKey != right.OwnerKey || left.ExecStatus != right.ExecStatus ||
+		left.EmptyDeploymentAttested != right.EmptyDeploymentAttested {
 		return false
 	}
 	leftFiles, rightFiles := append([]string(nil), left.DeployedFiles...), append([]string(nil), right.DeployedFiles...)

@@ -55,10 +55,11 @@ published under. A package can also be
 degraded runtime health.
 
 Below the packages, two more sections list the manifest's `mcp` and `lsp`
-servers, joined to the lockfile's `mcp_servers` / `lsp_servers` by name. Their
-targets come from the manifest's top-level `targets:` (LSP intersected with the
-only targets APM deploys it to, `claude` and `copilot`) — never from the
-lockfile, whose `mcp_target_servers` records only the last install. A locked
+servers, joined to the lockfile's `mcp_servers` / `lsp_servers` by name. MCP
+targets are the manifest's active targets intersected with the server's
+optional `targets:` list; an explicit empty list selects none. LSP targets are
+intersected with `claude` and `copilot`. Desired targets never come from the
+lockfile's `mcp_target_servers`, which records only the last install. A locked
 entry whose command binary is not on `PATH` is reported `unavailable`: APM writes
 such entries to the lockfile without ever checking that they can run. An empty
 section is omitted.
@@ -81,23 +82,24 @@ unmanaged services remain top-level. Package-owned child health never improves
 an already missing, orphaned, unavailable, or drifted package.
 
 Those two sections also read the deployed harness files — `~/.claude.json`
-(`mcpServers`, `lspServers`) and `~/.codex/config.toml` (`[mcp_servers.<name>]`)
-— which is the one documented exception to "the TUI hard-codes no client names":
-APM records no per-entry deployment anywhere, so nothing else can see them. A
-name in a harness file that APM neither declares nor locks is `orphaned` with
-detail `unmanaged` and the harnesses it was found in as its targets; APM prunes
-only names it locked itself, so nothing else will ever report it. A codex entry
-with `enabled = false` still counts — it is deployed config APM cannot see.
+(`mcpServers`, `lspServers`), `~/.codex/config.toml` (`[mcp_servers.<name>]`),
+and `~/.omp/agent/mcp.json` (`mcpServers`, honoring `PI_CODING_AGENT_DIR`).
+This is the documented exception to "the TUI hard-codes no client names":
+lockfile ownership alone cannot reveal unmanaged native entries. A name in
+a harness file that APM neither declares nor locks is `orphaned` with detail
+`unmanaged` and the harnesses it was found in as its targets. Disabled native
+entries still count as deployed configuration.
 
-An MCP row whose lockfile `mcp_configs` entry disagrees with what
-`~/.claude.json` actually deploys is `drifted`. Only `command`, `url`, and `args`
-are compared; headers and env are not, because they carry secrets and the two
-harnesses store them differently. Lock values are expanded through the
-environment first, and an entry referencing an unset variable is skipped rather
-than reported as drift. Drift is a status, never a value diff — no deployed
-value is ever rendered. LSP entries never drift: APM rewrites them from
-`lsp_configs` on every install. Codex-side value drift is not detected; codex
-gets orphan detection only.
+An MCP row is `drifted` when a selected Claude or omp deployment disagrees
+with the lockfile's `mcp_configs` entry. Each selected client's configuration
+is checked independently, so a matching Claude entry cannot hide omp drift,
+and an unselected client's same-name entry cannot cause false drift. Only
+`command`, `url`, and `args` are compared; headers and env are not, because
+they carry secrets. Runtime environment references are normalized before
+comparison; unresolved references are skipped rather than reported as drift.
+Drift is a status, never a value diff — no deployed value is rendered. LSP
+entries never drift: APM rewrites them from `lsp_configs` on every install.
+Codex-side value drift is not detected; Codex gets orphan detection only.
 
 Sync fails closed on two APM hazards (still present in 0.34.0), before APM is invoked at all
 (dry runs included, so a preview that would fail for real says so): a `--frozen`

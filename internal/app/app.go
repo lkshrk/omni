@@ -40,7 +40,9 @@ type App struct {
 	githubAPI    string
 	// Shared by every outbound HTTP caller here; tests inject one client for all of them.
 	httpClient *http.Client
-	testMode   bool
+	// Tests serve a throwaway wheel; production always installs the compiled-in pin.
+	apmWheelOverride *apmWheel
+	testMode         bool
 
 	// InitReadOnly marker: incidental writes like command traces are suppressed.
 	diagnosticMode bool

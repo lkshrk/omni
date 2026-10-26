@@ -13,10 +13,12 @@ import (
 )
 
 // APM is contract-tested as an exact dependency; newer releases require rerunning that suite.
-const apmVersionPin = "0.34.0"
+const apmVersionPin = "0.35.0+omni.5"
 
-// The PyPI release, so installers fetch the published build rather than a git checkout.
-const apmPackagePin = apmDistribution + "==" + apmVersionPin
+// The pinned fork build is a wheel published on Omni's own releases, built from lkshrk/apm@db584b8815da37502ee4bdbde92d90617e2692e7
+// by scripts/apm-wheel.sh. The sha256 fragment makes pip verify it, so CI and the integration image install this string
+// unchanged; Omni verifies it itself because uv and pipx reject the fragment.
+const apmPackagePin = "https://github.com/lkshrk/omni/releases/download/apm-cli-0.35.0-omni.5/apm_cli-0.35.0%2Bomni.5-py3-none-any.whl#sha256=ff1fc471e4aaba7643242204304140551df5236881bc1a246b3dba924313669d"
 
 const apmDistribution = "apm-cli"
 

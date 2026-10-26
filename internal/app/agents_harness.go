@@ -12,6 +12,7 @@ import (
 const (
 	harnessClaude       = "claude"
 	harnessCodex        = "codex"
+	harnessOmp          = "omp"
 	harnessClaudeMaxKiB = 4 << 20
 )
 
@@ -24,7 +25,7 @@ type harnessMCPConfig struct {
 type harnessDeployments struct {
 	MCP        map[string][]string
 	LSP        map[string][]string
-	MCPConfigs map[string]harnessMCPConfig
+	MCPConfigs map[string]map[string]harnessMCPConfig
 	Notices    []string
 }
 
@@ -38,15 +39,27 @@ func (h *harnessDeployments) add(surface map[string][]string, name, label string
 	}
 }
 
+func (h *harnessDeployments) addMCPConfig(name, harness string, cfg harnessMCPConfig) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return
+	}
+	if h.MCPConfigs[name] == nil {
+		h.MCPConfigs[name] = make(map[string]harnessMCPConfig)
+	}
+	h.MCPConfigs[name][harness] = cfg
+}
+
 // Reading the harness files by name is the deliberate exception to "the TUI hard-codes no client names": apm records no per-entry deployment.
 func readHarnessDeployments(home string) harnessDeployments {
 	out := harnessDeployments{
 		MCP:        map[string][]string{},
 		LSP:        map[string][]string{},
-		MCPConfigs: map[string]harnessMCPConfig{},
+		MCPConfigs: map[string]map[string]harnessMCPConfig{},
 	}
 	out.readClaude(claudeConfigFileIn(home))
 	out.readCodex(filepath.Join(home, ".codex", "config.toml"))
+	out.readOmp(ompMCPConfigFileIn(home))
 	return out
 }
 
@@ -55,6 +68,49 @@ func claudeConfigFileIn(home string) string {
 		return filepath.Join(dir, ".claude.json")
 	}
 	return filepath.Join(home, ".claude.json")
+}
+
+func ompMCPConfigFileIn(home string) string {
+	if dir := os.Getenv("PI_CODING_AGENT_DIR"); dir != "" {
+		// omp resolves the override against cwd without expanding a literal tilde.
+		return filepath.Join(dir, "mcp.json")
+	}
+	return filepath.Join(home, ".omp", "agent", "mcp.json")
+}
+
+func (h *harnessDeployments) readOmp(path string) {
+	const notice = "omp: mcp.json "
+	info, err := os.Stat(path)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			h.Notices = append(h.Notices, notice+"is unreadable, skipped")
+		}
+		return
+	}
+	if info.Size() > harnessClaudeMaxKiB {
+		h.Notices = append(h.Notices, notice+"exceeds 4MiB, skipped")
+		return
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		h.Notices = append(h.Notices, notice+"is unreadable, skipped")
+		return
+	}
+	var doc struct {
+		MCPServers map[string]harnessMCPConfig `json:"mcpServers"`
+	}
+	if err := json.Unmarshal(data, &doc); err != nil {
+		h.Notices = append(h.Notices, notice+"could not be parsed, skipped")
+		return
+	}
+	for name, cfg := range doc.MCPServers {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			continue
+		}
+		h.add(h.MCP, name, harnessOmp)
+		h.addMCPConfig(name, harnessOmp, cfg)
+	}
 }
 
 func (h *harnessDeployments) readClaude(path string) {
@@ -84,9 +140,7 @@ func (h *harnessDeployments) readClaude(path string) {
 	}
 	for name, cfg := range doc.MCPServers {
 		h.add(h.MCP, name, harnessClaude)
-		if strings.TrimSpace(name) != "" {
-			h.MCPConfigs[name] = cfg
-		}
+		h.addMCPConfig(name, harnessClaude, cfg)
 	}
 	for name := range doc.LSPServers {
 		h.add(h.LSP, name, harnessClaude)

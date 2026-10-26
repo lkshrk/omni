@@ -63,7 +63,7 @@ func TestCLIAndTUIReadOnlyQueriesProduceEquivalentSemanticObservations(t *testin
 	})
 	writeExecutable(t, filepath.Join(home, ".test-stub-bin", "apm"), `#!/bin/sh
 case "$*" in
-  --version) echo 'Agent Package Manager (APM) CLI version 0.34.0' ;;
+  --version) echo 'Agent Package Manager (APM) CLI version 0.35.0+omni.5' ;;
   'audit --ci --format json') echo '{"passed":true,"checks":[{"name":"lockfile-exists","passed":true,"message":"Lockfile present","details":[]}]}' ;;
   'outdated -g --parallel-checks 4') echo '[✓] All dependencies are up-to-date' ;;
   *) exit 0 ;;

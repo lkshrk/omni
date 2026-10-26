@@ -278,6 +278,16 @@ if [ "$1" = "go" ] && [ "${2:-}" = "test" ]; then
 		"https_proxy="
 		"all_proxy="
 	)
+	# Black-box tests run a nested `go build ./cmd/omni` after the proxy is blocked, so every
+	# module of the build graph must already be in the sandbox module cache. Same public,
+	# build-only access as the driver above; the checksum database still verifies each module.
+	# A vendored tree (the offline container image) already satisfies the build, so skip it there.
+	if [ ! -f vendor/modules.txt ]; then
+		env -i "${build_env[@]}" go mod download || {
+			echo "failed to prefetch module dependencies for hermetic tests" >&2
+			exit 2
+		}
+	fi
 	env -i "${build_env[@]}" "$@"
 else
 	env -i "${safe_env[@]}" "$@"

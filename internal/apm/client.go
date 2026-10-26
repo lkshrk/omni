@@ -165,7 +165,7 @@ func usesGlobalWorkspace(args []string) bool {
 		return false
 	}
 	switch args[0] {
-	case "audit", "marketplace", "prune":
+	case "approve", "audit", "marketplace", "prune":
 		return true
 	case "deps", "install", "outdated", "uninstall", "update", "view":
 		return hasGlobalFlag(args[1:])

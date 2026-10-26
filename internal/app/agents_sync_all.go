@@ -74,7 +74,7 @@ func (a *App) ensurePinnedAPM(ctx context.Context) error {
 	if a.APMAvailable() && a.requirePinnedAPM(ctx) == nil {
 		return nil
 	}
-	if !slices.ContainsFunc(apmInstallCommands, func(c []string) bool { return a.commandAvailable(c[0]) }) {
+	if !slices.ContainsFunc(apmInstallCommands(""), func(c []string) bool { return a.commandAvailable(c[0]) }) {
 		return nil
 	}
 	if _, err := a.FixMissingAPM(ctx, false); err != nil {
@@ -88,8 +88,17 @@ func errAPMNotInstalled() error {
 		Err: fmt.Errorf("%w: %s", apm.ErrNotInstalled, apm.InstallHint)}
 }
 
-// RunAPM delegates lifecycle serialization and mutation safety to APM.
+// RunAPM is the single door every Omni APM invocation passes through, CLI and TUI alike. It delegates lifecycle
+// serialization and mutation safety to APM, and settles executable approval for global installs and updates.
 func (a *App) RunAPM(ctx context.Context, args ...string) (apm.Result, error) {
+	result, err := a.runAPMOnce(ctx, args...)
+	if err != nil || !apmMayParkExecutables(args) {
+		return result, err
+	}
+	return a.approveParkedAndRerun(ctx, args, result)
+}
+
+func (a *App) runAPMOnce(ctx context.Context, args ...string) (apm.Result, error) {
 	if !a.APMAvailable() {
 		return apm.Result{}, errAPMNotInstalled()
 	}
@@ -108,6 +117,42 @@ func (a *App) RunAPM(ctx context.Context, args ...string) (apm.Result, error) {
 		}
 	}
 	return result, err
+}
+
+// apmMayParkExecutables reports whether a command can leave packages parked by APM's executable-trust gate: a real
+// global install or update. Dry runs deploy nothing, so there is nothing to approve.
+func apmMayParkExecutables(args []string) bool {
+	if len(args) == 0 || (args[0] != "install" && args[0] != "update") {
+		return false
+	}
+	global := false
+	for _, arg := range args[1:] {
+		switch arg {
+		case "--dry-run":
+			return false
+		case "-g", "--global":
+			global = true
+		}
+	}
+	return global
+}
+
+// APM parks native extensions until their package is approved and has no install flag to approve them. Omni always
+// approves what a global install or update left parked and runs the same command again to deploy it, so every
+// entry point behaves alike. The grant goes to ~/.apm/config.json, which the template copy over ~/.apm/apm.yml
+// never touches. An explicit denial stays denied: deny rules win over any allow in APM's trust ladder.
+func (a *App) approveParkedAndRerun(ctx context.Context, args []string, installed apm.Result) (apm.Result, error) {
+	lock, err := readAPMLockfile()
+	if err != nil || !slices.ContainsFunc(lock.Dependencies, func(dep apmLockDep) bool { return dep.ExecStatus == "gated_pending_approval" }) {
+		return installed, nil
+	}
+	approved, err := a.runAPMOnce(ctx, "approve", "--all", "--user")
+	combined := apm.Result{Stdout: installed.Stdout + approved.Stdout, Stderr: installed.Stderr + approved.Stderr}
+	if err != nil {
+		return combined, err
+	}
+	again, err := a.runAPMOnce(ctx, args...)
+	return apm.Result{Stdout: combined.Stdout + again.Stdout, Stderr: combined.Stderr + again.Stderr}, err
 }
 
 func (a *App) AgentsOutdated(ctx context.Context) (apm.OutdatedResult, error) {

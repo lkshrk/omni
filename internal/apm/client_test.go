@@ -124,6 +124,7 @@ func TestClientCommandWorkingDirectories(t *testing.T) {
 		{"marketplace remove", []string{"marketplace", "remove", "team"}, global},
 		{"audit", []string{"audit", "--ci"}, global},
 		{"prune", []string{"prune"}, global},
+		{"approve", []string{"approve", "--all", "--user"}, global},
 		{"targets", []string{"targets", "--json"}, caller},
 		{"project install", []string{"install"}, caller},
 		{"project update", []string{"update"}, caller},

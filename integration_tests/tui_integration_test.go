@@ -251,8 +251,11 @@ esac
 		}, "TUI did not render the missing fake-brew tool")
 		writeTUIKeys(t, term, "i")
 		installedScreen := waitForRequiredScreen(t, term, 8*time.Second, func(text string) bool {
+			// The status-bar message is transient, so it cannot be the sync point. The install is
+			// finished only when the marker exists, the row shows the brew version, and the TUI is
+			// idle (idle footer hints, no busy spinner); a key sent earlier would be swallowed.
 			_, err := os.Stat(installedMarker)
-			return err == nil && strings.Contains(strings.ToLower(text), "installed omni-test-tool")
+			return err == nil && strings.Contains(text, "1.2.3") && tuiIdle(text)
 		}, "TUI did not durably install the fake-brew tool")
 
 		writeTUIKeys(t, term, "d")
@@ -583,9 +586,14 @@ func buildOmniBinary(t *testing.T) string {
 			return
 		}
 		omniBinaryPath = filepath.Join(dir, "omni")
-		ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+		// A cold module/build cache (CI, -race, a loaded host) can take well over a minute to compile.
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
 		cmd := exec.CommandContext(ctx, "go", "build", "-o", omniBinaryPath, "./cmd/omni")
+		// The sandbox blocks the network, so resolve modules from the runner's populated cache.
+		if proxy := testguard.ParentModuleProxy(); proxy != "" {
+			cmd.Env = append(os.Environ(), "GOPROXY="+proxy)
+		}
 		cmd.Dir = integrationRepoRoot(t)
 		omniBinaryOutput, omniBinaryErr = cmd.CombinedOutput()
 	})
@@ -919,4 +927,14 @@ func waitForConfigDotIgnore(path, groupName, dotName string, ignore []string, ti
 
 func currentScreenText(term *vttest.Terminal) string {
 	return strings.TrimSpace(ansi.Strip(term.Emulator.Render()))
+}
+
+// tuiIdle reports whether the Tools tab is showing its idle footer without any busy spinner.
+func tuiIdle(text string) bool {
+	for _, r := range text {
+		if r >= 0x2800 && r <= 0x28FF { // braille spinner frames
+			return false
+		}
+	}
+	return strings.Contains(text, "U upgrade all")
 }

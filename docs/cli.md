@@ -76,10 +76,10 @@ first available installer (`uv tool install`, `pipx install`, then
 once its guards pass; it refuses, and reports how to install APM, only when none
 of those installers is available.
 
-`omni doctor` requires the exact release `0.34.0`; another version or an
-unparseable version fails the "APM version" check. `--fix` installs the required
-release from PyPI through the same installer preference. See
-[APM Version](agents.md#apm-version) for the upgrade procedure.
+`omni doctor` requires the exact fork version `0.35.0+omni.5`; another version
+or an unparseable version fails the "APM version" check. `--fix` installs the
+pinned wheel (downloaded from Omni's releases and verified by SHA-256) through the
+same installers. See [APM Version](agents.md#apm-version) for the upgrade procedure.
 
 `omni doctor` exits nonzero when any check fails, and `--fix` and `--dry-run`
 do not suppress that: `--fix --dry-run` still runs the full diagnostic pass, so

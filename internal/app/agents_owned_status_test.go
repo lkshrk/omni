@@ -92,6 +92,42 @@ lsp_configs:
 	}
 }
 
+func TestAgentsStatusOwnedMCPDriftRespectsTargets(t *testing.T) {
+	for _, tc := range []struct {
+		name, packageTargets, serverTargets, claudeURL, ompURL string
+		want                                                   AgentsPackageStatus
+	}{
+		{"selected omp drift", "", "    targets: [omp]\n", "https://api.invalid", "https://changed.invalid", AgentsPackageDrifted},
+		{"unrelated Claude ignored", "", "    targets: [omp]\n", "https://changed.invalid", "https://api.invalid", AgentsPackageInstalled},
+		{"package targets do not narrow MCP", "    targets: [claude]\n", "", "https://api.invalid", "https://changed.invalid", AgentsPackageDrifted},
+		{"omp child remains selected outside package targets", "    targets: [claude, codex]\n", "    targets: [omp]\n", "https://changed.invalid", "https://api.invalid", AgentsPackageInstalled},
+		{"explicit empty server targets", "", "    targets: []\n", "https://changed.invalid", "https://changed.invalid", AgentsPackageInstalled},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("PI_CODING_AGENT_DIR", "")
+			manifest := "targets: [claude, omp]\ndependencies:\n  apm:\n  - git: acme/bundle-a\n" + tc.packageTargets
+			lock := "dependencies:\n- repo_url: acme/bundle-a\n  name: bundle-a\n  version: 1.0.0\nmcp_servers: [owned-mcp]\nmcp_configs:\n  owned-mcp:\n    transport: http\n    url: https://api.invalid\n"
+			a := setupAgentsWorkspace(t, manifest, lock)
+			home, err := os.UserHomeDir()
+			if err != nil {
+				t.Fatal(err)
+			}
+			module := "name: bundle-a\nversion: 1.0.0\ndependencies:\n  mcp:\n  - name: owned-mcp\n    registry: false\n    transport: http\n    url: https://api.invalid\n" + tc.serverTargets
+			writeFile(t, filepath.Join(home, ".apm", "apm_modules", "acme", "bundle-a", "apm.yml"), module)
+			writeFile(t, filepath.Join(home, ".claude.json"), `{"mcpServers":{"owned-mcp":{"url":"`+tc.claudeURL+`"}}}`)
+			writeFile(t, filepath.Join(home, ".omp", "agent", "mcp.json"), `{"mcpServers":{"owned-mcp":{"url":"`+tc.ompURL+`"}}}`)
+			status, err := a.AgentsStatus()
+			if err != nil {
+				t.Fatal(err)
+			}
+			pkg := ownedPackageRow(t, status.Packages, "bundle-a")
+			if got := providedChild(t, pkg, "mcp", "owned-mcp").Status; got != tc.want {
+				t.Fatalf("provided MCP status=%s, want %s", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestAgentsStatusRetainsIndependentChildren(t *testing.T) {
 	a, _ := ownedChildrenStatusFixture(t, `  mcp:
   - name: independent-mcp

@@ -72,20 +72,33 @@ type AgentsPackageRow struct {
 // agentsPackageLockEvidence is private ownership input from the uniquely joined lock dependency.
 // Keep exact lock values here: status rendering exposes only the existing public row fields.
 type agentsPackageLockEvidence struct {
-	RepoURL        string
-	Name           string
-	VirtualPath    string
-	LocalPath      string
-	PackageType    string
-	ResolvedCommit string
-	DeployedFiles  []string
+	RepoURL                 string
+	Name                    string
+	VirtualPath             string
+	LocalPath               string
+	Source                  string
+	ResolvedBy              string
+	DeclaringParent         string
+	AnchoredLocalPath       string
+	LocalSourceUnsupported  bool
+	PackageType             string
+	ResolvedCommit          string
+	DeployedFiles           []string
+	ExecStatus              string
+	OwnerKey                string
+	EmptyDeploymentAttested bool
 }
 
-func newAgentsPackageLockEvidence(dep apmLockDep) *agentsPackageLockEvidence {
+func newAgentsPackageLockEvidence(deployments agentsLockDeploymentEvidence, dep apmLockDep) *agentsPackageLockEvidence {
+	owner, _ := agentsLockDependencyOwnerKey(dep)
 	return &agentsPackageLockEvidence{
 		RepoURL: dep.RepoURL, Name: dep.Name, VirtualPath: dep.VirtualPath, LocalPath: dep.LocalPath,
-		PackageType: dep.PackageType, ResolvedCommit: dep.ResolvedCommit,
-		DeployedFiles: slices.Clone(dep.DeployedFiles),
+		Source: dep.Source, ResolvedBy: dep.ResolvedBy, DeclaringParent: dep.DeclaringParent,
+		AnchoredLocalPath:      dep.AnchoredLocalPath,
+		LocalSourceUnsupported: dep.malformed || dep.Alias != "" || dep.Replacement.Kind != 0 && dep.Replacement.Tag != "!!null",
+		PackageType:            dep.PackageType, ResolvedCommit: dep.ResolvedCommit,
+		DeployedFiles: slices.Clone(dep.DeployedFiles), ExecStatus: dep.ExecStatus, OwnerKey: owner,
+		EmptyDeploymentAttested: agentsLockEmptyDeploymentAttested(deployments, dep, owner),
 	}
 }
 
@@ -142,12 +155,20 @@ type apmLockfile struct {
 	MCPConfigs   map[string]apmServiceConfig `yaml:"mcp_configs"`
 	LSPServers   []string                    `yaml:"lsp_servers"`
 	LSPConfigs   map[string]apmServiceConfig `yaml:"lsp_configs"`
-	Deployments  []apmLockDeployment         `yaml:"deployments"`
+	Deployments  apmLockDeployments          `yaml:"deployments"`
+	Replacements yaml.Node                   `yaml:"replacements,omitempty"`
 }
 
+type apmLockDeployments []apmLockDeployment
+
 type apmLockDeployment struct {
-	Kind  string `yaml:"kind"`
-	Value string `yaml:"value"`
+	Kind        string   `yaml:"kind"`
+	Value       string   `yaml:"value"`
+	Target      string   `yaml:"target"`
+	Scope       string   `yaml:"scope"`
+	Owners      []string `yaml:"owners"`
+	ActiveOwner string   `yaml:"active_owner"`
+	malformed   bool
 }
 
 type apmServiceConfig struct {
@@ -159,19 +180,30 @@ type apmServiceConfig struct {
 
 // Models the apm.lock.yaml schema of the pinned APM version asserted by requirePinnedAPM.
 type apmLockDep struct {
-	RepoURL               string   `yaml:"repo_url"`
-	Name                  string   `yaml:"name"`
-	Version               string   `yaml:"version"`
-	VirtualPath           string   `yaml:"virtual_path"`
-	LocalPath             string   `yaml:"local_path"`
-	ResolvedCommit        string   `yaml:"resolved_commit"`
-	PackageType           string   `yaml:"package_type"`
-	DeclaredLicense       string   `yaml:"declared_license"`
-	DiscoveredVia         string   `yaml:"discovered_via"`
-	ResolvedBy            string   `yaml:"resolved_by"`
-	MarketplacePluginName string   `yaml:"marketplace_plugin_name"`
-	TargetSubset          []string `yaml:"target_subset"`
-	DeployedFiles         []string `yaml:"deployed_files"`
+	RepoURL               string            `yaml:"repo_url"`
+	Name                  string            `yaml:"name"`
+	Version               string            `yaml:"version"`
+	VirtualPath           string            `yaml:"virtual_path"`
+	LocalPath             string            `yaml:"local_path"`
+	ResolvedCommit        string            `yaml:"resolved_commit"`
+	PackageType           string            `yaml:"package_type"`
+	DeclaredLicense       string            `yaml:"declared_license"`
+	DiscoveredVia         string            `yaml:"discovered_via"`
+	ResolvedBy            string            `yaml:"resolved_by"`
+	MarketplacePluginName string            `yaml:"marketplace_plugin_name"`
+	TargetSubset          []string          `yaml:"target_subset"`
+	DeployedFiles         []string          `yaml:"deployed_files"`
+	ExecStatus            string            `yaml:"exec_status"`
+	DeployedFileHashes    map[string]string `yaml:"deployed_file_hashes"`
+	Host                  string            `yaml:"host"`
+	Source                string            `yaml:"source"`
+	RegistryPrefix        string            `yaml:"registry_prefix"`
+	IsVirtual             bool              `yaml:"is_virtual"`
+	AnchoredLocalPath     string            `yaml:"anchored_local_path"`
+	DeclaringParent       string            `yaml:"declaring_parent,omitempty"`
+	Alias                 string            `yaml:"alias,omitempty"`
+	Replacement           yaml.Node         `yaml:"replacement,omitempty"`
+	malformed             bool
 }
 
 // A bare scalar dependency is APM's shorthand for a source with no options.
@@ -300,6 +332,7 @@ func readAPMWorkspace() (apmManifest, apmLockfile, error) {
 }
 
 func joinAPMPackages(manifest apmManifest, lock apmLockfile) []AgentsPackageRow {
+	deployments := newAgentsLockDeploymentEvidence(lock)
 	byRepoPath := make(map[string][]int, len(lock.Dependencies))
 	byLocalPath := make(map[string][]int, len(lock.Dependencies))
 	byName := make(map[string][]int, len(lock.Dependencies))
@@ -350,9 +383,10 @@ func joinAPMPackages(manifest apmManifest, lock apmLockfile) []AgentsPackageRow 
 		row.License = dep.DeclaredLicense
 		row.Marketplace = dep.DiscoveredVia
 		row.LocalPath = dep.LocalPath
-		row.ModuleSource = apmPackageSource(dep.RepoURL, dep.VirtualPath)
 		row.DeployedFiles = len(dep.DeployedFiles)
-		row.lockEvidence = newAgentsPackageLockEvidence(dep)
+		row.lockEvidence = newAgentsPackageLockEvidence(deployments, dep)
+		row.lockEvidence.LocalSourceUnsupported = row.lockEvidence.LocalSourceUnsupported || lock.Replacements.Kind != 0 && lock.Replacements.Tag != "!!null"
+		row.ModuleSource = row.lockEvidence.moduleSource()
 		if dep.Name != "" {
 			row.Name = dep.Name
 		}
@@ -467,7 +501,6 @@ func joinAPMPackages(manifest apmManifest, lock apmLockfile) []AgentsPackageRow 
 		row := AgentsPackageRow{
 			Name:          dep.Name,
 			Source:        apmPackageSource(dep.RepoURL, dep.VirtualPath),
-			ModuleSource:  apmPackageSource(dep.RepoURL, dep.VirtualPath),
 			Version:       dep.Version,
 			Commit:        dep.ResolvedCommit,
 			License:       dep.DeclaredLicense,
@@ -476,8 +509,10 @@ func joinAPMPackages(manifest apmManifest, lock apmLockfile) []AgentsPackageRow 
 			Targets:       dep.TargetSubset,
 			DeployedFiles: len(dep.DeployedFiles),
 			Status:        AgentsPackageOrphaned,
-			lockEvidence:  newAgentsPackageLockEvidence(dep),
+			lockEvidence:  newAgentsPackageLockEvidence(deployments, dep),
 		}
+		row.lockEvidence.LocalSourceUnsupported = row.lockEvidence.LocalSourceUnsupported || lock.Replacements.Kind != 0 && lock.Replacements.Tag != "!!null"
+		row.ModuleSource = row.lockEvidence.moduleSource()
 		if row.Name == "" {
 			row.Name = path.Base(row.Source)
 		}

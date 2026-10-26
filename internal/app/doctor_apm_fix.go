@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/lkshrk/omni/internal/executor"
@@ -18,24 +19,55 @@ type APMInstallFixReport struct {
 	NotOnPATH bool
 }
 
-var apmInstallCommands = [][]string{
-	{"uv", "tool", "install", apmPackagePin},
-	{"pipx", "install", apmPackagePin},
-	{"pip3", "install", "--user", apmPackagePin},
+func apmInstallCommands(target string) [][]string {
+	return [][]string{
+		{"uv", "tool", "install", target},
+		{"pipx", "install", target},
+		{"pip3", "install", "--user", target},
+	}
 }
 
-var apmUpgradeCommands = [][]string{
-	{"uv", "tool", "install", "--force", apmPackagePin},
-	{"pipx", "install", "--force", apmPackagePin},
-	{"pip3", "install", "--user", "--upgrade", "--force-reinstall", apmPackagePin},
+func apmUpgradeCommands(target string) [][]string {
+	return [][]string{
+		{"uv", "tool", "install", "--force", target},
+		{"pipx", "install", "--force", target},
+		{"pip3", "install", "--user", "--upgrade", "--force-reinstall", target},
+	}
+}
+
+// apmInstallPlan builds the installer candidates for the pinned wheel, or nil when no installer exists so a missing
+// installer never costs a download. Installers receive the verified cached wheel; a dry run plans with the release
+// URL and fetches nothing.
+func (a *App) apmInstallPlan(ctx context.Context, dryRun bool, commands func(target string) [][]string) ([][]string, error) {
+	if !slices.ContainsFunc(commands(""), func(c []string) bool { return a.commandAvailable(c[0]) }) {
+		return nil, nil
+	}
+	target := a.apmWheel().URL
+	if !dryRun {
+		wheel, err := a.ensureAPMWheel(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("fetching pinned apm %s: %w", apmVersionPin, err)
+		}
+		target = wheel
+	}
+	return commands(target), nil
+}
+
+func (a *App) manualAPMInstallHint() string {
+	wheel := a.apmWheel()
+	return fmt.Sprintf("uv tool install %s (sha256 %s)", wheel.URL, wheel.SHA256)
 }
 
 func (a *App) FixMissingAPM(ctx context.Context, dryRun bool) (APMInstallFixReport, error) {
 	if a.APMAvailable() {
 		return a.upgradeOutdatedAPM(ctx, dryRun)
 	}
+	candidates, err := a.apmInstallPlan(ctx, dryRun, apmInstallCommands)
+	if err != nil {
+		return APMInstallFixReport{}, err
+	}
 	var failures []error
-	for _, candidate := range apmInstallCommands {
+	for _, candidate := range candidates {
 		if !a.commandAvailable(candidate[0]) {
 			continue
 		}
@@ -63,7 +95,7 @@ func (a *App) FixMissingAPM(ctx context.Context, dryRun bool) (APMInstallFixRepo
 	if len(failures) > 0 {
 		return APMInstallFixReport{}, errors.Join(failures...)
 	}
-	return APMInstallFixReport{}, fmt.Errorf("no supported installer found (uv, pipx, pip3); install pinned APM manually: uv tool install %s", apmPackagePin)
+	return APMInstallFixReport{}, fmt.Errorf("no supported installer found (uv, pipx, pip3); install pinned APM manually: %s", a.manualAPMInstallHint())
 }
 
 // A successful installer says nothing about which apm now resolves on PATH, so every candidate re-probes.
@@ -84,8 +116,12 @@ func (a *App) upgradeOutdatedAPM(ctx context.Context, dryRun bool) (APMInstallFi
 	if err == nil && apmVersionPinned(version) {
 		return APMInstallFixReport{AlreadyInstalled: true}, nil
 	}
+	candidates, planErr := a.apmInstallPlan(ctx, dryRun, apmUpgradeCommands)
+	if planErr != nil {
+		return APMInstallFixReport{}, planErr
+	}
 	var failures []error
-	for _, candidate := range apmUpgradeCommands {
+	for _, candidate := range candidates {
 		if !a.commandAvailable(candidate[0]) {
 			continue
 		}
@@ -109,6 +145,6 @@ func (a *App) upgradeOutdatedAPM(ctx context.Context, dryRun bool) (APMInstallFi
 	if len(failures) > 0 {
 		return APMInstallFixReport{}, errors.Join(failures...)
 	}
-	return APMInstallFixReport{}, fmt.Errorf("apm %s is not the pinned version and no supported installer (uv, pipx, pip3) is available; install pinned APM manually: uv tool install %s",
-		version, apmPackagePin)
+	return APMInstallFixReport{}, fmt.Errorf("apm %s is not the pinned version and no supported installer (uv, pipx, pip3) is available; install pinned APM manually: %s",
+		version, a.manualAPMInstallHint())
 }

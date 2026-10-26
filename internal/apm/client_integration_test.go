@@ -5,12 +5,14 @@ package apm_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -287,6 +289,7 @@ var stableGlobalMCPTargets = []struct {
 	{"cursor", filepath.Join(".cursor", "mcp.json")},
 	{"gemini", filepath.Join(".gemini", "settings.json")},
 	{"kiro", filepath.Join(".kiro", "settings", "mcp.json")},
+	{"omp", filepath.Join(".omp", "agent", "mcp.json")},
 	{"opencode", filepath.Join(".config", "opencode", "opencode.json")},
 	{"windsurf", filepath.Join(".codeium", "windsurf", "mcp_config.json")},
 }
@@ -319,6 +322,79 @@ func TestGlobalMCPLifecycleForEveryStableTarget(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestGlobalOmpMCPLifecyclePreservesNativeConfigAndFiltersTargets(t *testing.T) {
+	ctx, client, home := newGlobalMCPIntegrationClient(t, "[omp, claude]", `
+    - name: context-mode
+      registry: false
+      targets: [omp]
+      transport: stdio
+      command: echo
+      args: [context-mode]
+    - name: litellm-tools
+      registry: false
+      targets: [omp]
+      transport: http
+      url: https://example.invalid/mcp
+    - name: claude-only
+      registry: false
+      targets: [claude]
+      transport: stdio
+      command: echo
+      args: [claude]
+`)
+	agentDir := filepath.Join(home, "custom-agent")
+	t.Setenv("PI_CODING_AGENT_DIR", agentDir)
+	configPath := filepath.Join(agentDir, "mcp.json")
+	const original = `{"$schema":"https://example.invalid/schema","disabledServers":["unrelated"],"enabledServers":["context-mode"],"mcpServers":{"unrelated":{"command":"local-server","instructions":false,"disabled":null,"env":{"KEEP":"local"}}}}`
+	writeFile(t, configPath, original)
+	readConfig := func(path string) map[string]any {
+		t.Helper()
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var doc map[string]any
+		if err := json.Unmarshal(data, &doc); err != nil {
+			t.Fatalf("parse %s: %v", path, err)
+		}
+		return doc
+	}
+	before := readConfig(configPath)
+	for range 2 {
+		if result, err := client.InstallOnly(ctx, apm.SurfaceMcp, nil, apm.InstallOptions{}); err != nil {
+			t.Fatalf("install omp MCP: %v\n%s\n%s", err, result.Stdout, result.Stderr)
+		}
+		doc := readConfig(configPath)
+		servers, ok := doc["mcpServers"].(map[string]any)
+		if !ok || len(servers) != 3 || servers["context-mode"] == nil || servers["litellm-tools"] == nil || servers["claude-only"] != nil {
+			t.Fatalf("omp target filtering failed: %#v", doc)
+		}
+		if !reflect.DeepEqual(servers["unrelated"], before["mcpServers"].(map[string]any)["unrelated"]) {
+			t.Fatalf("install changed unrelated native entry: %#v", servers["unrelated"])
+		}
+		for _, key := range []string{"$schema", "disabledServers", "enabledServers"} {
+			if !reflect.DeepEqual(doc[key], before[key]) {
+				t.Fatalf("install changed native %s: %#v", key, doc[key])
+			}
+		}
+		claude := readConfig(filepath.Join(home, ".claude.json"))
+		claudeServers, ok := claude["mcpServers"].(map[string]any)
+		if !ok || len(claudeServers) != 1 || claudeServers["claude-only"] == nil {
+			t.Fatalf("omp-only servers leaked into Claude: %#v", claude)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(home, ".omp", "agent", "mcp.json")); !os.IsNotExist(err) {
+		t.Fatalf("omp ignored agent directory override: %v", err)
+	}
+	writeFile(t, filepath.Join(home, ".apm", "apm.yml"), globalMCPManifest("[omp, claude]", " []"))
+	if result, err := client.InstallOnly(ctx, apm.SurfaceMcp, nil, apm.InstallOptions{}); err != nil {
+		t.Fatalf("prune omp MCP: %v\n%s\n%s", err, result.Stdout, result.Stderr)
+	}
+	if after := readConfig(configPath); !reflect.DeepEqual(after, before) {
+		t.Fatalf("prune changed unrelated native config: before=%#v after=%#v", before, after)
 	}
 }
 
@@ -574,6 +650,7 @@ func newGlobalMCPIntegrationClient(t *testing.T, targets, mcp string) (context.C
 	}
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
+	t.Setenv("PI_CODING_AGENT_DIR", "")
 	t.Setenv("XDG_CACHE_HOME", filepath.Join(root, "cache"))
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
 	writeFile(t, filepath.Join(home, ".apm", "apm.yml"), globalMCPManifest(targets, mcp))
@@ -691,15 +768,15 @@ func requirePinnedAPM(t *testing.T) {
 	t.Helper()
 	path, err := exec.LookPath("apm")
 	if err != nil {
-		t.Fatalf("integration tests require apm 0.34.0 on PATH: %v", err)
+		t.Fatalf("integration tests require apm 0.35.0+omni.5 on PATH: %v", err)
 	}
 	output, err := exec.Command(path, "--version").CombinedOutput()
 	if err != nil {
 		t.Fatalf("read APM version: %v\n%s", err, output)
 	}
 	fields := strings.Fields(string(output))
-	if !slices.Contains(fields, "0.34.0") {
-		t.Fatalf("integration tests require exactly apm 0.34.0, got %q", strings.TrimSpace(string(output)))
+	if !slices.Contains(fields, "0.35.0+omni.5") {
+		t.Fatalf("integration tests require exactly apm 0.35.0+omni.5, got %q", strings.TrimSpace(string(output)))
 	}
 }
 

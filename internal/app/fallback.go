@@ -479,15 +479,20 @@ func (a *App) fallbackCommandVars(name string, spec config.ToolSpec, fallback *c
 func (a *App) FallbackCacheDir() (string, error) { return a.fallbackCacheDir() }
 
 func (a *App) fallbackCacheDir() (string, error) {
-	root := strings.TrimSpace(a.CacheDir)
-	if root == "" {
-		root = a.configDir()
-	}
-	root, err := dots.ExpandTilde(root)
+	root, err := a.cacheRoot()
 	if err != nil {
 		return "", fmt.Errorf("resolving fallback cache dir: %w", err)
 	}
 	return filepath.Join(root, "fallback"), nil
+}
+
+// cacheRoot is the directory Omni's downloaded artifacts live under: CacheDir, or the config directory when unset.
+func (a *App) cacheRoot() (string, error) {
+	root := strings.TrimSpace(a.CacheDir)
+	if root == "" {
+		root = a.configDir()
+	}
+	return dots.ExpandTilde(root)
 }
 
 func (a *App) fallbackBinDir(fallback *config.FallbackSpec, cacheDir string) (string, error) {

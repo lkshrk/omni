@@ -167,6 +167,7 @@ func TestAgentsStatusWithoutServicesIsEmpty(t *testing.T) {
 }
 
 func TestAgentsStatusSurfacesUnmanagedHarnessEntries(t *testing.T) {
+	t.Setenv("PI_CODING_AGENT_DIR", "")
 	a := setupAgentsWorkspace(t, agentsServicesManifest, agentsServicesLock)
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -174,6 +175,7 @@ func TestAgentsStatusSurfacesUnmanagedHarnessEntries(t *testing.T) {
 	}
 	writeFile(t, filepath.Join(home, ".claude.json"), `{"mcpServers": {"hand-added": {"command": "x"}, "litellm-tools": {"url": "https://api.invalid/mcp/"}}, "lspServers": {"hand-lsp": {}}}`)
 	writeFile(t, filepath.Join(home, ".codex", "config.toml"), "[mcp_servers.hand-added]\ncommand = \"x\"\n\n[mcp_servers.codex-only]\ncommand = \"y\"\n")
+	writeFile(t, filepath.Join(home, ".omp", "agent", "mcp.json"), `{"mcpServers":{"hand-added":{"command":"x"},"omp-only":{"command":"z"},"litellm-tools":{"url":"https://api.invalid/mcp/"}}}`)
 
 	status, err := a.AgentsStatus()
 	if err != nil {
@@ -183,11 +185,14 @@ func TestAgentsStatusSurfacesUnmanagedHarnessEntries(t *testing.T) {
 	if unmanaged.Status != AgentsPackageOrphaned || unmanaged.Detail != "unmanaged" {
 		t.Fatalf("unmanaged row = %+v", unmanaged)
 	}
-	if got := agentsTargetsForTest(unmanaged); got != "claude,codex" {
+	if got := agentsTargetsForTest(unmanaged); got != "claude,codex,omp" {
 		t.Fatalf("unmanaged targets = %q", got)
 	}
 	if got := agentsTargetsForTest(serviceRow(t, status.MCP, "codex-only")); got != "codex" {
 		t.Fatalf("codex-only targets = %q", got)
+	}
+	if got := serviceRow(t, status.MCP, "omp-only"); got.Status != AgentsPackageOrphaned || got.Detail != "unmanaged" || agentsTargetsForTest(got) != "omp" || strings.Join(got.Harnesses, ",") != "omp" {
+		t.Fatalf("omp-only row = %+v", got)
 	}
 	if got := serviceRow(t, status.LSP, "hand-lsp"); got.Status != AgentsPackageOrphaned || got.Detail != "unmanaged" {
 		t.Fatalf("unmanaged lsp row = %+v", got)
@@ -202,6 +207,129 @@ func TestAgentsStatusSurfacesUnmanagedHarnessEntries(t *testing.T) {
 	}
 	if seen != 1 || serviceRow(t, status.MCP, "litellm-tools").Status != AgentsPackageInstalled {
 		t.Fatalf("locked name duplicated by harness overlay: %#v", status.MCP)
+	}
+}
+
+func TestAgentsStatusDetectsOmpMCPDrift(t *testing.T) {
+	t.Setenv("PI_CODING_AGENT_DIR", "")
+	a := setupAgentsWorkspace(t, strings.Replace(agentsServicesManifest, "- codex", "- omp", 1), agentsServicesLock)
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(home, ".omp", "agent", "mcp.json"), `{"mcpServers":{"litellm-tools":{"type":"http","url":"https://changed.invalid/mcp/"}}}`)
+	status, err := a.AgentsStatus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	row := serviceRow(t, status.MCP, "litellm-tools")
+	if row.Status != AgentsPackageDrifted || !row.SyncActionable || strings.Join(row.Harnesses, ",") != "omp" {
+		t.Fatalf("omp drift row = %+v", row)
+	}
+}
+
+func TestMCPManifestPreservesExplicitEmptyTargets(t *testing.T) {
+	for _, selection := range []string{"", "    targets: []\n", "    targets: [omp]\n"} {
+		t.Run(strings.TrimSpace(selection), func(t *testing.T) {
+			setupAgentsWorkspace(t, "dependencies:\n  mcp:\n  - name: probe\n    registry: false\n    transport: stdio\n    command: sh\n"+selection, "")
+			manifest, _, err := readAPMWorkspace()
+			if err != nil {
+				t.Fatal(err)
+			}
+			dep := manifest.Dependencies.MCP[0]
+			if (dep.Targets == nil) != (selection == "") {
+				t.Fatal("target selection presence was lost while reading")
+			}
+			rendered, err := encodeAPMManifest(manifest)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if selection == "    targets: []\n" && !strings.Contains(rendered, "targets: []") {
+				t.Fatal("explicit empty target selection was omitted while writing")
+			}
+			if selection == "" && strings.Contains(rendered, "targets:") {
+				t.Fatal("omitted target selection became explicit while writing")
+			}
+		})
+	}
+}
+
+func TestAgentsStatusMCPDriftRespectsServerTargets(t *testing.T) {
+	for _, tc := range []struct {
+		name, active, selected, claudeURL, ompURL, targets string
+		want                                               AgentsPackageStatus
+	}{
+		{"omp drift with matching Claude", "[claude, omp]", "", "https://api.invalid", "https://changed.invalid", "claude,omp", AgentsPackageDrifted},
+		{"omp only ignores unrelated Claude", "[claude, omp]", "    targets: [omp]\n", "https://changed.invalid", "https://api.invalid", "omp", AgentsPackageInstalled},
+		{"explicit empty targets", "[claude, omp]", "    targets: []\n", "https://changed.invalid", "https://changed.invalid", "", AgentsPackageInstalled},
+		{"intersect active targets", "[claude]", "    targets: [omp]\n", "https://changed.invalid", "https://changed.invalid", "", AgentsPackageInstalled},
+		{"unset targets inherit active", "[claude]", "", "https://api.invalid", "https://changed.invalid", "claude", AgentsPackageInstalled},
+		{"unset active targets select server", "", "    targets: [omp]\n", "https://changed.invalid", "https://api.invalid", "omp", AgentsPackageInstalled},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("PI_CODING_AGENT_DIR", "")
+			manifest := "dependencies:\n  mcp:\n  - name: probe\n    registry: false\n    transport: http\n    url: https://api.invalid\n" + tc.selected
+			if tc.active != "" {
+				manifest = "targets: " + tc.active + "\n" + manifest
+			}
+			a := setupAgentsWorkspace(t, manifest, "mcp_servers: [probe]\nmcp_configs:\n  probe:\n    transport: http\n    url: https://api.invalid\n")
+			home, err := os.UserHomeDir()
+			if err != nil {
+				t.Fatal(err)
+			}
+			writeFile(t, filepath.Join(home, ".claude.json"), `{"mcpServers":{"probe":{"url":"`+tc.claudeURL+`"}}}`)
+			writeFile(t, filepath.Join(home, ".omp", "agent", "mcp.json"), `{"mcpServers":{"probe":{"url":"`+tc.ompURL+`"}}}`)
+			status, err := a.AgentsStatus()
+			if err != nil {
+				t.Fatal(err)
+			}
+			row := serviceRow(t, status.MCP, "probe")
+			if row.Status != tc.want || row.SyncActionable != (tc.want == AgentsPackageDrifted) || strings.Join(row.Targets, ",") != tc.targets {
+				t.Fatalf("status=%s actionable=%v targets=%v", row.Status, row.SyncActionable, row.Targets)
+			}
+			if tc.selected == "    targets: []\n" && row.Targets == nil {
+				t.Fatal("explicit empty selection became implicit all-target selection")
+			}
+		})
+	}
+}
+
+func TestOmpMCPDriftExpandsNativeEnvironmentReferences(t *testing.T) {
+	t.Setenv("OMNI_TEST_OMP_VALUE", "value")
+	t.Setenv("OMNI_TEST_OMP_EMPTY", "")
+	t.Setenv("OMNI_TEST_OMP_UNSET", "")
+	if err := os.Unsetenv("OMNI_TEST_OMP_UNSET"); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name, locked, deployed string
+		want                   bool
+	}{
+		{"set", "${env:OMNI_TEST_OMP_VALUE}", "${OMNI_TEST_OMP_VALUE}", false},
+		{"unset", "${env:OMNI_TEST_OMP_UNSET}", "${OMNI_TEST_OMP_UNSET}", false},
+		{"empty", "${env:OMNI_TEST_OMP_EMPTY}", "${OMNI_TEST_OMP_EMPTY}", false},
+		{"unset default", "fallback", "${OMNI_TEST_OMP_UNSET:-fallback}", false},
+		{"empty default", "fallback", "${OMNI_TEST_OMP_EMPTY:-fallback}", false},
+		{"set default", "value", "${OMNI_TEST_OMP_VALUE:-fallback}", false},
+		{"changed", "${env:OMNI_TEST_OMP_VALUE}", "changed", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, field := range []string{"command", "args", "url"} {
+				cfg := apmServiceConfig{}
+				deployed := harnessMCPConfig{}
+				switch field {
+				case "command":
+					cfg.Command, deployed.Command = tc.locked, tc.deployed
+				case "args":
+					cfg.Args, deployed.Args = []string{tc.locked}, []string{tc.deployed}
+				case "url":
+					cfg.URL, deployed.URL = "https://example.invalid/"+tc.locked, "https://example.invalid/"+tc.deployed
+				}
+				if got := agentsServiceDriftedOnHarness(cfg, deployed, harnessOmp); got != tc.want {
+					t.Fatalf("%s drift=%v, want %v", field, got, tc.want)
+				}
+			}
+		})
 	}
 }
 
@@ -295,9 +423,9 @@ func TestAgentsServiceRowsSortByStatusRank(t *testing.T) {
 			"b-drifted":     {Command: "sh"},
 			"c-unavailable": {Command: "omni-test-absent-binary"},
 		},
-		configsOnClaude: map[string]harnessMCPConfig{
-			"a-installed": {Command: "sh"},
-			"b-drifted":   {Command: "TAMPERED"},
+		deployedConfigs: map[string]map[string]harnessMCPConfig{
+			"a-installed": {harnessClaude: {Command: "sh"}},
+			"b-drifted":   {harnessClaude: {Command: "TAMPERED"}},
 		},
 		deployed: map[string][]string{"e-orphaned": {"codex"}},
 	})

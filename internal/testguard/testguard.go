@@ -72,7 +72,28 @@ var (
 	ensureErr       error
 	initialTempRoot = os.TempDir() // Windows may place its owned OS temp below the user profile.
 	networkOnce     sync.Once
+	// parentModuleDownload is the module download cache of the validated parent sandbox, if any.
+	parentModuleDownload string
 )
+
+// ParentModuleProxy returns a file:// GOPROXY value backed by the module download cache that the
+// parent test runner already populated, or "" when none exists. A nested `go build` can then
+// resolve modules offline, and Go still verifies each one against go.sum. It never returns a path
+// outside the validated parent sandbox.
+func ParentModuleProxy() string {
+	dir := parentModuleDownload
+	if dir == "" {
+		return ""
+	}
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		return ""
+	}
+	slashed := filepath.ToSlash(dir)
+	if !strings.HasPrefix(slashed, "/") {
+		slashed = "/" + slashed // Windows drive paths need file:///C:/...
+	}
+	return "file://" + slashed
+}
 
 func init() {
 	if Active() {
@@ -124,6 +145,9 @@ func EnsureSafeEnv() error {
 				var child *Sandbox
 				if ensureErr == nil {
 					child, ensureErr = createSandboxUnder(parent.Root)
+					if ensureErr == nil {
+						parentModuleDownload = filepath.Join(parent.Root, "cache", "go-mod", "cache", "download")
+					}
 				}
 				if ensureErr == nil {
 					ensureErr = child.apply()
