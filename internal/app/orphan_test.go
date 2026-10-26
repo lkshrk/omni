@@ -1362,3 +1362,125 @@ func TestRefreshDiscovered_NodePackageWithTagOrRangeIsClaimed(t *testing.T) {
 		t.Errorf("discovered = %v, want undeclared left-pad still discovered", names)
 	}
 }
+
+func hostGroupToolNames(t *testing.T, cfgPath string) map[string]bool {
+	t.Helper()
+	updated, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+	names := map[string]bool{}
+	if g := logicalTestGroupByName(updated, testShortHostname()); g != nil {
+		for _, tool := range g.Tools {
+			names[tool.Name] = true
+		}
+	}
+	return names
+}
+
+func TestSync_HostActive_PackageDeclaredUnderOtherProviderIsAdopted(t *testing.T) {
+	t.Parallel()
+	brew := &stubProvider{name: "brew", available: true, installed: []provider.InstalledTool{installedTool("bat", "0.24.0", "brew")}}
+	cargo := &stubProvider{name: "cargo", available: true, installed: []provider.InstalledTool{installedTool("bat", "0.24.0", "cargo")}}
+	a, cfgPath := newImportApp(t, brew, cargo)
+	short := testShortHostname()
+	if err := saveAppConfig(t, cfgPath, &config.RootConfig{
+		Tools: logicalToolSpecs(logicalToolPackage("batcat", "brew", "bat")),
+		Groups: []*config.GroupConfig{
+			{Name: short, Special: "host"},
+			{Name: "work", Tools: groupTools("batcat")},
+		},
+		Hosts: map[string][]string{short: {"work"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Sync(context.Background(), gosync.SyncOptions{}); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	if names := hostGroupToolNames(t, cfgPath); !names["bat"] {
+		t.Fatalf("host group tools = %v, want cargo bat adopted although brew declares a bat package", names)
+	}
+	updated, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatalf("config.Load: %v", err)
+	}
+	if got := updated.Tools["bat"].Providers; len(got) != 1 || got[0].Provider != "cargo" {
+		t.Fatalf("adopted bat providers = %+v, want only cargo", got)
+	}
+}
+
+func TestSync_HostActive_PinnedDeclaredPackageIsNotAnOrphan(t *testing.T) {
+	t.Parallel()
+	bun := &exactPinStub{stubProvider{
+		name:      "bun",
+		available: true,
+		installed: []provider.InstalledTool{installedTool("@devcontainers/cli", "0.89.0", "bun"), installedTool("typescript", "5.9.0", "bun")},
+	}}
+	a, cfgPath := newImportApp(t, bun)
+	short := testShortHostname()
+	if err := saveAppConfig(t, cfgPath, &config.RootConfig{
+		Tools: map[string]config.ToolSpec{
+			"devcontainer": {Providers: []config.ToolInstallSpec{{Provider: "bun", Package: "@devcontainers/cli@0.89.0"}}},
+		},
+		Groups: []*config.GroupConfig{
+			{Name: short, Special: "host"},
+			{Name: "work", Tools: groupTools("devcontainer")},
+		},
+		Hosts: map[string][]string{short: {"work"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Sync(context.Background(), gosync.SyncOptions{}); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+
+	names := hostGroupToolNames(t, cfgPath)
+	if names["@devcontainers/cli"] {
+		t.Fatalf("host group tools = %v, want pinned @devcontainers/cli claimed by devcontainer", names)
+	}
+	if !names["typescript"] {
+		t.Fatalf("host group tools = %v, want undeclared typescript adopted", names)
+	}
+}
+
+func TestSync_HostActive_FamilyProviderDoesNotAdoptDeclaredPackage(t *testing.T) {
+	t.Parallel()
+	bun := &stubProvider{name: "bun", available: true, installed: []provider.InstalledTool{
+		installedTool("@devcontainers/cli", "0.89.0", "bun"),
+		installedTool("ripgrep", "14.1.0", "bun"),
+	}}
+	node := &stubProvider{name: "node", available: true, installed: []provider.InstalledTool{
+		installedTool("@devcontainers/cli", "0.89.0", "node"),
+		installedTool("node-only-pkg", "1.0.0", "node"),
+	}}
+	a, cfgPath := newImportApp(t, bun, node)
+	short := testShortHostname()
+	if err := saveAppConfig(t, cfgPath, &config.RootConfig{
+		Tools: map[string]config.ToolSpec{
+			"devcontainer": {Providers: []config.ToolInstallSpec{{Provider: "bun", Package: "@devcontainers/cli"}}},
+		},
+		Groups: []*config.GroupConfig{
+			{Name: short, Special: "host"},
+			{Name: "work", Tools: groupTools("devcontainer")},
+		},
+		Hosts: map[string][]string{short: {"work"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	result, err := a.Sync(context.Background(), gosync.SyncOptions{})
+	if err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+	if len(result.Warnings) != 0 {
+		t.Fatalf("Sync warnings = %v, want none", result.Warnings)
+	}
+
+	names := hostGroupToolNames(t, cfgPath)
+	if names["@devcontainers/cli"] || names["node-only-pkg"] {
+		t.Fatalf("host group tools = %v, want nothing adopted from the node family provider", names)
+	}
+	if !names["ripgrep"] {
+		t.Fatalf("host group tools = %v, want undeclared bun ripgrep adopted", names)
+	}
+}

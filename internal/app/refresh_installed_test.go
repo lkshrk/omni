@@ -76,6 +76,12 @@ func testExactVersionPin(tool provider.Tool) (string, string, bool) {
 	return spec[:i], spec[i+1:], true
 }
 
+type exactPinStub struct{ stubProvider }
+
+func (s *exactPinStub) ExactVersionPin(tool provider.Tool) (string, string, bool) {
+	return testExactVersionPin(tool)
+}
+
 func (s *exactPinCheckState) check(tool provider.Tool, manager string) (bool, string, error) {
 	s.calls++
 	s.managers = append(s.managers, manager)

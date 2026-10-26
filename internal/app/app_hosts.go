@@ -629,28 +629,21 @@ func (a *App) syncOrphansToMachineGroup(ctx context.Context, activeGroups []*con
 			return err
 		}
 		// Validation allows a tool in only one group globally, so any membership disqualifies it as an orphan.
-		// Providers list packages, not logical names, so a member's package names count too
-		// (devcontainer installs as @devcontainers/cli).
 		for _, g := range cfg.Groups {
 			if g == nil {
 				continue
 			}
 			for _, t := range g.Tools {
 				coveredNames[t.Name] = struct{}{}
-				spec := cfg.Tools[t.Name]
-				for _, pkg := range append([]string{spec.Package}, providerPackages(spec)...) {
-					if pkg = strings.TrimSpace(pkg); pkg != "" {
-						coveredNames[pkg] = struct{}{}
-						coveredNames[strings.ToLower(pkg)] = struct{}{}
-					}
-				}
 			}
 		}
+		claimed := a.declaredPackageClaims(cfg)
 
 		var orphans []config.ToolEntry
 		// Scan providers independently so one bad provider does not block orphan discovery.
 		_ = a.forEachAvailable(ctx, func(p provider.Provider) error {
-			if a.registry.ImportSkipsProvider(p.Name()) {
+			// Family providers cannot be written to tool specs; their concrete managers are scanned instead.
+			if a.registry.ImportSkipsProvider(p.Name()) || a.knownEcosystemProvider(p.Name()) {
 				return nil
 			}
 			installed, err := p.ListInstalled(ctx)
@@ -677,6 +670,9 @@ func (a *App) syncOrphansToMachineGroup(ctx context.Context, activeGroups []*con
 					continue
 				}
 				if _, ok := coveredNames[t.Name]; ok || isOmniManagedPackage(t.Name) {
+					continue
+				}
+				if claimed.has(p.Name(), t.Name) {
 					continue
 				}
 				if cfg.Tools == nil {
@@ -1051,12 +1047,4 @@ func removeGlobalToolIgnore(cfg *config.RootConfig, name string) bool {
 	}
 	cfg.Ignore.Tools = filtered
 	return changed
-}
-
-func providerPackages(spec config.ToolSpec) []string {
-	pkgs := make([]string, 0, len(spec.Providers))
-	for _, p := range spec.Providers {
-		pkgs = append(pkgs, p.Package)
-	}
-	return pkgs
 }

@@ -394,3 +394,79 @@ func TestImport_NoDuplicatesAcrossRuns(t *testing.T) {
 		t.Errorf("config tools = %d after two runs, want 1 (no duplicates)", len(tools))
 	}
 }
+
+func importedNames(t *testing.T, a *app.App) (added, skipped map[string]bool) {
+	t.Helper()
+	result, err := a.Import(context.Background(), app.ImportOptions{})
+	if err != nil {
+		t.Fatalf("Import: %v", err)
+	}
+	added, skipped = map[string]bool{}, map[string]bool{}
+	for _, tool := range result.Added {
+		added[tool.Name] = true
+	}
+	for _, tool := range result.Skipped {
+		skipped[tool.Name] = true
+	}
+	return added, skipped
+}
+
+func TestImport_SkipsPinnedAndMixedCaseDeclaredPackages(t *testing.T) {
+	t.Parallel()
+	bun := &exactPinStub{stubProvider{
+		name:      "bun",
+		available: true,
+		installed: []provider.InstalledTool{
+			installedTool("@devcontainers/cli", "0.89.0", "bun"),
+			installedTool("jsonstream", "1.3.5", "bun"),
+			installedTool("typescript", "5.9.0", "bun"),
+		},
+	}}
+	a, cfgPath := newImportApp(t, bun)
+	if err := saveAppConfig(t, cfgPath, &config.RootConfig{
+		Tools: map[string]config.ToolSpec{
+			"devcontainer": {Providers: []config.ToolInstallSpec{{Provider: "bun", Package: "@devcontainers/cli@0.89.0"}}},
+			"json-stream":  {Providers: []config.ToolInstallSpec{{Provider: "bun", Package: "JSONStream"}}},
+		},
+		Groups: []*config.GroupConfig{testHostToolGroup("devcontainer", "json-stream")},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	added, skipped := importedNames(t, a)
+	for _, claimed := range []string{"@devcontainers/cli", "jsonstream"} {
+		if added[claimed] || !skipped[claimed] {
+			t.Errorf("added = %v, skipped = %v, want %s skipped", added, skipped, claimed)
+		}
+	}
+	if !added["typescript"] {
+		t.Errorf("added = %v, want undeclared typescript imported", added)
+	}
+}
+
+func TestImport_SkipsPackageDeclaredOnlyForAnotherHost(t *testing.T) {
+	t.Parallel()
+	pacman := &stubProvider{
+		name:      "pacman",
+		available: true,
+		installed: []provider.InstalledTool{installedTool("kubectl", "1.34.0", "pacman"), installedTool("htop", "3.4.0", "pacman")},
+	}
+	a, cfgPath := newImportApp(t, pacman)
+	if err := saveAppConfig(t, cfgPath, &config.RootConfig{
+		Version: config.CurrentVersion,
+		Tools: map[string]config.ToolSpec{
+			"kubernetes-cli": {Hosts: map[string]config.ToolInstallSpec{"otherbox": {Provider: "pacman", Package: "kubectl"}}},
+		},
+		Groups: []*config.GroupConfig{testHostToolGroup("kubernetes-cli")},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	added, skipped := importedNames(t, a)
+	if added["kubectl"] || !skipped["kubectl"] {
+		t.Errorf("added = %v, skipped = %v, want kubectl skipped", added, skipped)
+	}
+	if !added["htop"] {
+		t.Errorf("added = %v, want undeclared htop imported", added)
+	}
+}

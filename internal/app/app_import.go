@@ -64,6 +64,7 @@ func (a *App) Import(ctx context.Context, opts ImportOptions) (*ImportResult, er
 		for name := range ignoredToolSet(cfg) {
 			configuredNames[name] = struct{}{}
 		}
+		claimed := a.declaredPackageClaims(cfg)
 
 		if err := a.forEachAvailable(ctx, func(p provider.Provider) error {
 			if opts.Provider == "" && a.registry.ImportSkipsProvider(p.Name()) {
@@ -99,7 +100,7 @@ func (a *App) Import(ctx context.Context, opts ImportOptions) (*ImportResult, er
 					result.Skipped = append(result.Skipped, ImportedTool{Name: t.Name, Provider: configProvider, Version: t.Version})
 					continue
 				}
-				if _, exists := configuredNames[t.Name]; exists {
+				if _, exists := configuredNames[t.Name]; exists || claimed.has(p.Name(), t.Name) {
 					result.Skipped = append(result.Skipped, ImportedTool{Name: t.Name, Provider: configProvider, Version: t.Version})
 					continue
 				}
