@@ -114,7 +114,8 @@ ensure_clean_worktree
 # Re-check origin before tagging so concurrent updates fail without leaving an unpushable tag.
 verify_release_branch_still_current
 
-CURRENT=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+# Only vX.Y.Z tags are Omni releases; other tags (the apm-cli-* wheel releases) must not set the current version.
+CURRENT=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' 2>/dev/null || echo "v0.0.0")
 CURRENT_CLEAN="${CURRENT#v}"
 IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_CLEAN"
 

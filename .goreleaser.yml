@@ -1,5 +1,10 @@
 version: 2
 
+# The apm-cli-* tags only host the pinned APM wheel; they are not releases and must not become the previous tag.
+git:
+  ignore_tags:
+    - "apm-cli-*"
+
 before:
   hooks:
     - go mod tidy
