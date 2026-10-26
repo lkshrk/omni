@@ -2,7 +2,7 @@ package provider
 
 import "context"
 
-// Named — Optional interfaces are forwarded only when the base implements them: an alias claiming one the base lacks silently loses manager attribution.
+// Named — Multi-manager and outdated-info interfaces are forwarded only when the base implements them (an alias claiming one silently loses manager attribution); other optional methods are always present with a neutral fallback.
 func Named(name string, p Provider) Provider {
 	np := namedProvider{name: name, Provider: p}
 	_, multi := p.(MultiManagerBulkChecker)
@@ -56,6 +56,14 @@ func (p namedProvider) ExactVersionPin(tool Tool) (string, string, bool) {
 		return "", "", false
 	}
 	return detector.ExactVersionPin(tool)
+}
+
+func (p namedProvider) InstalledName(tool Tool) string {
+	resolver, ok := p.Provider.(InstalledNameResolver)
+	if !ok {
+		return tool.EffectivePackage()
+	}
+	return resolver.InstalledName(tool)
 }
 
 func (p namedProvider) ListInstalled(ctx context.Context) ([]InstalledTool, error) {

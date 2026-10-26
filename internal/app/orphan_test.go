@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -1267,5 +1268,97 @@ func TestRefreshDiscovered_PinnedAndMixedCasePackagesAreClaimed(t *testing.T) {
 	}
 	if !names["typescript"] {
 		t.Errorf("discovered = %v, want undeclared typescript still discovered", names)
+	}
+}
+
+func suffixFreeName(tool provider.Tool) string {
+	spec := tool.EffectivePackage()
+	if i := strings.Index(spec[min(1, len(spec)):], "@"); i >= 0 {
+		return spec[:i+1]
+	}
+	return spec
+}
+
+type installedNameStub struct{ stubProvider }
+
+func (s *installedNameStub) InstalledName(tool provider.Tool) string {
+	name, _, _ := strings.Cut(tool.EffectivePackage(), "@")
+	return name
+}
+
+var exactSemver = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`)
+
+type installedNameMultiStub struct{ exactPinMultiStub }
+
+func (s *installedNameMultiStub) ExactVersionPin(tool provider.Tool) (string, string, bool) {
+	spec := tool.EffectivePackage()
+	i := strings.LastIndex(spec, "@")
+	if i <= 0 || !exactSemver.MatchString(spec[i+1:]) {
+		return spec, "", false
+	}
+	return spec[:i], spec[i+1:], true
+}
+
+func (s *installedNameMultiStub) InstalledName(tool provider.Tool) string {
+	return suffixFreeName(tool)
+}
+
+func TestRefreshDiscovered_CargoPackageWithVersionSuffixIsClaimed(t *testing.T) {
+	t.Parallel()
+	cargo := &installedNameStub{stubProvider{
+		name:      "cargo",
+		available: true,
+		installed: []provider.InstalledTool{installedTool("ripgrep", "14.1.0", "cargo"), installedTool("bat", "0.24.0", "cargo")},
+	}}
+	a, cfgPath := newImportApp(t, cargo)
+	if err := saveAppConfig(t, cfgPath, &config.RootConfig{
+		Tools:  logicalToolSpecs(logicalToolPackage("rg", "cargo", "ripgrep@14.1.0")),
+		Groups: []*config.GroupConfig{testHostToolGroup("rg")},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	names := discoveredNames(t, context.Background(), a)
+	if names["ripgrep"] {
+		t.Fatalf("discovered = %v, want ripgrep claimed by rg", names)
+	}
+	if !names["bat"] {
+		t.Fatalf("discovered = %v, want undeclared bat still discovered", names)
+	}
+}
+
+func TestRefreshDiscovered_NodePackageWithTagOrRangeIsClaimed(t *testing.T) {
+	t.Parallel()
+	bun := &installedNameMultiStub{exactPinMultiStub{checkState: &exactPinCheckState{}, multiManagerStub: multiManagerStub{
+		stubProvider: stubProvider{name: "bun", available: true},
+		entries: map[string]provider.InstalledEntry{
+			"typescript": {Version: "6.0.0-dev", ConcreteManager: "bun"},
+			"pkg":        {Version: "5.1.0", ConcreteManager: "bun"},
+			"@scope/pkg": {Version: "5.2.0", ConcreteManager: "bun"},
+			"foo":        {Version: "1.2.3", ConcreteManager: "bun"},
+			"left-pad":   {Version: "1.3.0", ConcreteManager: "bun"},
+		},
+	}}}
+	a, cfgPath := newImportApp(t, provider.Named("bun", bun))
+	if err := saveAppConfig(t, cfgPath, &config.RootConfig{
+		Tools: map[string]config.ToolSpec{
+			"ts":     {Providers: []config.ToolInstallSpec{{Provider: "bun", Package: "typescript@next"}}},
+			"ranged": {Providers: []config.ToolInstallSpec{{Provider: "bun", Package: "pkg@^5"}}},
+			"scoped": {Providers: []config.ToolInstallSpec{{Provider: "bun", Package: "@scope/pkg@^5"}}},
+			"alias":  {Providers: []config.ToolInstallSpec{{Provider: "bun", Package: "foo@npm:bar@1.2.3"}}},
+		},
+		Groups: []*config.GroupConfig{testHostToolGroup("ts", "ranged", "scoped", "alias")},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	names := discoveredNames(t, context.Background(), a)
+	for _, claimed := range []string{"typescript", "pkg", "@scope/pkg", "foo"} {
+		if names[claimed] {
+			t.Errorf("discovered = %v, want %s claimed", names, claimed)
+		}
+	}
+	if !names["left-pad"] {
+		t.Errorf("discovered = %v, want undeclared left-pad still discovered", names)
 	}
 }

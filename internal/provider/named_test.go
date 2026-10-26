@@ -123,3 +123,26 @@ func TestNamed_OverridesProviderIdentity(t *testing.T) {
 		t.Fatalf("results = %+v, want provider/source npm", results)
 	}
 }
+
+type installedNameBaseProvider struct {
+	namedBaseProvider
+}
+
+func (installedNameBaseProvider) InstalledName(tool provider.Tool) string {
+	return "resolved-" + tool.EffectivePackage()
+}
+
+func TestNamed_ForwardsInstalledNameResolver(t *testing.T) {
+	tool := provider.Tool{Name: "ts", Package: "typescript@next"}
+	resolver, ok := provider.Named("bun", installedNameBaseProvider{}).(provider.InstalledNameResolver)
+	if !ok {
+		t.Fatal("named provider should expose InstalledNameResolver")
+	}
+	if got := resolver.InstalledName(tool); got != "resolved-typescript@next" {
+		t.Fatalf("InstalledName = %q, want the base provider's result", got)
+	}
+	fallback := provider.Named("npm", namedBaseProvider{}).(provider.InstalledNameResolver)
+	if got := fallback.InstalledName(tool); got != "typescript@next" {
+		t.Fatalf("InstalledName fallback = %q, want the effective package", got)
+	}
+}

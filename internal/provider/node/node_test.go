@@ -940,3 +940,23 @@ func TestListInstalled_SkipsNPMGlobalsOwnedBySystemPackages(t *testing.T) {
 		t.Fatalf("want only mytool (semver belongs to pacman), got %+v", tools)
 	}
 }
+
+func TestInstalledName_StripsAnyVersionSuffix(t *testing.T) {
+	p := node.New(&executor.MockExecutor{}, "npm")
+	for spec, want := range map[string]string{
+		"typescript@next":                        "typescript",
+		"pkg@^5":                                 "pkg",
+		"pkg@1.2.3":                              "pkg",
+		"@scope/pkg@^5":                          "@scope/pkg",
+		"@scope/pkg":                             "@scope/pkg",
+		"foo@npm:bar@1":                          "foo",
+		"foo@npm:bar@1.2.3":                      "foo",
+		"git@github.com:user/repo.git":           "git@github.com:user/repo.git",
+		"git+ssh://git@github.com/user/repo.git": "git+ssh://git@github.com/user/repo.git",
+		"typescript":                             "typescript",
+	} {
+		if got := p.InstalledName(tool(spec)); got != want {
+			t.Errorf("InstalledName(%q) = %q, want %q", spec, got, want)
+		}
+	}
+}

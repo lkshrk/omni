@@ -2216,14 +2216,24 @@ func (a *App) declaredPackageClaims(cfg *config.RootConfig) packageClaims {
 }
 
 func (a *App) unpinnedPackage(providerName string, entry config.ToolEntry) string {
-	if p, ok := a.registry.Get(providerName); ok {
-		if detector, ok := p.(provider.ExactPinDetector); ok {
-			if base, _, pinned := detector.ExactVersionPin(a.operationTool(entry, providerName)); pinned {
-				return base
-			}
+	spec := entry.EffectivePackage()
+	p, ok := a.registry.Get(providerName)
+	if !ok {
+		return spec
+	}
+	tool := a.operationTool(entry, providerName)
+	// An unchanged name means nothing to strip (Named always resolves), so exact pins may still apply.
+	if resolver, ok := p.(provider.InstalledNameResolver); ok {
+		if name := resolver.InstalledName(tool); name != spec {
+			return name
 		}
 	}
-	return entry.EffectivePackage()
+	if detector, ok := p.(provider.ExactPinDetector); ok {
+		if base, _, pinned := detector.ExactVersionPin(tool); pinned {
+			return base
+		}
+	}
+	return spec
 }
 
 func currentHostInstallSpec(spec config.ToolSpec) (config.ToolInstallSpec, bool) {

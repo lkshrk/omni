@@ -156,3 +156,12 @@ func TestListInstalledSurfacesStdoutDetailWhenStderrEmpty(t *testing.T) {
 		t.Fatalf("ListInstalled() error = %v, want stdout detail", err)
 	}
 }
+
+func TestInstalledName_StripsVersionSuffix(t *testing.T) {
+	p, _ := newCargo()
+	for spec, want := range map[string]string{"ripgrep@14.1.0": "ripgrep", "ripgrep": "ripgrep", "@1.0": "@1.0"} {
+		if got := p.InstalledName(tool(spec)); got != want {
+			t.Errorf("InstalledName(%q) = %q, want %q", spec, got, want)
+		}
+	}
+}

@@ -177,6 +177,11 @@ type ExactPinDetector interface {
 	ExactVersionPin(tool Tool) (basePackage, requiredVersion string, ok bool)
 }
 
+// InstalledNameResolver — Optional. Maps a declared spec to the name ListInstalled reports, minus any version suffix.
+type InstalledNameResolver interface {
+	InstalledName(tool Tool) string
+}
+
 // SelfPackageUpgradeChecker — Optional. Some environments (PEP 668) forbid a manager upgrading its own package.
 type SelfPackageUpgradeChecker interface {
 	SelfPackageName() string

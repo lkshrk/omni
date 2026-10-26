@@ -46,6 +46,10 @@ func (p *Provider) IsInstalled(ctx context.Context, tool provider.Tool) (bool, s
 	return ok, version, nil
 }
 
+func (p *Provider) InstalledName(tool provider.Tool) string {
+	return installedPackageName(tool.EffectivePackage())
+}
+
 func installedPackageName(spec string) string {
 	name, _, versioned := strings.Cut(spec, "@")
 	if versioned && name != "" {

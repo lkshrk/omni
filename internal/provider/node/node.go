@@ -266,6 +266,20 @@ func splitPackageSpec(spec string) (name, version string) {
 	return spec[:idx], spec[idx+1:]
 }
 
+func (p *Provider) InstalledName(tool provider.Tool) string {
+	spec := tool.EffectivePackage()
+	idx := strings.Index(spec[min(1, len(spec)):], "@") + 1
+	if idx <= 0 {
+		return spec
+	}
+	name, suffix := spec[:idx], spec[idx+1:]
+	// Git and URL specs (git@host:repo, git+ssh://git@host) are not registry names.
+	if strings.Contains(name, ":") || (strings.Contains(suffix, ":") && !strings.HasPrefix(suffix, "npm:")) {
+		return spec
+	}
+	return name
+}
+
 func (p *Provider) ExactVersionPin(tool provider.Tool) (string, string, bool) {
 	name, version := splitPackageSpec(tool.EffectivePackage())
 	return name, version, version != ""
