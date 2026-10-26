@@ -1594,6 +1594,7 @@ func (a *App) discoverUntrackedInstalled(ctx context.Context, cfg *config.RootCo
 	for name := range ignoredToolSet(cfg) {
 		configuredNames[name] = struct{}{}
 	}
+	claimed := a.declaredPackageClaims(cfg)
 
 	// Discovered tools get the family name while scope checks use the resolved concrete manager.
 	stop := profile.Start("app.refresh.discovered.resolve_ecosystems")
@@ -1651,6 +1652,13 @@ func (a *App) discoverUntrackedInstalled(ctx context.Context, cfg *config.RootCo
 				if _, ok := configuredNames[name]; ok || isOmniManagedPackage(name) {
 					continue
 				}
+				installer := entry.ConcreteManager
+				if installer == "" {
+					installer = configProvider
+				}
+				if claimed.has(installer, name) {
+					continue
+				}
 				if !discoverCLIToolAllowed(cliSets, p.Name(), name) {
 					continue
 				}
@@ -1682,6 +1690,9 @@ func (a *App) discoverUntrackedInstalled(ctx context.Context, cfg *config.RootCo
 		for _, t := range installed {
 			if _, ok := configuredNames[t.Name]; ok || isOmniManagedPackage(t.Name) {
 				continue // already in config, or omni's own APM install; skip
+			}
+			if claimed.has(p.Name(), t.Name) {
+				continue
 			}
 			if systemBaseline != nil && systemBaseline[t.Name] {
 				// Predates the host's recorded baseline, so not a package the user just installed.
@@ -2162,15 +2173,92 @@ func (a *App) lookupAlternateConfiguredInstall(ctx context.Context, cfg *config.
 	return "", false, ""
 }
 
-func discoveryScopeInstallSpecs(spec config.ToolSpec) []config.ToolInstallSpec {
+type packageClaim struct {
+	provider string
+	pkg      string
+}
+
+type packageClaims map[packageClaim]struct{}
+
+func normalizedClaimPackage(pkg string) string {
+	return strings.ToLower(strings.TrimSpace(pkg))
+}
+
+func (c packageClaims) has(providerName, pkg string) bool {
+	_, ok := c[packageClaim{provider: providerName, pkg: normalizedClaimPackage(pkg)}]
+	return ok
+}
+
+func (c packageClaims) add(providerName, pkg string) {
+	pkg = normalizedClaimPackage(pkg)
+	c[packageClaim{provider: providerName, pkg: pkg}] = struct{}{}
+	// brew lists tap-qualified formulae under their bare formula name.
+	if providerName == "brew" {
+		if tap := tapFromPackage(pkg); tap != "" {
+			c[packageClaim{provider: providerName, pkg: strings.TrimPrefix(pkg, tap+"/")}] = struct{}{}
+		}
+	}
+}
+
+func (a *App) declaredPackageClaims(cfg *config.RootConfig) packageClaims {
+	claims := make(packageClaims)
+	for name, spec := range cfg.Tools {
+		for _, install := range declaredInstallSpecs(spec) {
+			entry := spec.ToToolEntry(name, install)
+			for _, p := range []string{entry.Provider, entry.InstallWith} {
+				if p != "" {
+					claims.add(p, a.unpinnedPackage(p, entry))
+				}
+			}
+		}
+	}
+	return claims
+}
+
+func (a *App) unpinnedPackage(providerName string, entry config.ToolEntry) string {
+	if p, ok := a.registry.Get(providerName); ok {
+		if detector, ok := p.(provider.ExactPinDetector); ok {
+			if base, _, pinned := detector.ExactVersionPin(a.operationTool(entry, providerName)); pinned {
+				return base
+			}
+		}
+	}
+	return entry.EffectivePackage()
+}
+
+func currentHostInstallSpec(spec config.ToolSpec) (config.ToolInstallSpec, bool) {
 	hostname := currentHostname()
 	if install, ok := spec.Hosts[hostname]; ok {
-		return []config.ToolInstallSpec{install}
+		return install, true
 	}
 	if short := shortHostname(hostname); short != hostname {
 		if install, ok := spec.Hosts[short]; ok {
-			return []config.ToolInstallSpec{install}
+			return install, true
 		}
+	}
+	return config.ToolInstallSpec{}, false
+}
+
+func declaredInstallSpecs(spec config.ToolSpec) []config.ToolInstallSpec {
+	if install, ok := currentHostInstallSpec(spec); ok {
+		return []config.ToolInstallSpec{install}
+	}
+	specs := make([]config.ToolInstallSpec, 0, 1+len(spec.Providers)+len(spec.Variants)+len(spec.Hosts))
+	if len(spec.Providers) > 0 {
+		specs = append(specs, spec.Providers...)
+	} else {
+		specs = append(specs, spec.DefaultInstallSpec())
+	}
+	specs = append(specs, spec.Variants...)
+	for _, install := range spec.Hosts {
+		specs = append(specs, install)
+	}
+	return specs
+}
+
+func discoveryScopeInstallSpecs(spec config.ToolSpec) []config.ToolInstallSpec {
+	if install, ok := currentHostInstallSpec(spec); ok {
+		return []config.ToolInstallSpec{install}
 	}
 	if len(spec.Providers) > 0 {
 		return append([]config.ToolInstallSpec(nil), spec.Providers...)

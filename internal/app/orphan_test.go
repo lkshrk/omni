@@ -1024,3 +1024,248 @@ func TestSync_HostActive_OmniManagedAPMIsNotAnOrphan(t *testing.T) {
 		t.Fatalf("a real orphan was not recorded: %v", names)
 	}
 }
+
+func installAfterBaseline(t *testing.T, a *app.App, p *stubProvider, added ...string) {
+	t.Helper()
+	if err := a.RefreshDiscovered(context.Background()); err != nil {
+		t.Fatalf("RefreshDiscovered (baseline): %v", err)
+	}
+	for _, name := range added {
+		p.installed = append(p.installed, installedTool(name, "1.0", p.name))
+	}
+}
+
+func TestRefreshDiscovered_ProviderPackageClaimedByDifferentlyNamedTool(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	pacman := &stubProvider{name: "pacman", available: true}
+	a, cfgPath := newImportApp(t, pacman)
+	if err := saveAppConfig(t, cfgPath, &config.RootConfig{
+		Tools:  logicalToolSpecs(logicalToolPackage("kubernetes-cli", "pacman", "kubectl")),
+		Groups: []*config.GroupConfig{testHostToolGroup("kubernetes-cli")},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	installAfterBaseline(t, a, pacman, "kubectl", "htop")
+	if err := a.DB().UpsertDiscoveredBatch(ctx, []database.DiscoveredUpsert{
+		{Name: "kubectl", Provider: "pacman", InstalledWith: "pacman", Version: "1.0"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	names := discoveredNames(t, ctx, a)
+	if names["kubectl"] {
+		t.Fatalf("discovered = %v, want kubectl claimed by kubernetes-cli", names)
+	}
+	if !names["htop"] {
+		t.Fatalf("discovered = %v, want undeclared htop still discovered", names)
+	}
+	if err := a.RefreshInstalled(ctx, nil); err != nil {
+		t.Fatalf("RefreshInstalled: %v", err)
+	}
+	tools, err := a.ListTools(ctx, "")
+	if err != nil {
+		t.Fatalf("ListTools: %v", err)
+	}
+	idx := slices.IndexFunc(tools, func(tool *database.ToolCache) bool { return tool.Name == "kubernetes-cli" })
+	if idx < 0 || !tools[idx].Installed {
+		t.Fatalf("tools = %+v, want kubernetes-cli installed", tools)
+	}
+}
+
+func TestRefreshDiscovered_HostAndVariantPackagesAreClaimed(t *testing.T) {
+	t.Parallel()
+	pacman := &stubProvider{name: "pacman", available: true}
+	a, cfgPath := newImportApp(t, pacman)
+	if err := saveAppConfig(t, cfgPath, &config.RootConfig{
+		Version: config.CurrentVersion,
+		Tools: map[string]config.ToolSpec{
+			"host-tool": {Hosts: map[string]config.ToolInstallSpec{
+				testShortHostname(): {Provider: "pacman", Package: "host-pkg"},
+				"otherbox":          {Provider: "pacman", Package: "other-host-pkg"},
+			}},
+			"away-tool": {Hosts: map[string]config.ToolInstallSpec{
+				"otherbox": {Provider: "pacman", Package: "away-pkg"},
+			}},
+			"variant-tool": {
+				Provider: "brew",
+				Variants: []config.ToolInstallSpec{{Provider: "pacman", Package: "variant-pkg"}},
+			},
+		},
+		Groups: []*config.GroupConfig{testHostToolGroup("host-tool", "variant-tool")},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	installAfterBaseline(t, a, pacman, "host-pkg", "other-host-pkg", "away-pkg", "variant-pkg", "htop")
+
+	names := discoveredNames(t, context.Background(), a)
+	for _, claimed := range []string{"host-pkg", "away-pkg", "variant-pkg"} {
+		if names[claimed] {
+			t.Errorf("discovered = %v, want %s claimed", names, claimed)
+		}
+	}
+	for _, unclaimed := range []string{"other-host-pkg", "htop"} {
+		if !names[unclaimed] {
+			t.Errorf("discovered = %v, want %s still discovered", names, unclaimed)
+		}
+	}
+}
+
+func TestRefreshDiscovered_ListInstalledPackageClaimedByAlias(t *testing.T) {
+	t.Parallel()
+	bun := &listInstalledStub{
+		stubProvider: stubProvider{name: "bun", available: true},
+		installed: []provider.InstalledTool{
+			installedTool("@devcontainers/cli", "0.89.0", "bun"),
+			installedTool("typescript", "5.9.0", "bun"),
+		},
+	}
+	a, cfgPath := newImportApp(t, bun)
+	if err := saveAppConfig(t, cfgPath, &config.RootConfig{
+		Tools: map[string]config.ToolSpec{
+			"devcontainer": {Providers: []config.ToolInstallSpec{{Provider: "bun", Package: "@devcontainers/cli"}}},
+		},
+		Groups: []*config.GroupConfig{testHostToolGroup("devcontainer")},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	names := discoveredNames(t, context.Background(), a)
+	if names["@devcontainers/cli"] {
+		t.Fatalf("discovered = %v, want @devcontainers/cli claimed by devcontainer", names)
+	}
+	if !names["typescript"] {
+		t.Fatalf("discovered = %v, want undeclared typescript still discovered", names)
+	}
+}
+
+func TestRefreshDiscovered_SamePackageUnderOtherProviderIsDiscovered(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	pacman := &stubProvider{name: "pacman", available: true}
+	brew := &stubProvider{
+		name:      "brew",
+		available: true,
+		installed: []provider.InstalledTool{installedTool("kubectl", "1.34.0", "brew")},
+	}
+	a, cfgPath := newImportApp(t, pacman, brew)
+	if err := saveAppConfig(t, cfgPath, &config.RootConfig{
+		Tools: logicalToolSpecs(
+			logicalToolPackage("kubernetes-cli", "pacman", "kubectl"),
+			logicalTool("brew-anchor", "brew"),
+		),
+		Groups: []*config.GroupConfig{testHostToolGroup("kubernetes-cli", "brew-anchor")},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	installAfterBaseline(t, a, pacman, "kubectl")
+
+	if err := a.RefreshDiscovered(ctx); err != nil {
+		t.Fatalf("RefreshDiscovered: %v", err)
+	}
+	discovered, err := a.ListDiscovered(ctx)
+	if err != nil {
+		t.Fatalf("ListDiscovered: %v", err)
+	}
+	var providers []string
+	for _, tool := range discovered {
+		if tool.Name == "kubectl" {
+			providers = append(providers, tool.Provider)
+		}
+	}
+	if !slices.Equal(providers, []string{"brew"}) {
+		t.Fatalf("kubectl discovered under %v, want only brew", providers)
+	}
+}
+
+func TestRefreshDiscovered_MultiManagerPackageClaimedByAlias(t *testing.T) {
+	t.Parallel()
+	bun := &multiManagerStub{
+		stubProvider: stubProvider{name: "bun", available: true},
+		entries: map[string]provider.InstalledEntry{
+			"@devcontainers/cli": {Version: "0.89.0", ConcreteManager: "bun"},
+			"typescript":         {Version: "5.9.0", ConcreteManager: "bun"},
+			"@bun-only/claimed":  {Version: "1.0.0", ConcreteManager: "npm"},
+		},
+	}
+	a, cfgPath := newImportApp(t, bun)
+	if err := saveAppConfig(t, cfgPath, &config.RootConfig{
+		Tools: map[string]config.ToolSpec{
+			"devcontainer": {Providers: []config.ToolInstallSpec{{Provider: "bun", Package: "@devcontainers/cli"}}},
+			"bun-claimed":  {Providers: []config.ToolInstallSpec{{Provider: "bun", Package: "@bun-only/claimed"}}},
+			"npm-anchor":   {Providers: []config.ToolInstallSpec{{Provider: "npm"}}},
+		},
+		Groups: []*config.GroupConfig{testHostToolGroup("devcontainer", "bun-claimed", "npm-anchor")},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	names := discoveredNames(t, context.Background(), a)
+	if names["@devcontainers/cli"] {
+		t.Fatalf("discovered = %v, want @devcontainers/cli claimed by devcontainer", names)
+	}
+	for _, unclaimed := range []string{"typescript", "@bun-only/claimed"} {
+		if !names[unclaimed] {
+			t.Errorf("discovered = %v, want %s still discovered", names, unclaimed)
+		}
+	}
+}
+
+func TestRefreshDiscovered_TapQualifiedBrewPackageIsClaimed(t *testing.T) {
+	t.Parallel()
+	brew := &stubProvider{
+		name:      "brew",
+		available: true,
+		installed: []provider.InstalledTool{installedTool("bar", "1.0", "brew"), installedTool("fzf", "1.0", "brew")},
+	}
+	a, cfgPath := newImportApp(t, brew)
+	if err := saveAppConfig(t, cfgPath, &config.RootConfig{
+		Tools:  logicalToolSpecs(logicalToolPackage("foo", "brew", "owner/tap/bar")),
+		Groups: []*config.GroupConfig{testHostToolGroup("foo")},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	names := discoveredNames(t, context.Background(), a)
+	if names["bar"] {
+		t.Fatalf("discovered = %v, want tap formula bar claimed by foo", names)
+	}
+	if !names["fzf"] {
+		t.Fatalf("discovered = %v, want undeclared fzf still discovered", names)
+	}
+}
+
+func TestRefreshDiscovered_PinnedAndMixedCasePackagesAreClaimed(t *testing.T) {
+	t.Parallel()
+	bun := &exactPinMultiStub{
+		multiManagerStub: multiManagerStub{
+			stubProvider: stubProvider{name: "bun", available: true},
+			entries: map[string]provider.InstalledEntry{
+				"@devcontainers/cli": {Version: "0.89.0", ConcreteManager: "bun"},
+				"jsonstream":         {Version: "1.3.5", ConcreteManager: "bun"},
+				"typescript":         {Version: "5.9.0", ConcreteManager: "bun"},
+			},
+		},
+		checkState: &exactPinCheckState{installedVersion: "0.89.0"},
+	}
+	a, cfgPath := newImportApp(t, provider.Named("bun", bun))
+	if err := saveAppConfig(t, cfgPath, &config.RootConfig{
+		Tools: map[string]config.ToolSpec{
+			"devcontainer": {Providers: []config.ToolInstallSpec{{Provider: "bun", Package: "@devcontainers/cli@0.89.0"}}},
+			"json-stream":  {Providers: []config.ToolInstallSpec{{Provider: "bun", Package: "JSONStream"}}},
+		},
+		Groups: []*config.GroupConfig{testHostToolGroup("devcontainer", "json-stream")},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	names := discoveredNames(t, context.Background(), a)
+	for _, claimed := range []string{"@devcontainers/cli", "jsonstream"} {
+		if names[claimed] {
+			t.Errorf("discovered = %v, want %s claimed", names, claimed)
+		}
+	}
+	if !names["typescript"] {
+		t.Errorf("discovered = %v, want undeclared typescript still discovered", names)
+	}
+}
