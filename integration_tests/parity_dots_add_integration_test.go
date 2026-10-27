@@ -26,7 +26,7 @@ func TestCLIAndTUIDotsAddProduceEquivalentSemanticState(t *testing.T) {
 		waitForRequiredScreen(t, term, 8*time.Second, screenHas("fixture", "local-only", "a add"), "TUI did not settle on Dots")
 		writeTUIKeys(t, term, "a")
 		waitForRequiredScreen(t, term, 5*time.Second, screenHas("Add dotfile path"), "TUI did not open path picker")
-		term.Paste(tui.target)
+		term.Emulator.Paste(tui.target)
 		waitForRequiredScreen(t, term, 3*time.Second, screenHas("home/.config/fixture", "enter pick"), "TUI did not accept pasted path")
 		writeTUIKeys(t, term, "\r")
 		waitForRequiredScreen(t, term, 5*time.Second, screenHas("Choose Group: ~/.config/fixture", "testhost"), "TUI did not render dot-add group choices")

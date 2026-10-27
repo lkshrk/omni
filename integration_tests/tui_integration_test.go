@@ -17,6 +17,7 @@ import (
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/vttest"
+	"golang.org/x/sys/unix"
 
 	"github.com/lkshrk/omni/internal/config"
 	"github.com/lkshrk/omni/internal/database"
@@ -41,9 +42,7 @@ func TestTUIConfiguredHostStartsDashboard(t *testing.T) {
 		waitForRequiredScreen(t, term, 6*time.Second, func(text string) bool {
 			return strings.Contains(text, "Dashboard") && strings.Contains(text, "Tools")
 		}, "TUI did not render main tabs")
-		if err := term.Resize(120, 30); err != nil {
-			t.Fatalf("resize TUI: %v", err)
-		}
+		resizeTUI(t, term, 120, 30)
 		waitForRequiredScreen(t, term, 3*time.Second, func(text string) bool {
 			return strings.Contains(text, "Dashboard") && strings.Contains(text, "Settings")
 		}, "TUI did not redraw after resize")
@@ -838,6 +837,33 @@ func awaitTUIWait(done <-chan error, timeout time.Duration) (error, bool) {
 	case <-timer.C:
 		return nil, false
 	}
+}
+
+// vttest's Terminal.Resize takes its own lock before the emulator's; emulator callbacks take them in the opposite order.
+func resizeTUI(t *testing.T, term *vttest.Terminal, cols, rows int) {
+	t.Helper()
+	if err := resizeTerm(term, cols, rows); err != nil {
+		t.Fatalf("resize TUI: %v", err)
+	}
+}
+
+func resizeTerm(term *vttest.Terminal, cols, rows int) error {
+	slave, ok := term.Input().(*os.File)
+	if !ok {
+		return fmt.Errorf("pty slave is %T, want *os.File", term.Input())
+	}
+	term.Emulator.Resize(cols, rows)
+	conn, err := slave.SyscallConn()
+	if err != nil {
+		return err
+	}
+	var ioctlErr error
+	if err := conn.Control(func(fd uintptr) {
+		ioctlErr = unix.IoctlSetWinsize(int(fd), unix.TIOCSWINSZ, &unix.Winsize{Row: uint16(rows), Col: uint16(cols)}) //nolint:gosec
+	}); err != nil {
+		return err
+	}
+	return ioctlErr
 }
 
 func writeTUIKeys(t *testing.T, term *vttest.Terminal, keys ...string) {
