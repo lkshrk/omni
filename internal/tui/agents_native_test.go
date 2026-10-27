@@ -163,7 +163,7 @@ func TestAgentsNativeSectionIsLastAndEveryCursorIndexResolves(t *testing.T) {
 
 	view := stripANSIEscapeSequences(m.viewSkillsBody())
 	last := -1
-	for _, title := range []string{"Packages", "MCP servers", "LSP servers", agentsNativeSectionTitle} {
+	for _, title := range []string{"Plugins", "MCP servers", "LSP servers", agentsNativeSectionTitle} {
 		at := strings.Index(view, title)
 		if at <= last {
 			t.Fatalf("section %q renders at %d, out of cursor order:\n%s", title, at, view)

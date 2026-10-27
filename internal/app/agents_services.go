@@ -26,6 +26,7 @@ type AgentsServiceRow struct {
 	Targets        []string
 	Status         AgentsPackageStatus
 	SyncActionable bool
+	Unmanaged      bool
 }
 
 type AgentsStatus struct {
@@ -203,6 +204,7 @@ func joinAPMServices(in agentsServiceInput) []AgentsServiceRow {
 		rows = append(rows, AgentsServiceRow{
 			Name:      name,
 			Detail:    "unmanaged",
+			Unmanaged: true,
 			Harnesses: in.deployed[name],
 			Targets:   in.deployed[name],
 			Status:    AgentsPackageOrphaned,

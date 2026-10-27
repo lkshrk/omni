@@ -182,7 +182,7 @@ func TestAgentsStatusSurfacesUnmanagedHarnessEntries(t *testing.T) {
 		t.Fatal(err)
 	}
 	unmanaged := serviceRow(t, status.MCP, "hand-added")
-	if unmanaged.Status != AgentsPackageOrphaned || unmanaged.Detail != "unmanaged" {
+	if unmanaged.Status != AgentsPackageOrphaned || unmanaged.Detail != "unmanaged" || !unmanaged.Unmanaged {
 		t.Fatalf("unmanaged row = %+v", unmanaged)
 	}
 	if got := agentsTargetsForTest(unmanaged); got != "claude,codex,omp" {

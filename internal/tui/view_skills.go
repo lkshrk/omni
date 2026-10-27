@@ -103,13 +103,6 @@ func agentsPackageDetails(row app.AgentsPackageRow) []string {
 	return out
 }
 
-func agentsPackageVersion(row app.AgentsPackageRow) string {
-	if row.UpdateAvailable && row.LatestVersion != "" {
-		return compactVersion(row.Version) + " → " + compactVersion(row.LatestVersion)
-	}
-	return row.Version
-}
-
 const agentsNativeSectionTitle = "Not managed by APM"
 
 func agentsNativeDetail(row app.AgentsNativeRow) string {
@@ -504,14 +497,16 @@ func agentsReadinessGuidanceParts(m Model) (cause, remedy string) {
 	}
 }
 
-// attribute is the one thing that identifies a row inside its section: a package's author, a service's transport, a native artifact's kind.
+// contents says what a row is and means the same thing in every section; publisher is the first to give way.
 type agentsColWidths struct {
-	name, attribute, version, targets int
+	name, publisher, contents, state, version, targets int
 }
 
 var agentsTableColumns = []tableColumn{
 	{key: "name", seed: 20, align: rowCellAlignLeft},
-	{key: "attribute", align: rowCellAlignRight},
+	{key: "publisher", align: rowCellAlignRight},
+	{key: "contents", align: rowCellAlignRight},
+	{key: "state", align: rowCellAlignRight},
 	{key: "version", align: rowCellAlignRight},
 	{key: "targets", align: rowCellAlignRight},
 }
@@ -519,13 +514,15 @@ var agentsTableColumns = []tableColumn{
 // name gives up its comfortable width first but is crushed last; the
 // right-hand columns may collapse away entirely.
 var agentsShrinkLadder = []tableShrinkStep{
-	shrinkStep("attribute", 12),
+	shrinkStep("publisher", 0),
+	shrinkStep("contents", 12),
 	shrinkStep("name", 12),
 	shrinkStep("targets", 6),
 	shrinkStep("version", 7),
-	shrinkStep("attribute", 0),
+	shrinkStep("contents", 0),
 	shrinkStep("targets", 0),
 	shrinkStep("version", 0),
+	shrinkStep("state", 0),
 	shrinkStep("name", 8),
 }
 
@@ -535,48 +532,84 @@ func agentsColumnByKey(key string) tableColumn {
 	return agentsColumnsByKey[key]
 }
 
-type agentsRowCells struct{ name, attribute, version, targets string }
+// state is the management status of a service row.
+type agentsRowCells struct {
+	name, publisher, contents, version, latest, state, targets string
+	status                                                     app.AgentsPackageStatus
+}
 
-func agentsMeasuredRows(m Model) []agentsRowCells {
-	var rows []agentsRowCells
-	for _, row := range m.agentsVisiblePackages() {
-		rows = append(rows, agentsRowCells{row.Name, agentsRowAuthor(row), agentsPackageVersion(row), agentsTargetsText(row.Targets)})
+func agentsPackageCells(row app.AgentsPackageRow) agentsRowCells {
+	return agentsRowCells{name: row.Name, publisher: agentsRowAuthor(row), contents: row.Contents(), version: row.Version,
+		latest: row.LatestVersion, targets: agentsTargetsText(row.Targets), status: row.Status}
+}
+
+func agentsServiceCells(row app.AgentsServiceRow, contents string) agentsRowCells {
+	cells := agentsRowCells{name: row.Name, contents: contents, targets: agentsTargetsText(row.Targets), status: row.Status}
+	if row.Unmanaged {
+		cells.state = "unmanaged"
 	}
-	for _, group := range [][]app.AgentsServiceRow{m.agentsVisibleServices(m.agentsMCPRows), m.agentsVisibleServices(m.agentsLSPRows)} {
-		for _, row := range group {
-			rows = append(rows, agentsRowCells{row.Name, row.Detail, "", agentsTargetsText(row.Targets)})
-		}
+	return cells
+}
+
+func agentsNativeCells(row app.AgentsNativeRow) agentsRowCells {
+	return agentsRowCells{name: row.Identity, contents: agentsNativeDetail(row), targets: row.Target, status: agentsNativeStatus(row)}
+}
+
+func agentsRefCells(ref agentsRowRef) agentsRowCells {
+	switch ref.kind {
+	case agentsRowService:
+		return agentsServiceCells(ref.service, ref.serviceKind)
+	case agentsRowNative:
+		return agentsNativeCells(ref.native)
+	default:
+		return agentsPackageCells(ref.pkg)
 	}
-	for _, row := range m.agentsVisibleNatives() {
-		rows = append(rows, agentsRowCells{row.Identity, agentsNativeDetail(row), "", row.Target})
+}
+
+func (c agentsRowCells) measuredVersion() string {
+	if c.latest != "" {
+		return compactVersion(c.version) + " → " + compactVersion(c.latest)
 	}
-	return rows
+	return c.version
 }
 
 func agentsColumnWidths(m Model) agentsColWidths {
-	rows := agentsMeasuredRows(m)
+	var rows []agentsRowCells
+	for _, section := range m.agentsRowSections() {
+		for _, ref := range section.rows {
+			rows = append(rows, agentsRefCells(ref))
+		}
+	}
 	widths := measureTableColumns(agentsTableColumns, len(rows), func(i int, key string) string {
 		switch key {
 		case "name":
 			return rows[i].name
-		case "attribute":
-			return rows[i].attribute
+		case "publisher":
+			return rows[i].publisher
+		case "contents":
+			return rows[i].contents
+		case "state":
+			return rows[i].state
 		case "version":
-			return rows[i].version
+			return rows[i].measuredVersion()
 		default:
 			return rows[i].targets
 		}
 	})
-	cols := agentsColWidths{name: widths["name"], attribute: widths["attribute"], version: widths["version"], targets: widths["targets"]}
+	cols := agentsWidthsOf(widths)
 	layout := agentsTableLayout()
 	over := layout.iconWidth + layout.iconGap + cols.name + layout.columnGap + agentsRightGroupWidth(cols) - rowAvailableWidth(m.width)
 	widths.fit(over, agentsShrinkLadder...)
-	return agentsColWidths{name: widths["name"], attribute: widths["attribute"], version: widths["version"], targets: widths["targets"]}
+	return agentsWidthsOf(widths)
+}
+
+func agentsWidthsOf(widths tableWidths) agentsColWidths {
+	return agentsColWidths{name: widths["name"], publisher: widths["publisher"], contents: widths["contents"], state: widths["state"], version: widths["version"], targets: widths["targets"]}
 }
 
 func agentsRightGroupWidth(cols agentsColWidths) int {
 	width := 0
-	for _, w := range []int{cols.attribute, cols.version, cols.targets} {
+	for _, w := range []int{cols.publisher, cols.contents, cols.state, cols.version, cols.targets} {
 		if w > 0 {
 			width += w + listColumnGap
 		}
@@ -584,28 +617,33 @@ func agentsRightGroupWidth(cols agentsColWidths) int {
 	return max(width-listColumnGap, 0)
 }
 
-func (m Model) agentsRowLine(name, attribute, version, latest, targets string, status app.AgentsPackageStatus, cols agentsColWidths, selected bool) string {
+func (m Model) agentsRowLine(cells agentsRowCells, cols agentsColWidths, selected bool) string {
 	p := m.palette
-	glyph, glyphStyle := agentsStatusGlyph(p, status)
-	if latest != "" {
+	glyph, glyphStyle := agentsStatusGlyph(p, cells.status)
+	if cells.latest != "" {
 		glyph, glyphStyle = iconOutdated, p.styleOutdated
 	}
 	nameStyle := p.styleNormal
 	if selected {
 		nameStyle = p.styleActiveText
 	}
-	widths := tableWidths{"name": cols.name, "attribute": cols.attribute, "version": cols.version, "targets": cols.targets}
-	right := []rowCell{widths.cell(agentsColumnByKey("attribute"), attribute, p.styleHelp)}
-	if latest != "" && cols.version > 0 {
-		current, upgrade := fitUpgradeVersionText(compactVersion(version), compactVersion(latest), cols.version)
-		right = append(right, rightCell(p.styleVersionMuted.Render(current)+p.styleOutdated.Render(upgrade), cols.version))
-	} else {
-		right = append(right, widths.cell(agentsColumnByKey("version"), version, p.styleVersion))
+	widths := tableWidths{"name": cols.name, "publisher": cols.publisher, "contents": cols.contents, "state": cols.state, "version": cols.version, "targets": cols.targets}
+	right := []rowCell{
+		widths.cell(agentsColumnByKey("publisher"), cells.publisher, p.styleHelp),
+		widths.cell(agentsColumnByKey("contents"), cells.contents, p.styleHelp),
+		widths.cell(agentsColumnByKey("state"), cells.state, p.styleOrphan),
 	}
-	right = append(right, widths.cell(agentsColumnByKey("targets"), targets, p.styleProvider))
+	switch {
+	case cells.latest != "" && cols.version > 0:
+		current, upgrade := fitUpgradeVersionText(compactVersion(cells.version), compactVersion(cells.latest), cols.version)
+		right = append(right, rightCell(p.styleVersionMuted.Render(current)+p.styleOutdated.Render(upgrade), cols.version))
+	default:
+		right = append(right, widths.cell(agentsColumnByKey("version"), cells.version, p.styleVersion))
+	}
+	right = append(right, widths.cell(agentsColumnByKey("targets"), cells.targets, p.styleProvider))
 	left := []rowCell{
 		leftCell(glyphStyle.Render(glyph), listIconWidth),
-		widths.cell(agentsColumnByKey("name"), name, nameStyle),
+		widths.cell(agentsColumnByKey("name"), cells.name, nameStyle),
 	}
 	return listRowPrefix(p, selected) + renderTableRowBody(agentsTableLayout(), left, right, rowAvailableWidth(m.width))
 }
@@ -639,43 +677,20 @@ func (m Model) agentsSectionedTab() sectionedTab {
 	if m.agentsRegistryMode {
 		return m.viewAgentsRegistryBody(section)
 	}
-	packages := m.agentsVisiblePackages()
-	updateCount := 0
-	for updateCount < len(packages) && packages[updateCount].UpdateAvailable {
-		updateCount++
-	}
 	var sections []sectionedTabSection
-	for _, group := range []struct {
-		title string
-		rows  []app.AgentsPackageRow
-	}{{"Updates Available", packages[:updateCount]}, {"Packages", packages[updateCount:]}} {
+	for _, group := range m.agentsRowSections() {
 		rows := group.rows
 		sections = append(sections, section(group.title, len(rows), func(i int, selected bool) string {
-			row := rows[i]
-			return m.agentsRowLine(row.Name, agentsRowAuthor(row), row.Version, row.LatestVersion, agentsTargetsText(row.Targets), row.Status, cols, selected)
+			return m.agentsRowLine(agentsRefCells(rows[i]), cols, selected)
 		}, func(i int) ([]string, []string) {
-			row := rows[i]
-			return m.agentsRowErrorLines(agentsUninstallSpec(row)), m.agentsDetailBlock(row.Description, agentsPackageDetails(row), hintCtxAgentsRow)
-		}))
-	}
-	for _, group := range []struct {
-		title string
-		rows  []app.AgentsServiceRow
-	}{{"MCP servers", m.agentsVisibleServices(m.agentsMCPRows)}, {"LSP servers", m.agentsVisibleServices(m.agentsLSPRows)}} {
-		rows := group.rows
-		sections = append(sections, section(group.title, len(rows), func(i int, selected bool) string {
-			row := rows[i]
-			return m.agentsRowLine(row.Name, row.Detail, "", "", agentsTargetsText(row.Targets), row.Status, cols, selected)
-		}, func(i int) ([]string, []string) {
-			return nil, m.agentsDetailBlock("", agentsServiceDetails(rows[i]), hintCtxAgentsRow)
-		}))
-	}
-	if natives := m.agentsVisibleNatives(); len(natives) > 0 {
-		sections = append(sections, section(agentsNativeSectionTitle, len(natives), func(i int, selected bool) string {
-			row := natives[i]
-			return m.agentsRowLine(row.Identity, agentsNativeDetail(row), "", "", row.Target, agentsNativeStatus(row), cols, selected)
-		}, func(i int) ([]string, []string) {
-			return nil, m.agentsDetailBlock("", agentsNativeDetails(natives[i]), hintCtxAgentsNativeRow)
+			switch ref := rows[i]; ref.kind {
+			case agentsRowService:
+				return nil, m.agentsDetailBlock("", agentsServiceDetails(ref.service), hintCtxAgentsRow)
+			case agentsRowNative:
+				return nil, m.agentsDetailBlock("", agentsNativeDetails(ref.native), hintCtxAgentsNativeRow)
+			default:
+				return m.agentsRowErrorLines(agentsUninstallSpec(ref.pkg)), m.agentsDetailBlock(ref.pkg.Description, agentsPackageDetails(ref.pkg), hintCtxAgentsRow)
+			}
 		}))
 	}
 	sections = slices.DeleteFunc(sections, func(s sectionedTabSection) bool { return len(s.rows) == 0 })

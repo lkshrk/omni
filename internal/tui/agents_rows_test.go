@@ -28,9 +28,9 @@ func agentsRowsModel(t *testing.T) Model {
 	m.cursorHidden = false
 	m.agentsRowsKnown = true
 	m.agentsRows = []app.AgentsPackageRow{
-		{Name: "alpha", Source: "acme/alpha", Version: "1.2.3", Targets: []string{"claude"}, DeployedFiles: 12, Status: app.AgentsPackageInstalled},
-		{Name: "bravo", Source: "acme/bravo", Status: app.AgentsPackageMissing},
-		{Name: "ghost", Source: "acme/ghost", Version: "0.9.0", Status: app.AgentsPackageOrphaned},
+		{Name: "alpha", Source: "acme/alpha", PackageType: "marketplace_plugin", Version: "1.2.3", Targets: []string{"claude"}, DeployedFiles: 12, Status: app.AgentsPackageInstalled},
+		{Name: "bravo", Source: "acme/bravo", PackageType: "marketplace_plugin", Status: app.AgentsPackageMissing},
+		{Name: "ghost", Source: "acme/ghost", PackageType: "marketplace_plugin", Version: "0.9.0", Status: app.AgentsPackageOrphaned},
 	}
 	return m
 }
@@ -51,7 +51,7 @@ func agentsSectionedModel(t *testing.T) Model {
 func TestAgentsViewRendersServiceSections(t *testing.T) {
 	m := agentsSectionedModel(t)
 	view := m.viewSkillsBody()
-	for _, want := range []string{"Packages", "MCP servers", "LSP servers", "litellm-tools", "http", "ghost-mcp", "gopls"} {
+	for _, want := range []string{"Plugins", "MCP servers", "LSP servers", "litellm-tools", "mcp", "ghost-mcp", "gopls", "lsp"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("view missing %q:\n%s", want, view)
 		}
@@ -338,7 +338,7 @@ func TestAgentsUpdatesSectionIsFirstAndNavigationUsesItsStableOrder(t *testing.T
 		t.Fatalf("visible order = %v", got)
 	}
 	view := stripANSIEscapeSequences(m.viewSkillsBody())
-	updates, packages := strings.Index(view, "Updates Available"), strings.Index(view, "Packages")
+	updates, packages := strings.Index(view, "Updates available"), strings.Index(view, "Plugins")
 	if updates < 0 || packages < 0 || updates >= packages || strings.Index(view, "bravo") >= strings.Index(view, "alpha") {
 		t.Fatalf("sections not update-first:\n%s", view)
 	}
@@ -908,10 +908,10 @@ func agentsRowOpModel(t *testing.T) (Model, *executor.MatchMockExecutor) {
 	m.ctx = context.Background()
 	m.cursorHidden = false
 	m.agentsRows = []app.AgentsPackageRow{
-		{Name: "floating", Source: "acme/floating", Version: "1.0.0", Status: app.AgentsPackageInstalled},
-		{Name: "pinned", Source: "acme/pinned", Ref: "v2", Version: "2.0.0", Status: app.AgentsPackageInstalled},
-		{Name: "local", Source: "_local/local", LocalPath: "/src/local", Version: "1.0.0", Status: app.AgentsPackageInstalled},
-		{Name: "stray", Source: "acme/stray", Status: app.AgentsPackageOrphaned},
+		{Name: "floating", Source: "acme/floating", PackageType: "marketplace_plugin", Version: "1.0.0", Status: app.AgentsPackageInstalled},
+		{Name: "pinned", Source: "acme/pinned", PackageType: "marketplace_plugin", Ref: "v2", Version: "2.0.0", Status: app.AgentsPackageInstalled},
+		{Name: "local", Source: "_local/local", PackageType: "marketplace_plugin", LocalPath: "/src/local", Version: "1.0.0", Status: app.AgentsPackageInstalled},
+		{Name: "stray", Source: "acme/stray", PackageType: "marketplace_plugin", Status: app.AgentsPackageOrphaned},
 	}
 	m.agentsMCPRows = []app.AgentsServiceRow{{Name: "mcp-one", Detail: "stdio", Status: app.AgentsPackageInstalled}}
 	m.agentsLSPRows = nil
@@ -981,7 +981,7 @@ func agentsResolvedRowModel(t *testing.T) (Model, *executor.MatchMockExecutor) {
 	t.Helper()
 	m, mock := agentsRowOpModel(t)
 	m.agentsRows = append(m.agentsRows, app.AgentsPackageRow{
-		Name: "child", Source: "acme/child", Version: "1.0.0",
+		Name: "child", Source: "acme/child", Version: "1.0.0", PackageType: "marketplace_plugin",
 		ResolvedBy: "ai-plugins", Status: app.AgentsPackageInstalled,
 	})
 	m.agentsCursor = len(m.agentsRows) - 1
@@ -1259,7 +1259,7 @@ func TestAgentsRegistryModeRendersAndMarksInstalled(t *testing.T) {
 			t.Fatalf("registry view missing %q:\n%s", want, view)
 		}
 	}
-	if strings.Contains(view, "Packages") || strings.Contains(view, "MCP servers") {
+	if strings.Contains(view, "Plugins") || strings.Contains(view, "MCP servers") {
 		t.Fatalf("normal sections still rendered:\n%s", view)
 	}
 }
@@ -1311,7 +1311,7 @@ func TestAgentsRegistryBlocksInstalledEntriesAndExits(t *testing.T) {
 	if m.agentsRegistryMode || m.agentsSearchActive || len(m.agentsRegistry) != 0 {
 		t.Fatalf("esc did not leave registry mode: %+v", m.agentsRegistryMode)
 	}
-	if !strings.Contains(m.viewSkillsBody(), "Packages") {
+	if !strings.Contains(m.viewSkillsBody(), "Plugins") {
 		t.Fatalf("normal sections not restored:\n%s", m.viewSkillsBody())
 	}
 }
