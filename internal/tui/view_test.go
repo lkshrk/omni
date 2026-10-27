@@ -924,7 +924,7 @@ func TestRenderDots_TwoGroupsShowTwoPills(t *testing.T) {
 func TestRenderDots_ThreeGroupsNarrowWidthCollapsesToHostPlusCount(t *testing.T) {
 	t.Setenv("OMNI_HOSTNAME", "laptop")
 	m := baseModel(nil)
-	m.width = 50
+	m.width = 60
 	setDotsRepoForTest(&m, "/home/user/dotfiles")
 	m.dotsLoaded = true
 	m.hostInfo = &app.HostInfo{
@@ -950,6 +950,31 @@ func TestRenderDots_ThreeGroupsNarrowWidthCollapsesToHostPlusCount(t *testing.T)
 		if strings.Contains(line, "nvim") && strings.Contains(line, "[work]") {
 			t.Fatalf("dots row should collapse rather than show reusable pill in full:\n%s", out)
 		}
+	}
+}
+
+func TestRenderDots_ThreeGroupsVeryNarrowKeepsTargetPath(t *testing.T) {
+	t.Setenv("OMNI_HOSTNAME", "laptop")
+	m := baseModel(nil)
+	m.width = 50
+	setDotsRepoForTest(&m, "/home/user/dotfiles")
+	m.dotsLoaded = true
+	m.hostInfo = &app.HostInfo{
+		Active: "laptop",
+		Hosts: map[string]config.HostAssignment{
+			"laptop": {Groups: []string{"laptop", "work", "base"}},
+		},
+	}
+	m.dotMemberships = map[string][]string{"nvim": {"laptop", "work", "base"}}
+	m.dotsEntries = []app.DotStatus{{
+		Name: "nvim", TargetPath: "~/.config/nvim", State: dots.StateSynced, FileCount: 1,
+	}}
+	out := stripANSIEscapeSequences(renderDots(m))
+	if !strings.Contains(out, "~/.config/nvim") {
+		t.Fatalf("narrow dots row lost the target path:\n%s", out)
+	}
+	if strings.Contains(out, "[laptop] +2") {
+		t.Fatalf("narrow dots row kept the full host pill instead of the path:\n%s", out)
 	}
 }
 
