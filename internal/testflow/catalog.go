@@ -739,8 +739,10 @@ var validLanes = map[string]bool{
 	"script-tests": true, "unit-app": true, "unit-cli": true, "unit-tui": true, "unit-remaining": true,
 	"apm-platform-contracts": true, "onboarding-unit": true, "docker-cli-ad": true, "docker-cli-rest": true,
 	"docker-non-cli": true, "docker-providers": true, "docker-apm": true, "docker-onboarding": true,
-	"docker-full":    true,
-	"docker-realism": true,
+	"docker-full":        true,
+	"docker-realism":     true,
+	"docker-realism-cli": true,
+	"docker-realism-tui": true,
 }
 
 func validLane(lane string) bool { return validLanes[lane] }

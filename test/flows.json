@@ -63,7 +63,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -84,7 +84,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -102,7 +102,7 @@
               "package": "github.com/lkshrk/omni/integration_tests",
               "test": "TestCLIAndTUIReconcileProduceEquivalentCompositeState",
               "tags": ["integration"],
-              "lane": "docker-realism",
+              "lane": "docker-realism-tui",
               "os": ["linux"]
             }
           }]
@@ -174,7 +174,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -192,7 +192,7 @@
               "package": "github.com/lkshrk/omni/integration_tests",
               "test": "TestCLIAndTUIToolsSyncPaletteProduceEquivalentSemanticState",
               "tags": ["integration"],
-              "lane": "docker-realism",
+              "lane": "docker-realism-tui",
               "os": ["linux"]
             }
           }]
@@ -207,7 +207,7 @@
               "package": "github.com/lkshrk/omni/integration_tests",
               "test": "TestCLIAndTUIToolsSyncPaletteProduceEquivalentSemanticState",
               "tags": ["integration"],
-              "lane": "docker-realism",
+              "lane": "docker-realism-tui",
               "os": ["linux"]
             }
           }]
@@ -302,7 +302,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -316,7 +316,7 @@
                 "package": "github.com/lkshrk/omni/integration_tests",
                 "test": "TestCLIBinaryExactVersionPackageSpecsAreIdempotent",
                 "tags": ["integration"],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": ["linux"]
               }
             }
@@ -335,7 +335,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -350,7 +350,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -371,7 +371,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -447,7 +447,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -468,7 +468,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -489,7 +489,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -587,7 +587,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -608,7 +608,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -623,7 +623,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -644,7 +644,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -720,7 +720,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -741,7 +741,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -762,7 +762,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -837,7 +837,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -858,7 +858,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -879,7 +879,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -938,7 +938,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -956,7 +956,7 @@
               "package": "github.com/lkshrk/omni/integration_tests",
               "test": "TestCLIAndTUIToolsClaimProduceEquivalentSemanticState",
               "tags": ["integration"],
-              "lane": "docker-realism",
+              "lane": "docker-realism-tui",
               "os": ["linux"]
             }
           }]
@@ -971,7 +971,7 @@
               "package": "github.com/lkshrk/omni/integration_tests",
               "test": "TestCLIAndTUIToolsClaimProduceEquivalentSemanticState",
               "tags": ["integration"],
-              "lane": "docker-realism",
+              "lane": "docker-realism-tui",
               "os": ["linux"]
             }
           }]
@@ -1043,7 +1043,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -1064,7 +1064,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -1083,7 +1083,7 @@
                 "package": "github.com/lkshrk/omni/integration_tests",
                 "test": "TestCLIAndTUIToolsIgnoreProduceEquivalentSemanticState",
                 "tags": ["integration"],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": ["linux"]
               }
             }
@@ -1140,7 +1140,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -1161,7 +1161,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -1182,7 +1182,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -1241,7 +1241,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -1259,7 +1259,7 @@
               "package": "github.com/lkshrk/omni/integration_tests",
               "test": "TestCLIAndTUIToolsPinProviderProduceEquivalentSemanticState",
               "tags": ["integration"],
-              "lane": "docker-realism",
+              "lane": "docker-realism-tui",
               "os": ["linux"]
             }
           }]
@@ -1274,7 +1274,7 @@
               "package": "github.com/lkshrk/omni/integration_tests",
               "test": "TestCLIAndTUIToolsPinProviderProduceEquivalentSemanticState",
               "tags": ["integration"],
-              "lane": "docker-realism",
+              "lane": "docker-realism-tui",
               "os": ["linux"]
             }
           }]
@@ -1330,7 +1330,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -1348,7 +1348,7 @@
               "package": "github.com/lkshrk/omni/integration_tests",
               "test": "TestCLIAndTUIToolsReinstallDefaultProduceEquivalentSemanticState",
               "tags": ["integration"],
-              "lane": "docker-realism",
+              "lane": "docker-realism-tui",
               "os": ["linux"]
             }
           }]
@@ -1363,7 +1363,7 @@
               "package": "github.com/lkshrk/omni/integration_tests",
               "test": "TestCLIAndTUIToolsReinstallDefaultProduceEquivalentSemanticState",
               "tags": ["integration"],
-              "lane": "docker-realism",
+              "lane": "docker-realism-tui",
               "os": ["linux"]
             }
           }]
@@ -1419,7 +1419,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -1437,7 +1437,7 @@
               "package": "github.com/lkshrk/omni/integration_tests",
               "test": "TestCLIAndTUIToolMigrateNvmRowProduceEquivalentSemanticState",
               "tags": ["integration"],
-              "lane": "docker-realism",
+              "lane": "docker-realism-tui",
               "os": ["linux"]
             }
           }]
@@ -1452,7 +1452,7 @@
               "package": "github.com/lkshrk/omni/integration_tests",
               "test": "TestCLIAndTUIToolMigrateNvmRowProduceEquivalentSemanticState",
               "tags": ["integration"],
-              "lane": "docker-realism",
+              "lane": "docker-realism-tui",
               "os": ["linux"]
             }
           }]
@@ -1555,7 +1555,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -1569,7 +1569,7 @@
                 "package": "github.com/lkshrk/omni/integration_tests",
                 "test": "TestCLIBinaryExactVersionPackageSpecsAreIdempotent",
                 "tags": ["integration"],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": ["linux"]
               }
             }
@@ -1588,7 +1588,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -1609,7 +1609,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -1697,7 +1697,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -1715,7 +1715,7 @@
               "package": "github.com/lkshrk/omni/integration_tests",
               "test": "TestCLIAndTUIToolsConsolidateProduceEquivalentSemanticState",
               "tags": ["integration"],
-              "lane": "docker-realism",
+              "lane": "docker-realism-tui",
               "os": ["linux"]
             }
           }]
@@ -1730,7 +1730,7 @@
               "package": "github.com/lkshrk/omni/integration_tests",
               "test": "TestCLIAndTUIToolsConsolidateProduceEquivalentSemanticState",
               "tags": ["integration"],
-              "lane": "docker-realism",
+              "lane": "docker-realism-tui",
               "os": ["linux"]
             }
           }]
@@ -1786,7 +1786,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -1819,7 +1819,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -1835,7 +1835,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -1856,7 +1856,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -1872,7 +1872,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -1893,7 +1893,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -1911,7 +1911,7 @@
               "package": "github.com/lkshrk/omni/integration_tests",
               "test": "TestCLIAndTUIToolsFallbackProduceEquivalentResolvedRecipe",
               "tags": ["integration"],
-              "lane": "docker-realism",
+              "lane": "docker-realism-tui",
               "os": ["linux"]
             }
           }]
@@ -1967,7 +1967,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -1988,7 +1988,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -2006,7 +2006,7 @@
               "package": "github.com/lkshrk/omni/integration_tests",
               "test": "TestCLIAndTUIToolsDeleteSpecProduceEquivalentSemanticState",
               "tags": ["integration"],
-              "lane": "docker-realism",
+              "lane": "docker-realism-tui",
               "os": ["linux"]
             }
           }]
@@ -2062,7 +2062,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -2117,7 +2117,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -2150,7 +2150,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -2171,7 +2171,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -2243,7 +2243,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -2298,7 +2298,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -2370,7 +2370,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -2391,7 +2391,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -2406,7 +2406,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -2422,7 +2422,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -2443,7 +2443,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -2480,7 +2480,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -2501,7 +2501,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -2522,7 +2522,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -2541,7 +2541,7 @@
                 "package": "github.com/lkshrk/omni/integration_tests",
                 "test": "TestCLIAndTUIDotsRefreshPreserveEquivalentBrokenLinkState",
                 "tags": ["integration"],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": ["linux"]
               }
             }
@@ -2614,7 +2614,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -2632,7 +2632,7 @@
               "package": "github.com/lkshrk/omni/integration_tests",
               "test": "TestCLIAndTUIDotsAddProduceEquivalentSemanticState",
               "tags": ["integration"],
-              "lane": "docker-realism",
+              "lane": "docker-realism-tui",
               "os": ["linux"]
             }
           }]
@@ -2647,7 +2647,7 @@
               "package": "github.com/lkshrk/omni/integration_tests",
               "test": "TestCLIAndTUIDotsAddProduceEquivalentSemanticState",
               "tags": ["integration"],
-              "lane": "docker-realism",
+              "lane": "docker-realism-tui",
               "os": ["linux"]
             }
           }]
@@ -2703,7 +2703,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -2724,7 +2724,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -2745,7 +2745,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -2804,7 +2804,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -2822,7 +2822,7 @@
               "package": "github.com/lkshrk/omni/integration_tests",
               "test": "TestCLIAndTUIDotsVariantCreateProduceEquivalentSemanticState",
               "tags": ["integration"],
-              "lane": "docker-realism",
+              "lane": "docker-realism-tui",
               "os": ["linux"]
             }
           }]
@@ -2837,7 +2837,7 @@
               "package": "github.com/lkshrk/omni/integration_tests",
               "test": "TestCLIAndTUIDotsVariantCreateProduceEquivalentSemanticState",
               "tags": ["integration"],
-              "lane": "docker-realism",
+              "lane": "docker-realism-tui",
               "os": ["linux"]
             }
           }]
@@ -2909,7 +2909,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -2930,7 +2930,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -2951,7 +2951,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -3010,7 +3010,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -3031,7 +3031,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -3046,7 +3046,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -3067,7 +3067,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -3126,7 +3126,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -3147,7 +3147,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -3168,7 +3168,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -3205,7 +3205,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -3226,7 +3226,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -3245,7 +3245,7 @@
                 "package": "github.com/lkshrk/omni/integration_tests",
                 "test": "TestCLIAndTUIDotsResolveAllUseRepoProduceEquivalentSemanticState",
                 "tags": ["integration"],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": ["linux"]
               }
             }
@@ -3262,7 +3262,7 @@
                 "package": "github.com/lkshrk/omni/integration_tests",
                 "test": "TestCLIAndTUIDotsResolveAllUseRepoProduceEquivalentSemanticState",
                 "tags": ["integration"],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": ["linux"]
               }
             }
@@ -3297,7 +3297,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -3318,7 +3318,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -3337,7 +3337,7 @@
                 "package": "github.com/lkshrk/omni/integration_tests",
                 "test": "TestCLIAndTUIDotsResolveAllUseLocalProduceEquivalentSemanticState",
                 "tags": ["integration"],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": ["linux"]
               }
             }
@@ -3354,7 +3354,7 @@
                 "package": "github.com/lkshrk/omni/integration_tests",
                 "test": "TestCLIAndTUIDotsResolveAllUseLocalProduceEquivalentSemanticState",
                 "tags": ["integration"],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": ["linux"]
               }
             }
@@ -3428,7 +3428,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -3449,7 +3449,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -3470,7 +3470,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -3529,7 +3529,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -3550,7 +3550,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -3571,7 +3571,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -3630,7 +3630,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -3651,7 +3651,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -3672,7 +3672,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -3731,7 +3731,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -3749,7 +3749,7 @@
               "package": "github.com/lkshrk/omni/integration_tests",
               "test": "TestCLIAndTUIDotsPullPaletteProduceEquivalentSemanticState",
               "tags": ["integration"],
-              "lane": "docker-realism",
+              "lane": "docker-realism-tui",
               "os": ["linux"]
             }
           }]
@@ -3764,7 +3764,7 @@
               "package": "github.com/lkshrk/omni/integration_tests",
               "test": "TestCLIAndTUIDotsPullPaletteProduceEquivalentSemanticState",
               "tags": ["integration"],
-              "lane": "docker-realism",
+              "lane": "docker-realism-tui",
               "os": ["linux"]
             }
           }]
@@ -3820,7 +3820,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -3841,7 +3841,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -3862,7 +3862,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -3921,7 +3921,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -3939,7 +3939,7 @@
               "package": "github.com/lkshrk/omni/integration_tests",
               "test": "TestCLIAndTUIDotsPushPaletteProduceEquivalentSemanticState",
               "tags": ["integration"],
-              "lane": "docker-realism",
+              "lane": "docker-realism-tui",
               "os": ["linux"]
             }
           }]
@@ -3954,7 +3954,7 @@
               "package": "github.com/lkshrk/omni/integration_tests",
               "test": "TestCLIAndTUIDotsPushPaletteProduceEquivalentSemanticState",
               "tags": ["integration"],
-              "lane": "docker-realism",
+              "lane": "docker-realism-tui",
               "os": ["linux"]
             }
           }]
@@ -4010,7 +4010,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -4029,7 +4029,7 @@
                 "package": "github.com/lkshrk/omni/integration_tests",
                 "test": "TestCLIAndTUIDotsReminderProduceEquivalentServiceState",
                 "tags": ["integration"],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": ["linux"]
               }
             }
@@ -4046,7 +4046,7 @@
                 "package": "github.com/lkshrk/omni/integration_tests",
                 "test": "TestCLIAndTUIDotsReminderProduceEquivalentServiceState",
                 "tags": ["integration"],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": ["linux"]
               }
             }
@@ -4103,7 +4103,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -4158,7 +4158,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -4213,7 +4213,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -4268,7 +4268,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -4287,7 +4287,7 @@
                 "package": "github.com/lkshrk/omni/integration_tests",
                 "test": "TestCLIAndTUIDotsWatchProduceEquivalentServiceState",
                 "tags": ["integration"],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": ["linux"]
               }
             }
@@ -4303,7 +4303,7 @@
               "package": "github.com/lkshrk/omni/integration_tests",
               "test": "TestCLIAndTUIDotsWatchProduceEquivalentServiceState",
               "tags": ["integration"],
-              "lane": "docker-realism",
+              "lane": "docker-realism-tui",
               "os": ["linux"]
             }
           }]
@@ -4337,7 +4337,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -4358,7 +4358,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -4413,7 +4413,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -4468,7 +4468,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -4523,7 +4523,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -4538,7 +4538,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -4593,7 +4593,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -4614,7 +4614,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -4635,7 +4635,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -4694,7 +4694,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -4715,7 +4715,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -4736,7 +4736,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -4795,7 +4795,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -4816,7 +4816,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -4837,7 +4837,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -4896,7 +4896,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -4929,7 +4929,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -4950,7 +4950,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -5005,7 +5005,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -5026,7 +5026,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -5047,7 +5047,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -5106,7 +5106,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -5172,7 +5172,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -5227,7 +5227,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -5248,7 +5248,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -5269,7 +5269,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -5328,7 +5328,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -5349,7 +5349,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -5370,7 +5370,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -5429,7 +5429,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -5444,7 +5444,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -5465,7 +5465,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -5486,7 +5486,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -5545,7 +5545,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -5566,7 +5566,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -5587,7 +5587,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -5646,7 +5646,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -5667,7 +5667,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -5688,7 +5688,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -5747,7 +5747,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -5768,7 +5768,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -5789,7 +5789,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -5848,7 +5848,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -5903,7 +5903,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -5958,7 +5958,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -5979,7 +5979,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -6000,7 +6000,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -6099,7 +6099,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -6120,7 +6120,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -6141,7 +6141,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -6162,7 +6162,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -6199,7 +6199,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -6220,7 +6220,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -6241,7 +6241,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -6262,7 +6262,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -6299,7 +6299,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -6320,7 +6320,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -6353,7 +6353,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -6374,7 +6374,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -6395,7 +6395,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -6416,7 +6416,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -6453,7 +6453,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -6474,7 +6474,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -6495,7 +6495,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -6516,7 +6516,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -6553,7 +6553,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -6574,7 +6574,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -6595,7 +6595,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -6616,7 +6616,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -6721,7 +6721,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -6736,7 +6736,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -6814,7 +6814,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -6898,7 +6898,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -6919,7 +6919,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -6940,7 +6940,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -6992,7 +6992,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -7072,7 +7072,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -7088,7 +7088,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -7166,7 +7166,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -7199,7 +7199,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -7220,7 +7220,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -7253,7 +7253,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -7274,7 +7274,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -7307,7 +7307,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -7328,7 +7328,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -7361,7 +7361,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -7382,7 +7382,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -7437,7 +7437,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -7455,7 +7455,7 @@
               "package": "github.com/lkshrk/omni/integration_tests",
               "test": "TestCLIAndTUIReadOnlyQueriesProduceEquivalentSemanticObservations",
               "tags": ["integration"],
-              "lane": "docker-realism",
+              "lane": "docker-realism-tui",
               "os": ["linux"]
             }
           }]
@@ -7470,7 +7470,7 @@
               "package": "github.com/lkshrk/omni/integration_tests",
               "test": "TestCLIAndTUIReadOnlyQueriesProduceEquivalentSemanticObservations",
               "tags": ["integration"],
-              "lane": "docker-realism",
+              "lane": "docker-realism-tui",
               "os": ["linux"]
             }
           }]
@@ -7526,7 +7526,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -7541,7 +7541,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -7562,7 +7562,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -7583,7 +7583,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -7659,7 +7659,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -7680,7 +7680,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -7699,7 +7699,7 @@
                 "package": "github.com/lkshrk/omni/integration_tests",
                 "test": "TestCLIAndTUIReadOnlyQueriesProduceEquivalentSemanticObservations",
                 "tags": ["integration"],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": ["linux"]
               }
             }
@@ -7764,7 +7764,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -7785,7 +7785,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -7804,7 +7804,7 @@
                 "package": "github.com/lkshrk/omni/integration_tests",
                 "test": "TestCLIAndTUIReadOnlyQueriesProduceEquivalentSemanticObservations",
                 "tags": ["integration"],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": ["linux"]
               }
             }
@@ -7847,7 +7847,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -7868,7 +7868,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -7909,7 +7909,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -7930,7 +7930,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -7972,7 +7972,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -7993,7 +7993,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -8035,7 +8035,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -8056,7 +8056,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -8131,7 +8131,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -8146,7 +8146,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -8227,7 +8227,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -8294,7 +8294,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -8361,7 +8361,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -8428,7 +8428,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -8496,7 +8496,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -8564,7 +8564,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -8631,7 +8631,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -8674,7 +8674,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -8695,7 +8695,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -8737,7 +8737,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -8758,7 +8758,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -8800,7 +8800,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -8821,7 +8821,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -8862,7 +8862,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -8883,7 +8883,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -8924,7 +8924,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -8945,7 +8945,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -9008,7 +9008,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -9072,7 +9072,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -9134,7 +9134,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -9197,7 +9197,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -9260,7 +9260,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -9323,7 +9323,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -9386,7 +9386,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -9449,7 +9449,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -9512,7 +9512,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-cli",
                 "os": [
                   "linux"
                 ]
@@ -9564,7 +9564,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]
@@ -9598,7 +9598,7 @@
                 "tags": [
                   "integration"
                 ],
-                "lane": "docker-realism",
+                "lane": "docker-realism-tui",
                 "os": [
                   "linux"
                 ]

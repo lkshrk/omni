@@ -532,24 +532,28 @@ func verifyFileChecksum(path, expectedHex, name string) error {
 
 // binaryPath is tried as an exact entry name first, otherwise the first entry whose base name matches.
 func extractAndInstall(archivePath, archiveName, binaryName, binaryPath, destPath string) error {
+	return extractAndInstallWithLimit(archivePath, archiveName, binaryName, binaryPath, destPath, maxEntryBytes)
+}
+
+func extractAndInstallWithLimit(archivePath, archiveName, binaryName, binaryPath, destPath string, entryLimit int64) error {
 	lower := strings.ToLower(archiveName)
 	switch {
 	case strings.HasSuffix(lower, ".zip"):
-		return extractZip(archivePath, binaryName, binaryPath, destPath)
+		return extractZip(archivePath, binaryName, binaryPath, destPath, entryLimit)
 	case strings.HasSuffix(lower, ".tar.gz") || strings.HasSuffix(lower, ".tgz"):
-		return extractTarGz(archivePath, binaryName, binaryPath, destPath)
+		return extractTarGz(archivePath, binaryName, binaryPath, destPath, entryLimit)
 	case strings.HasSuffix(lower, ".tar.bz2"):
-		return extractTarBz2(archivePath, binaryName, binaryPath, destPath)
+		return extractTarBz2(archivePath, binaryName, binaryPath, destPath, entryLimit)
 	case strings.HasSuffix(lower, ".tar.xz"):
-		return extractTarXz(archivePath, binaryName, binaryPath, destPath)
+		return extractTarXz(archivePath, binaryName, binaryPath, destPath, entryLimit)
 	case strings.HasSuffix(lower, ".gz"):
-		return extractGzipBinary(archivePath, destPath)
+		return extractGzipBinary(archivePath, destPath, entryLimit)
 	default:
 		return installRawBinary(archivePath, destPath)
 	}
 }
 
-func extractZip(archivePath, binaryName, binaryPath, destPath string) error {
+func extractZip(archivePath, binaryName, binaryPath, destPath string, entryLimit int64) error {
 	r, err := zip.OpenReader(archivePath)
 	if err != nil {
 		return fmt.Errorf("open zip: %w", err)
@@ -562,28 +566,28 @@ func extractZip(archivePath, binaryName, binaryPath, destPath string) error {
 			continue
 		}
 		if binaryPath != "" && f.Name == binaryPath {
-			return installFromZipFile(f, destPath)
+			return installFromZipFile(f, destPath, entryLimit)
 		}
 		if filepath.Base(f.Name) == binaryName && fallbackFile == nil {
 			fallbackFile = f
 		}
 	}
 	if fallbackFile != nil {
-		return installFromZipFile(fallbackFile, destPath)
+		return installFromZipFile(fallbackFile, destPath, entryLimit)
 	}
 	return fmt.Errorf("binary %q not found in zip archive", binaryName)
 }
 
-func installFromZipFile(f *zip.File, destPath string) error {
+func installFromZipFile(f *zip.File, destPath string, entryLimit int64) error {
 	rc, err := f.Open()
 	if err != nil {
 		return fmt.Errorf("open zip entry: %w", err)
 	}
 	defer rc.Close() //nolint:errcheck
-	return writeExecutable(io.LimitReader(rc, maxEntryBytes+1), destPath)
+	return writeExecutableLimited(rc, destPath, entryLimit)
 }
 
-func extractTarGz(archivePath, binaryName, binaryPath, destPath string) error {
+func extractTarGz(archivePath, binaryName, binaryPath, destPath string, entryLimit int64) error {
 	f, err := os.Open(archivePath)
 	if err != nil {
 		return fmt.Errorf("open archive: %w", err)
@@ -596,20 +600,20 @@ func extractTarGz(archivePath, binaryName, binaryPath, destPath string) error {
 	}
 	defer gz.Close() //nolint:errcheck
 
-	return extractTarStream(tar.NewReader(gz), binaryName, binaryPath, destPath)
+	return extractTarStream(tar.NewReader(gz), binaryName, binaryPath, destPath, entryLimit)
 }
 
-func extractTarBz2(archivePath, binaryName, binaryPath, destPath string) error {
+func extractTarBz2(archivePath, binaryName, binaryPath, destPath string, entryLimit int64) error {
 	f, err := os.Open(archivePath)
 	if err != nil {
 		return fmt.Errorf("open archive: %w", err)
 	}
 	defer f.Close() //nolint:errcheck
 
-	return extractTarStream(tar.NewReader(bzip2.NewReader(f)), binaryName, binaryPath, destPath)
+	return extractTarStream(tar.NewReader(bzip2.NewReader(f)), binaryName, binaryPath, destPath, entryLimit)
 }
 
-func extractTarXz(archivePath, binaryName, binaryPath, destPath string) error {
+func extractTarXz(archivePath, binaryName, binaryPath, destPath string, entryLimit int64) error {
 	f, err := os.Open(archivePath)
 	if err != nil {
 		return fmt.Errorf("open archive: %w", err)
@@ -621,10 +625,10 @@ func extractTarXz(archivePath, binaryName, binaryPath, destPath string) error {
 		return fmt.Errorf("xz reader: %w", err)
 	}
 
-	return extractTarStream(tar.NewReader(xzr), binaryName, binaryPath, destPath)
+	return extractTarStream(tar.NewReader(xzr), binaryName, binaryPath, destPath, entryLimit)
 }
 
-func extractGzipBinary(archivePath, destPath string) error {
+func extractGzipBinary(archivePath, destPath string, entryLimit int64) error {
 	f, err := os.Open(archivePath)
 	if err != nil {
 		return fmt.Errorf("open archive: %w", err)
@@ -637,11 +641,11 @@ func extractGzipBinary(archivePath, destPath string) error {
 	}
 	defer gz.Close() //nolint:errcheck
 
-	return writeExecutable(io.LimitReader(gz, maxEntryBytes+1), destPath)
+	return writeExecutableLimited(gz, destPath, entryLimit)
 }
 
 // Exact binaryPath match wins; otherwise the first name match is buffered and installed after iteration.
-func extractTarStream(tr *tar.Reader, binaryName, binaryPath, destPath string) error {
+func extractTarStream(tr *tar.Reader, binaryName, binaryPath, destPath string, entryLimit int64) error {
 	// Buffered so iteration can continue in case an exact-path match appears later in the archive.
 	tmpDir := filepath.Dir(destPath)
 	var bufPath string
@@ -666,7 +670,7 @@ func extractTarStream(tr *tar.Reader, binaryName, binaryPath, destPath string) e
 
 		base := filepath.Base(hdr.Name)
 		if binaryPath != "" && hdr.Name == binaryPath {
-			return writeExecutable(io.LimitReader(tr, maxEntryBytes+1), destPath)
+			return writeExecutableLimited(tr, destPath, entryLimit)
 		}
 		if base == binaryName && bufPath == "" {
 			tmp, err := os.CreateTemp(tmpDir, ".omni-tar-*")
@@ -674,14 +678,14 @@ func extractTarStream(tr *tar.Reader, binaryName, binaryPath, destPath string) e
 				return fmt.Errorf("buffer tar entry: %w", err)
 			}
 			bufPath = tmp.Name()
-			n, err := io.Copy(tmp, io.LimitReader(tr, maxEntryBytes+1))
+			n, err := io.Copy(tmp, io.LimitReader(tr, entryLimit+1))
 			if err != nil {
 				_ = tmp.Close()
 				return fmt.Errorf("copy tar entry: %w", err)
 			}
-			if n > maxEntryBytes {
+			if n > entryLimit {
 				_ = tmp.Close()
-				return fmt.Errorf("tar entry exceeds %d MiB limit", maxEntryBytes>>20)
+				return fmt.Errorf("tar entry exceeds %d MiB limit", entryLimit>>20)
 			}
 			if err := tmp.Close(); err != nil {
 				return fmt.Errorf("close tar buffer: %w", err)
@@ -695,7 +699,7 @@ func extractTarStream(tr *tar.Reader, binaryName, binaryPath, destPath string) e
 			return fmt.Errorf("reopen tar buffer: %w", err)
 		}
 		defer tmp.Close() //nolint:errcheck
-		return writeExecutable(tmp, destPath)
+		return writeExecutableLimited(tmp, destPath, entryLimit)
 	}
 	return fmt.Errorf("binary %q not found in tar archive", binaryName)
 }
@@ -709,8 +713,12 @@ func installRawBinary(srcPath, destPath string) error {
 	return writeExecutable(src, destPath)
 }
 
-// Atomic: temp file then rename, mode 0755.
 func writeExecutable(r io.Reader, destPath string) error {
+	return writeExecutableLimited(r, destPath, maxEntryBytes)
+}
+
+// Atomic: temp file then rename, mode 0755.
+func writeExecutableLimited(r io.Reader, destPath string, entryLimit int64) error {
 	tmp, err := os.CreateTemp(filepath.Dir(destPath), ".omni-install-*")
 	if err != nil {
 		return fmt.Errorf("create install temp: %w", err)
@@ -723,15 +731,14 @@ func writeExecutable(r io.Reader, destPath string) error {
 		}
 	}()
 
-	n, err := io.Copy(tmp, r)
+	n, err := io.Copy(tmp, io.LimitReader(r, entryLimit+1))
 	if err != nil {
 		_ = tmp.Close()
 		return fmt.Errorf("write binary: %w", err)
 	}
-	// Callers pass a LimitReader(r, maxEntryBytes+1), so reading more means the stream exceeded the cap.
-	if n > maxEntryBytes {
+	if n > entryLimit {
 		_ = tmp.Close()
-		return fmt.Errorf("entry exceeds %d MiB limit", maxEntryBytes>>20)
+		return fmt.Errorf("entry exceeds %d MiB limit", entryLimit>>20)
 	}
 	if n == 0 {
 		_ = tmp.Close()
