@@ -270,10 +270,11 @@ jobs:
 
       # One frozen entry for all lanes: the cache budget is full and std plus deps dominate the compile.
       - name: Restore integration Go build cache
-        uses: actions/cache@v6.1.0
+        id: go-build-cache
+        uses: actions/cache/restore@v6.1.0
         with:
           path: .tmp/integration-go-build
-          key: integration-go-build-${{ hashFiles('go.sum', 'Dockerfile.test') }}
+          key: integration-go-build-v2-${{ hashFiles('go.sum', 'Dockerfile.test') }}
 
       - name: Integration tests in Docker
         run: make test-integration
@@ -291,6 +292,14 @@ jobs:
             --cache-from type=gha,scope=integration-realism-cli
             --cache-from type=gha,scope=integration-realism-tui
             --cache-to type=gha,scope=${{ matrix.cache }},mode=max
+
+      # Only the apm lane saves: it compiles internal/cli and so nearly the whole module.
+      - name: Save integration Go build cache
+        if: always() && matrix.name == 'apm' && steps.go-build-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6.1.0
+        with:
+          path: .tmp/integration-go-build
+          key: ${{ steps.go-build-cache.outputs.cache-primary-key }}
 
       - name: Upload integration test evidence
         if: always()
