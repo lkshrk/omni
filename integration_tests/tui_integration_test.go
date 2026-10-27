@@ -82,7 +82,6 @@ func TestCurrentScreenOmitsOverwrittenOutput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create terminal: %v", err)
 	}
-	defer term.Close()
 	cmd := exec.CommandContext(t.Context(), "sh", "-c", "printf 'obsolete\\rreplacement'")
 	if err := term.Start(cmd); err != nil {
 		t.Fatalf("start overwrite fixture: %v", err)

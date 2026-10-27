@@ -86,8 +86,8 @@ func stressResize(t *testing.T, resize func(*vttest.Terminal, int, int) error) {
 	}
 }
 
-func TestHarnessAvoidsLockInvertingTerminalMethods(t *testing.T) {
-	inverting := regexp.MustCompile(`(\w+)\.(Resize|SendText|SendKey|SendMouse|Paste|Snapshot)\(`)
+func TestHarnessAvoidsUnsafeTerminalMethods(t *testing.T) {
+	inverting := regexp.MustCompile(`\bterm\.(Resize|SendText|SendKey|SendMouse|Paste|Snapshot|Close)\(`)
 	files, err := filepath.Glob("*.go")
 	if err != nil || len(files) == 0 {
 		t.Fatalf("list integration test sources: %v", err)
@@ -99,9 +99,7 @@ func TestHarnessAvoidsLockInvertingTerminalMethods(t *testing.T) {
 		}
 		code := regexp.MustCompile(`(?m)^\s*//.*$`).ReplaceAll(src, nil)
 		for _, m := range inverting.FindAllSubmatch(code, -1) {
-			if string(m[1]) != "Emulator" {
-				t.Errorf("%s calls %s.%s; use term.Emulator or resizeTUI so the terminal lock is never taken before the emulator's", file, m[1], m[2])
-			}
+			t.Errorf("%s calls term.%s; vttest's Terminal methods race or take its lock before the emulator's, so use term.Emulator or resizeTUI", file, m[1])
 		}
 	}
 }
