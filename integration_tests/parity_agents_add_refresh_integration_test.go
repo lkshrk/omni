@@ -56,7 +56,7 @@ func runAgentsAddParityTUI(t *testing.T, bin string, sandbox *paritySandbox) {
 	runTUI(t, bin, sandbox.root, sandbox.env, []string{"--config", sandbox.configPath, "--cache-dir", sandbox.cache}, func(term *vttest.Terminal) string {
 		waitForRequiredScreen(t, term, 8*time.Second, screenHas("Dashboard", "Agents"), "TUI did not start")
 		writeTUIKeys(t, term, "\t", "\t", "\t")
-		waitForRequiredScreen(t, term, 8*time.Second, screenHas("Packages", "tool"), "TUI did not render Agents")
+		waitForRequiredScreen(t, term, 8*time.Second, screenHas("Bundles", "tool"), "TUI did not render Agents")
 		sendAgentsActionsKeyUntil(t, term, "i", screenHas("Registry", "zz-brainstorming"), "TUI did not open registry")
 		writeTUIKeys(t, term, "brain")
 		waitForRequiredScreen(t, term, 3*time.Second, screenHas("zz-brainstorming", "available"), "TUI did not filter registry")
