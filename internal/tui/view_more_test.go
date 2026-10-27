@@ -4677,7 +4677,7 @@ func TestRenderToolRow_PrivilegeMarkerUsesOwnColumn(t *testing.T) {
 	if gap := providerCol - markerCol - lipgloss.Width(iconPrivileged); gap != toolPrivilegeProviderGap {
 		t.Fatalf("row = %q, privilege-provider gap = %d, want %d", out, gap, toolPrivilegeProviderGap)
 	}
-	providerCell := renderProviderColWithExplicit(p, "apt", "", "", "", "", "", "apt", 14, false, false)
+	providerCell := renderProviderColWithExplicit(p, "apt", "", "", "", "", "", "apt", 14, false)
 	if strings.Contains(providerCell, iconPrivileged) {
 		t.Fatalf("provider cell = %q, privilege marker should be rendered separately", providerCell)
 	}
@@ -5897,7 +5897,7 @@ func TestWrapText_Basic(t *testing.T) {
 func TestRenderProviderCol_NoConcreteProvider(t *testing.T) {
 	t.Parallel()
 	p := defaultPalette()
-	out := renderProviderColWithExplicit(p, "cargo", "", "", "", "", "", "cargo", 10, false, false)
+	out := renderProviderColWithExplicit(p, "cargo", "", "", "", "", "", "cargo", 10, false)
 	if !strings.Contains(out, "cargo") {
 		t.Errorf("expected 'cargo' in provider col, got: %q", out)
 	}
@@ -5906,7 +5906,7 @@ func TestRenderProviderCol_NoConcreteProvider(t *testing.T) {
 func TestRenderProviderCol_WithConcrete(t *testing.T) {
 	t.Parallel()
 	p := defaultPalette()
-	out := renderProviderColWithExplicit(p, "system", "brew", "", "", "", "", "brew", 14, false, false)
+	out := renderProviderColWithExplicit(p, "system", "brew", "", "", "", "", "brew", 14, false)
 	if !strings.Contains(out, "brew") {
 		t.Errorf("expected 'brew' in provider col, got: %q", out)
 	}
@@ -5915,7 +5915,7 @@ func TestRenderProviderCol_WithConcrete(t *testing.T) {
 func TestRenderProviderCol_Selected(t *testing.T) {
 	t.Parallel()
 	p := defaultPalette()
-	out := renderProviderColWithExplicit(p, "system", "brew", "", "", "", "", "brew", 14, true, false)
+	out := renderProviderColWithExplicit(p, "system", "brew", "", "", "", "", "brew", 14, true)
 	if !strings.Contains(out, "brew") {
 		t.Errorf("expected 'brew' in selected provider col, got: %q", out)
 	}

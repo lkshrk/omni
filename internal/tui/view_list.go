@@ -309,11 +309,8 @@ func newColWidthsWithProviderPins(tools []*app.ToolView, toolMemberships map[str
 			if t.Installed && t.InstalledWith == "" && pin == "" && fallbackConcrete == "" {
 				measureSystemBin, measurePythonBin, measureNodeBin = "", "", ""
 			}
-			label := providerDisplayTextForToolWithPin(t, pin, fallbackConcrete, measureSystemBin, measurePythonBin, measureNodeBin)
-			if wrongProvider != nil && wrongProvider(t) && t.InstalledWith != "" && t.InstalledWith != label {
-				label = t.InstalledWith
-			}
-			return label
+			showsInstalledWith := pin != "" || wrongProvider != nil && wrongProvider(t)
+			return providerDisplayTextForToolWithPin(t, pin, fallbackConcrete, measureSystemBin, measurePythonBin, measureNodeBin, showsInstalledWith)
 		},
 		ver: func(i int) string { return displayVersionText(tools[i]) },
 		group: func(i int) string {
@@ -342,7 +339,9 @@ var toolsTableColumns = []tableColumn{
 	{key: "group", align: rowCellAlignRight},
 }
 
+// One very long name must not cost every row its group pills.
 var toolsShrinkLadder = []tableShrinkStep{
+	shrinkStep("name", 24),
 	shrinkStep("group", 6),
 	shrinkStep("name", 12),
 	shrinkStep("ver", 8),
@@ -382,7 +381,9 @@ func renderToolRowWithProviderPin(p palette, t *app.ToolView, cols colWidths, sp
 	if t.Installed && t.InstalledWith == "" && providerPin == "" && fallbackConcrete == "" {
 		provSystemBin, provPythonBin, provNodeBin = "", "", ""
 	}
-	label := providerLabelForToolWithPin(t, providerPin, fallbackConcrete, provSystemBin, provPythonBin, provNodeBin)
+	wrongProv := ss == syncWrongProv
+	showMarker := wrongProv || providerPin != ""
+	label := providerDisplayTextForToolWithPin(t, providerPin, fallbackConcrete, provSystemBin, provPythonBin, provNodeBin, showMarker)
 	rowErr := ""
 	if len(rowErrValues) > 0 {
 		rowErr = rowErrorSummary(rowErrValues[0])
@@ -390,8 +391,6 @@ func renderToolRowWithProviderPin(p palette, t *app.ToolView, cols colWidths, sp
 	emphasis := func(s lipgloss.Style) lipgloss.Style {
 		return rowEmphasis(selected, s)
 	}
-	wrongProv := ss == syncWrongProv
-	showMarker := wrongProv || providerPin != ""
 
 	iconGap := strings.Repeat(" ", toolIconNameGapWidth)
 	groupPillEmphasis := func(s lipgloss.Style) lipgloss.Style {
@@ -482,8 +481,7 @@ func renderToolRowWithProviderPin(p palette, t *app.ToolView, cols colWidths, sp
 	if fallbackConcrete != "" {
 		displayInstalledWith = fallbackConcrete
 	}
-	plainLabel := label
-	prov := renderProviderColWithExplicit(p, displayProvider, displayInstalledWith, providerPin, provSystemBin, provPythonBin, provNodeBin, plainLabel, cols.prov, selected, showMarker)
+	prov := renderProviderColWithExplicit(p, displayProvider, displayInstalledWith, providerPin, provSystemBin, provPythonBin, provNodeBin, label, cols.prov, selected)
 
 	var ver string
 	switch {
@@ -679,31 +677,16 @@ func privilegeProviderCells(priv string, privW int, provider string, providerW i
 }
 
 // The wrong-provider glyph goes in the priv/mark column (like the lock icon) so names still align vertically.
-func renderProviderColWithExplicit(p palette, raw, installedWith, explicitWith, systemBin, pythonBin, nodeBin, plainLabel string, colW int, selected, wrongProvider bool) string {
-	meta, concrete, _ := providerPartsWithExplicit(raw, installedWith, explicitWith, systemBin, pythonBin, nodeBin)
-
-	// Trailing space padding based on the unstyled label width so all columns align.
-	labelW := colW
-	plainW := lipgloss.Width(plainLabel)
-	padding := strings.Repeat(" ", max(0, colW-plainW))
-
-	// Fall back to the muted ecosystem name only for unresolved tools; wrong-provider concrete tools surface the actual install source.
-	label := concrete
+func renderProviderColWithExplicit(p palette, raw, installedWith, explicitWith, systemBin, pythonBin, nodeBin, label string, colW int, selected bool) string {
+	meta, _, _ := providerPartsWithExplicit(raw, installedWith, explicitWith, systemBin, pythonBin, nodeBin)
 	style := providerMetaStyle(p, meta)
-	if concrete == "" {
-		label = meta
-	}
-	if wrongProvider && installedWith != "" && installedWith != label {
-		label = installedWith
-	}
 	if selected {
 		style = style.Bold(true)
 	}
-	if plainW > colW {
-		fitted := fitCellText(label, labelW)
-		return style.Render(fitted) + padding
+	if lipgloss.Width(label) > colW {
+		label = fitCellText(label, colW)
 	}
-	return style.Render(label) + padding
+	return style.Render(label) + strings.Repeat(" ", max(0, colW-lipgloss.Width(label)))
 }
 
 func providerMetaStyle(p palette, meta string) lipgloss.Style {
@@ -741,7 +724,7 @@ func providerLabelForToolWithPin(t *app.ToolView, providerPin, fallbackConcrete,
 	if fallbackConcrete != "" {
 		installedWith = fallbackConcrete
 	}
-	label := app.ToolProviderDisplayLabel(app.ToolProviderDisplayInput{
+	return app.ToolProviderDisplayLabel(app.ToolProviderDisplayInput{
 		Provider:               providerName,
 		InstalledWith:          installedWith,
 		ExplicitProvider:       providerPin,
@@ -749,11 +732,6 @@ func providerLabelForToolWithPin(t *app.ToolView, providerPin, fallbackConcrete,
 		EffectivePythonManager: pythonBin,
 		EffectiveNodeManager:   nodeBin,
 	})
-	if providerPin == "" && installedWith != "" && installedWith != label && installedWith != providerName &&
-		!app.BuiltinIsEcosystem(providerName) {
-		return installedWith
-	}
-	return label
 }
 
 func providerForFallbackDisplay(providerName, fallbackConcrete string) string {
@@ -768,8 +746,20 @@ func providerForFallbackDisplay(providerName, fallbackConcrete string) string {
 	}
 }
 
-func providerDisplayTextForToolWithPin(t *app.ToolView, providerPin, fallbackConcrete, systemBin, pythonBin, nodeBin string) string {
-	return providerLabelForToolWithPin(t, providerPin, fallbackConcrete, systemBin, pythonBin, nodeBin)
+// Mirrors renderProviderColWithExplicit, which draws installed_with instead of the label on marked rows.
+func providerDisplayTextForToolWithPin(t *app.ToolView, providerPin, fallbackConcrete, systemBin, pythonBin, nodeBin string, showsInstalledWith bool) string {
+	label := providerLabelForToolWithPin(t, providerPin, fallbackConcrete, systemBin, pythonBin, nodeBin)
+	if t == nil || !showsInstalledWith {
+		return label
+	}
+	installedWith := t.InstalledWith
+	if fallbackConcrete != "" {
+		installedWith = fallbackConcrete
+	}
+	if installedWith != "" && installedWith != label {
+		return installedWith
+	}
+	return label
 }
 
 func providerPinForTool(t *app.ToolView, providerPins map[string]string) string {
@@ -818,6 +808,8 @@ func inlineDetailLines(m Model, width int, cols colWidths) []string {
 		lines = append(lines, line)
 	}
 	if line := providerMismatchDetailLine(m, t, prefix); line != "" {
+		lines = append(lines, line)
+	} else if line := installMethodDetailLine(m, t, prefix); line != "" {
 		lines = append(lines, line)
 	}
 
@@ -913,6 +905,19 @@ func providerMismatchDetailLine(m Model, t *app.ToolView, prefix string) string 
 		p.styleStatus.Render(t.InstalledWith) +
 		p.styleHelp.Render(", expected "+source+" ") +
 		p.styleStatus.Render(desired)
+}
+
+func installMethodDetailLine(m Model, t *app.ToolView, prefix string) string {
+	if t == nil || !t.Installed || t.InstalledWith == "" || t.InstalledWith == t.Provider ||
+		m.syncStatusOf(t) == syncWrongProv || fallbackConcreteForTool(t, m.toolFallbacks) != "" {
+		return ""
+	}
+	label := providerLabelForToolWithPin(t, providerPinForTool(t, m.toolProviderPins), "", m.effectiveSystemManager, m.effectivePythonManager, m.effectiveNodeManager)
+	if t.InstalledWith == label {
+		return ""
+	}
+	p := m.palette
+	return prefix + p.styleHelp.Render("installed with ") + p.styleStatus.Render(t.InstalledWith)
 }
 
 func providerCandidateDetailLines(m Model, t *app.ToolView, prefix string, _ int) []string {

@@ -449,9 +449,9 @@ func renderHostGroupToolSecondary(m Model, row groupToolRow, width int, selected
 	if privW > 0 {
 		privGap = listColumnGap
 	}
-	providerW := min(lipgloss.Width(providerDisplayTextForToolWithPin(row.tool, providerPin, "", m.effectiveSystemManager, m.effectivePythonManager, m.effectiveNodeManager)), max(width-privW-privGap, 1))
+	providerW := min(lipgloss.Width(providerDisplayTextForToolWithPin(row.tool, providerPin, "", m.effectiveSystemManager, m.effectivePythonManager, m.effectiveNodeManager, false)), max(width-privW-privGap, 1))
 	priv := renderPrivilegeCol(mark, privW, listRowColumnStyle(selected, p.styleHelp))
-	provider := renderProviderColWithExplicit(p, row.tool.Provider, row.tool.InstalledWith, providerPin, m.effectiveSystemManager, m.effectivePythonManager, m.effectiveNodeManager, providerLabel, providerW, selected, false)
+	provider := renderProviderColWithExplicit(p, row.tool.Provider, row.tool.InstalledWith, providerPin, m.effectiveSystemManager, m.effectivePythonManager, m.effectiveNodeManager, providerLabel, providerW, selected)
 	rendered := renderCellGroup(privilegeProviderCells(priv, privW, provider, providerW, toolPrivilegeProviderGap), listColumnGap)
 	remaining := max(width-lipgloss.Width(rendered)-popupRowSeparatorWidth, 0)
 	ignoreStyle := listRowColumnStyle(selected, p.styleIgnored)
