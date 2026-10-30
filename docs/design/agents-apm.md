@@ -1,6 +1,7 @@
 # Design: agents and APM
 
-Status: decisions agreed (2026-10-11); implementation not started. Epic: XXX-346.
+Status: decisions agreed (2026-10-11), revised 2026-10-30 (D3 superseded, schema v27); implementation
+not started. Epic: XXX-346.
 
 The MCP target/ownership limitations below describe the original design
 baseline. The pinned `0.35.0+omni.7` fork now implements per-server MCP target
@@ -27,7 +28,7 @@ Omni never edits manifest fields; it copies files and shells out to `apm`. The r
 | no agents step in onboarding | XXX-335 | there is no omni-side model to onboard into |
 | agent configs drift | XXX-343 | apm rewrites client config files that dotfiles also ship |
 
-## Design baseline (omni at settings schema v26, apm 0.34.0)
+## Design baseline (omni at settings schema v26, apm 0.35.0+omni.7)
 
 - Settings hold only `agents.ignored[]`; any other `agents` key is rejected as retired
   (`internal/config/agents_block.go`).
@@ -48,7 +49,7 @@ Omni never edits manifest fields; it copies files and shells out to `apm`. The r
 2. Every agents action (add, update, pin, remove, retarget) is an edit of that declaration followed by
    sync, so CLI, TUI and onboarding share one code path.
 3. Status shows declared ref, installed version and available update for every row, nested or not.
-4. Omni controls which client receives which MCP server, and never leaves a client config invalid.
+4. Omni declares which client receives which MCP server; APM deploys it to those clients only.
 5. Declarations are portable across hosts (no absolute paths, `~` and `${env:…}` only).
 
 ## Non-goals
@@ -92,12 +93,11 @@ per-host template files and `docs/concepts.md`'s "groups do not assign agent res
 
 1. Merge settings layers → `agents` DTO.
 2. Reconcile marketplaces: add missing, remove ones omni added that are no longer declared.
-3. Render `~/.apm/apm.yml` from the DTO (packages and LSP only), compare with the last rendered
+3. Render `~/.apm/apm.yml` from the DTO (packages, MCP and LSP), compare with the last rendered
    hash; on drift offer to adopt or overwrite (D6).
-4. `apm install -g --trust-transitive-mcp`.
-5. Write MCP entries per client from the DTO (D3); MCP is not part of the rendered manifest.
-6. Validate written client configs (TOML/JSON parse); on failure restore the previous file and report.
-7. Snapshot.
+4. `apm install -g --trust-transitive-mcp`; APM deploys each MCP server to the clients in its `targets:`
+   (D3).
+5. Snapshot.
 
 ### Actions
 
@@ -117,10 +117,12 @@ per-host template files and `docs/concepts.md`'s "groups do not assign agent res
   packages such as `apm/ai-plugins` are retired after migration.
 - **D2 — Where the settings live (decided by D1).** `settings.d/agents.json` for declarations, groups for
   bundling, hosts for selection; no separate template file per host.
-- **D3 — MCP ownership (decided).** Omni writes MCP. MCP stays out of the rendered `apm.yml`; omni writes
-  each declared server into the clients listed in its `targets`, with the per-client fields from `client`,
-  edits only entries it owns (names recorded in omni state), leaves client-owned entries alone, and parses
-  the file after writing (restore on failure). Removing a declaration removes only omni-owned entries.
+- **D3 — MCP ownership (revised 2026-10-30).** APM writes MCP. Omni renders each declared server into
+  `dependencies.mcp` with its `targets:` and its `client` fields as `extra` keys; the pinned fork deploys it
+  only to those clients, records per-client ownership, removes only entries it wrote, and refuses differing
+  unmanaged entries. Omni does not edit client configs or restore them after sync, since that would
+  contradict APM's deployment receipts. The original decision (omni writes client configs itself) is
+  superseded; XXX-341 is done through the fork and XXX-342 is canceled.
 - **D4 — Migration (decided).** Repurpose `omni agents migrate`: read the host template, follow local
   `path:` packages, parse marketplace comments, and write `settings.d/agents.json` plus group `agents`
   entries. Preview by default, `--write` applies. The pre-APM snapshot migration is dropped.
@@ -134,8 +136,8 @@ per-host template files and `docs/concepts.md`'s "groups do not assign agent res
 ## Rollout
 
 1. Read side: model `resolved_ref` and `depth`; show declared vs installed (XXX-325).
-2. Settings schema v26 with the `agents` block; renderer; migration.
+2. Settings schema v27 with the `agents` block; renderer; migration (XXX-347, XXX-348).
 3. Actions on the new model (XXX-324); TUI and CLI share them.
-4. MCP per client (XXX-341, XXX-342), config validation.
-5. Marketplaces (XXX-330); onboarding step (XXX-335).
+4. MCP per client: delivered by the fork's per-server targets (XXX-341); rendered with step 2.
+5. Marketplaces (XXX-330); onboarding step (XXX-335), after omni provisions its own APM (XXX-326).
 6. Retire the host template path and `omni-apm@*` packages in dotfiles.
