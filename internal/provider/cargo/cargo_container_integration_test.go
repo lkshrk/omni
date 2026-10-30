@@ -17,6 +17,7 @@ import (
 func TestCargoProvider_RustImageLifecycle(t *testing.T) {
 	ctx, cancel := pmtest.Context(t, "cargo")
 	defer cancel()
+	t.Setenv("RUSTUP_HOME", "/usr/local/rustup")
 	t.Setenv("CARGO_INSTALL_ROOT", t.TempDir())
 
 	p := cargo.New(executor.New())
