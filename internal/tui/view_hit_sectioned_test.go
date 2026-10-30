@@ -362,7 +362,7 @@ func TestAgentsRowClick_PinnedChromeIsNotARow(t *testing.T) {
 	for _, y := range []int{
 		1,
 		frameLineOf(t, m, "~/.apm/apm.yml"),
-		frameLineOf(t, m, "Packages ─"),
+		frameLineOf(t, m, "Plugins ─"),
 		pastEndY,
 		frameLineOf(t, m, "omni agents sync"),
 	} {

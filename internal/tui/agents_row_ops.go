@@ -20,10 +20,54 @@ const (
 )
 
 type agentsRowRef struct {
-	kind    agentsRowKind
-	pkg     app.AgentsPackageRow
-	service app.AgentsServiceRow
-	native  app.AgentsNativeRow
+	kind        agentsRowKind
+	pkg         app.AgentsPackageRow
+	service     app.AgentsServiceRow
+	serviceKind string
+	native      app.AgentsNativeRow
+}
+
+type agentsRowSection struct {
+	title string
+	rows  []agentsRowRef
+}
+
+// Cursor indexes count rows in exactly this order, so the view and every row action share it.
+func (m Model) agentsRowSections() []agentsRowSection {
+	var updates, plugins, skills, bundles []agentsRowRef
+	for _, row := range m.agentsVisiblePackages() {
+		ref := agentsRowRef{kind: agentsRowPackage, pkg: row}
+		switch {
+		case row.UpdateAvailable:
+			updates = append(updates, ref)
+		case row.Kind() == app.AgentsKindPlugin:
+			plugins = append(plugins, ref)
+		case row.Kind() == app.AgentsKindSkill:
+			skills = append(skills, ref)
+		default:
+			bundles = append(bundles, ref)
+		}
+	}
+	services := func(rows []app.AgentsServiceRow, kind string) []agentsRowRef {
+		out := make([]agentsRowRef, 0, len(rows))
+		for _, row := range m.agentsVisibleServices(rows) {
+			out = append(out, agentsRowRef{kind: agentsRowService, service: row, serviceKind: kind})
+		}
+		return out
+	}
+	var natives []agentsRowRef
+	for _, row := range m.agentsVisibleNatives() {
+		natives = append(natives, agentsRowRef{kind: agentsRowNative, native: row})
+	}
+	return []agentsRowSection{
+		{"Updates available", updates},
+		{"Plugins", plugins},
+		{"Skills", skills},
+		{"MCP servers", services(m.agentsMCPRows, "mcp")},
+		{"LSP servers", services(m.agentsLSPRows, "lsp")},
+		{"Bundles", bundles},
+		{agentsNativeSectionTitle, natives},
+	}
 }
 
 func (m Model) agentsSelectedRow() (agentsRowRef, bool) {
@@ -31,20 +75,11 @@ func (m Model) agentsSelectedRow() (agentsRowRef, bool) {
 		return agentsRowRef{}, false
 	}
 	idx := m.agentsCursor
-	packages := m.agentsVisiblePackages()
-	if idx < len(packages) {
-		return agentsRowRef{kind: agentsRowPackage, pkg: packages[idx]}, true
-	}
-	idx -= len(packages)
-	for _, rows := range [][]app.AgentsServiceRow{m.agentsVisibleServices(m.agentsMCPRows), m.agentsVisibleServices(m.agentsLSPRows)} {
-		if idx < len(rows) {
-			return agentsRowRef{kind: agentsRowService, service: rows[idx]}, true
+	for _, section := range m.agentsRowSections() {
+		if idx >= 0 && idx < len(section.rows) {
+			return section.rows[idx], true
 		}
-		idx -= len(rows)
-	}
-	natives := m.agentsVisibleNatives()
-	if idx < len(natives) {
-		return agentsRowRef{kind: agentsRowNative, native: natives[idx]}, true
+		idx -= len(section.rows)
 	}
 	return agentsRowRef{}, false
 }

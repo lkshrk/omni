@@ -61,6 +61,8 @@ type AgentsPackageRow struct {
 	Homepage        string
 	Targets         []string
 	DeployedFiles   int
+	DeployedPaths   []string
+	PackageType     string
 	Status          AgentsPackageStatus
 	SyncActionable  bool
 	ResolvedBy      string
@@ -384,6 +386,8 @@ func joinAPMPackages(manifest apmManifest, lock apmLockfile) []AgentsPackageRow 
 		row.Marketplace = dep.DiscoveredVia
 		row.LocalPath = dep.LocalPath
 		row.DeployedFiles = len(dep.DeployedFiles)
+		row.DeployedPaths = slices.Clone(dep.DeployedFiles)
+		row.PackageType = dep.PackageType
 		row.lockEvidence = newAgentsPackageLockEvidence(deployments, dep)
 		row.lockEvidence.LocalSourceUnsupported = row.lockEvidence.LocalSourceUnsupported || lock.Replacements.Kind != 0 && lock.Replacements.Tag != "!!null"
 		row.ModuleSource = row.lockEvidence.moduleSource()
@@ -508,6 +512,8 @@ func joinAPMPackages(manifest apmManifest, lock apmLockfile) []AgentsPackageRow 
 			LocalPath:     dep.LocalPath,
 			Targets:       dep.TargetSubset,
 			DeployedFiles: len(dep.DeployedFiles),
+			DeployedPaths: slices.Clone(dep.DeployedFiles),
+			PackageType:   dep.PackageType,
 			Status:        AgentsPackageOrphaned,
 			lockEvidence:  newAgentsPackageLockEvidence(deployments, dep),
 		}
