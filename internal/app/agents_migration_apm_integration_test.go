@@ -57,7 +57,9 @@ func TestAgentsMigrationRealAPMLifecycle(t *testing.T) {
 	}
 	mustWriteBundleFile(t, filepath.Join(snapshot, "paths.json"), string(paths))
 
-	a := &App{StateDir: state}
+	configPath := filepath.Join(root, "settings.json")
+	writeIntegrationFile(t, configPath, `{"version":27}`)
+	a := &App{ConfigPath: configPath, StateDir: state}
 	a.SetFallbackExecutor(executor.New())
 	preview, err := a.AgentsMigrate(t.Context(), "h", snapshot)
 	if err != nil {
@@ -160,7 +162,9 @@ dependencies:
 		t.Fatalf("install manifestless fixtures: %v\n%s\n%s", err, result.Stdout, result.Stderr)
 	}
 
-	statusApp := &App{StateDir: state}
+	configPath := filepath.Join(root, "settings.json")
+	writeIntegrationFile(t, configPath, `{"version":27}`)
+	statusApp := &App{ConfigPath: configPath, StateDir: state}
 	statusApp.SetFallbackExecutor(executor.New())
 	status, err := statusApp.AgentsStatus()
 	if err != nil {

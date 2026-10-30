@@ -5,9 +5,9 @@ exec omni --config settings.json settings lint
 stdout 'no issues found'
 
 exec grep '"version"' settings.json
-stdout '"version": 26'
+stdout '"version": 27'
 exec grep 'omni.settings' settings.json
-stdout 'omni.settings.v26.schema.json'
+stdout 'omni.settings.v27.schema.json'
 exec grep '"provider": "aur"' settings.json
 stdout '"provider": "aur"'
 exec grep '"package": "walker-bin"' settings.json
@@ -18,7 +18,7 @@ stderr 'unknown provider "aurx"'
 
 -- settings.json --
 {
-  "version": 26,
+  "version": 27,
   "tools": {
     "walker": { "providers": [{ "provider": "aur", "package": "walker-bin" }] }
   }
@@ -26,7 +26,7 @@ stderr 'unknown provider "aurx"'
 
 -- bogus.json --
 {
-  "version": 26,
+  "version": 27,
   "tools": {
     "walker": { "providers": [{ "provider": "aurx", "package": "walker-bin" }] }
   }

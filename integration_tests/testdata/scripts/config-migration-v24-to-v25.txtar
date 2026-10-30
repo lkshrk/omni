@@ -11,9 +11,9 @@ cmp settings.json settings.json.orig
 exec omni --config settings.json hosts ensure otherhost
 
 exec grep '"version"' settings.json
-stdout '"version": 26'
+stdout '"version": 27'
 exec grep 'omni.settings' settings.json
-stdout 'omni.settings.v26.schema.json'
+stdout 'omni.settings.v27.schema.json'
 
 # agents.ignored is schema-described in v25 and must survive the stamp intact.
 exec grep '"local-only"' settings.json
