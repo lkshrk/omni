@@ -180,7 +180,7 @@ omni dots groups nvim --remove old-host
 
 | Command | Host required | State touched | Safer first step |
 | --- | --- | --- | --- |
-| `omni agents sync [--frozen] [--dry-run]` | no | Global APM manifest, deployed agent files and MCP registrations, network | `--dry-run` |
+| `omni agents sync [--frozen] [--dry-run]` | no | Global APM manifest, deployed agent files and MCP registrations, network; the agents settings too when a hand edit is adopted at the prompt | `--dry-run` |
 | `omni agents add <package>...` | no | Global APM manifest, deployed agent files, network | `omni agents sync --dry-run` |
 | `omni agents remove <package>...` | no | Global APM manifest, deployed agent files | `omni agents sync --dry-run` |
 | `omni agents update [--dry-run]` | no | Global APM lockfile, deployed agent files, network | `--dry-run` |
@@ -194,6 +194,8 @@ omni dots groups nvim --remove old-host
 | `omni agents migrate --host <name>` | no | Read-only preview | already read-only; `--dry-run` is an explicit alias |
 | `omni agents migrate --host <name> --write` | no | Publishes verified wrappers and replaces only a migration-owned host template | run the preview first |
 | `omni agents sync --force-template` | no | Overwrites `~/.apm/apm.yml` with the host template, plus everything `agents sync` touches | Diff the template against the live manifest first |
+| `omni agents sync --adopt` | no | Writes `settings.d/agents.json` and the host group, then renders `~/.apm/apm.yml`, plus everything `agents sync` touches | `omni agents sync --dry-run`; read the printed diff |
+| `omni agents sync --force` | no | Overwrites a hand-edited `~/.apm/apm.yml` with the rendered manifest, plus everything `agents sync` touches | `omni agents sync --dry-run`; read the printed diff |
 | `omni agents drift [--all]` | no | Read-only; reads client CLIs and config | already read-only; exits 0 either way |
 | `omni agents adopt --host <name>` | no | Read-only preview | already read-only; there is no apply mode |
 | `omni agents ignore ...` | yes | Config `agents.ignored` | `omni agents drift` |

@@ -191,8 +191,11 @@ func TestExtractPreservesAgentsIgnored(t *testing.T) {
 	if _, err := config.ExtractIncludeFragments(path); err != nil {
 		t.Fatalf("ExtractIncludeFragments: %v", err)
 	}
-	if _, ok := rawKeys(t, path)["agents"]; !ok {
-		t.Fatal("main config lost its agents block after extract")
+	if _, ok := rawKeys(t, path)["agents"]; ok {
+		t.Fatal("main config kept its agents block after extract")
+	}
+	if _, ok := rawKeys(t, filepath.Join(dir, "settings.d", "agents.json"))["agents"]; !ok {
+		t.Fatal("settings.d/agents.json lacks the agents block after extract")
 	}
 	cfg, err := config.Load(path)
 	if err != nil {

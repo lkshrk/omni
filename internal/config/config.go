@@ -11,7 +11,7 @@ import (
 )
 
 // CurrentVersion — Version 0 is the legacy unversioned format.
-const CurrentVersion = 26
+const CurrentVersion = 27
 
 const (
 	FallbackSourceGitHub = "github"
@@ -300,7 +300,9 @@ type GroupConfig struct {
 	Taps        []string    `json:"taps,omitempty"`
 	Tools       []ToolEntry `json:"tools,omitempty"`
 	Dots        []DotEntry  `json:"dots,omitempty"`
-	Ignore      []string    `json:"-"`
+	// Names of agents.packages, agents.mcp and agents.lsp entries rendered for hosts selecting this group.
+	Agents []string `json:"agents,omitempty"`
+	Ignore []string `json:"-"`
 }
 
 const SystemInventoryGroup = "provider-inventory"
@@ -346,9 +348,22 @@ func (c *RootConfig) UnmarshalJSON(data []byte) error {
 	if err := validateRemovedAgentConfigFields(raw); err != nil {
 		return err
 	}
-	var decoded rootConfig
-	if err := json.Unmarshal(data, &decoded); err != nil {
+	agentsBlock, hasAgents := raw["agents"]
+	delete(raw, "agents")
+	stripped, err := json.Marshal(raw)
+	if err != nil {
 		return err
+	}
+	var decoded rootConfig
+	if err := json.Unmarshal(stripped, &decoded); err != nil {
+		return err
+	}
+	if hasAgents {
+		agents, err := decodeAgentsBlock(agentsBlock)
+		if err != nil {
+			return err
+		}
+		decoded.Agents = agents
 	}
 	*c = RootConfig(decoded)
 	return nil
@@ -370,7 +385,9 @@ var removedAgentGroupFields = []string{
 }
 
 func validateRemovedAgentConfigFields(raw map[string]json.RawMessage) error {
-	if class := classifyAgentsBlock(raw); class.kind == agentsBlockRetired {
+	if class := classifyAgentsBlock(raw); class.alias != "" {
+		return fmt.Errorf("config key %q is not recognised; the agents block uses the lowercase key \"agents\"", class.alias)
+	} else if class.kind == agentsBlockRetired {
 		return removedAgentConfigFieldError(class.path())
 	}
 	if field, ok := removedField(raw["settings"], removedAgentSettingsFields); ok {
@@ -576,6 +593,10 @@ func ValidateRoot(cfg *RootConfig, providers ProviderValidation) []ValidationErr
 
 	groupNames := make(map[string]struct{}, len(cfg.Groups))
 	groupByName := make(map[string]*GroupConfig, len(cfg.Groups))
+	declaredAgents := make(map[string]struct{})
+	for _, name := range cfg.Agents.EntryNames() {
+		declaredAgents[name] = struct{}{}
+	}
 	dotMemberships := make(map[string]*GroupConfig)
 	dotPackages := make(map[string]string)
 	for gi, g := range cfg.Groups {
@@ -660,6 +681,7 @@ func ValidateRoot(cfg *RootConfig, providers ProviderValidation) []ValidationErr
 				}
 			}
 		}
+		errs = append(errs, validateGroupAgents(gi, g, declaredAgents)...)
 	}
 	for host, groups := range cfg.Hosts {
 		if strings.TrimSpace(host) == "" {
@@ -711,7 +733,7 @@ func ValidateRoot(cfg *RootConfig, providers ProviderValidation) []ValidationErr
 			errs = append(errs, ValidationError{Path: fmt.Sprintf("$.ignore.dots[%d]", i), Message: "dotfile name is required"})
 		}
 	}
-	return errs
+	return append(errs, validateAgents(cfg)...)
 }
 
 func validateFallback(path string, fallback *FallbackSpec) []ValidationError {

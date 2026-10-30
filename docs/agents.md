@@ -1,7 +1,9 @@
 # Agents
 
-APM is the sole owner of steady-state agent packages, skills, MCP, plugins,
-marketplaces, dependency locks, and deployed runtime state.
+Omni can declare a host's agent packages, MCP servers, LSP servers and
+marketplaces in its own settings and render `~/.apm/apm.yml` from them (see
+[Agents settings](#agents-settings)). APM owns resolution, dependency locks,
+deployment and runtime state.
 
 Omni provisions the exact pinned APM wheel into `$XDG_DATA_HOME/omni/apm/` on first use and always runs that private copy. `OMNI_APM=/path/to/apm` is the explicit development/test override. Use `omni apm <args>` for an APM command Omni does not wrap. A separate `apm` on `PATH` is not used by Omni.
 
@@ -28,7 +30,8 @@ same trust the fleet already extends to its pinned dependencies.
 
 APM state:
 
-- `~/.apm/apm.yml` — desired dependencies.
+- `~/.apm/apm.yml` — desired dependencies, rendered by Omni when the agents
+  settings declare them.
 - `~/.apm/apm.lock.yaml` — resolved dependencies.
 - `~/.apm/marketplaces.json` — marketplace metadata.
 
@@ -40,6 +43,98 @@ Omni has no native steady-state agent implementation or parallel skill/plugin
 store. Migration creates one verified content-addressed local APM wrapper for
 every selected legacy owner. Those wrappers are APM inputs, not a second
 deployment store. APM owns deployment, audit, and lifecycle state.
+
+## Agents settings
+
+Settings schema v27 adds agent declarations to the `agents` block, usually kept
+in `settings.d/agents.json`. Groups list entries by name next to their tools,
+and hosts select groups:
+
+```jsonc
+{
+  "agents": {
+    "targets": ["claude", "codex"],
+    "packages": [
+      { "source": "lkshrk/linear-ai", "ref": "v2.0.0" },
+      { "source": "anthropics/claude-plugins-official", "path": "plugins/code-simplifier", "targets": ["claude"] }
+    ],
+    "mcp": [
+      { "name": "litellm-tools", "transport": "http", "url": "https://mcp.example.com/",
+        "targets": ["claude", "codex"],
+        "client": { "claude": { "headersHelper": "~/.config/env/bin/mcp-headers" },
+                    "codex":  { "http_headers_helper": "~/.config/env/bin/mcp-headers" } } }
+    ],
+    "lsp": [ { "name": "gopls", "command": "gopls", "extensionToLanguage": { ".go": "go" } } ],
+    "marketplaces": [ { "name": "caveman", "source": "JuliusBrussee/caveman" } ],
+    "ignored": []
+  },
+  "groups": [ { "name": "ai", "agents": ["linear-ai", "code-simplifier", "litellm-tools", "gopls"] } ]
+}
+```
+
+`omni settings extract` moves the whole `agents` block, `ignored` included, into
+`settings.d/agents.json`.
+
+A package's name is its `name`, or else the last segment of its `path` or
+`source`; package, MCP and LSP names share one namespace. `source` alone is a
+repository, `source` plus `path` a subdirectory of it, and `path` alone a local
+package (start it with `~/` so it works on every host).
+
+The block may declare more than `ignored` only in v27 settings or in a
+fragment. When it does (a marketplace alone counts), `omni agents sync`,
+`omni tools sync --all` and `omni reconcile` render `~/.apm/apm.yml` for the current host instead of copying the
+host template:
+
+- Only entries listed by the host's groups (its own host group and the groups
+  in `hosts`) are rendered, in declaration order. `targets` becomes the
+  manifest's top-level `targets:`.
+- Each MCP server is rendered into `dependencies.mcp` with `registry: false`,
+  its own `targets:` (omitted means every active client, `[]` none) and its
+  `extra` and `client` fields merged into APM's single `extra` map; two clients
+  may not set one field to different values. APM passes that map to every
+  client in the server's `targets`, so a field set under one client reaches
+  the others too.
+- Declared marketplaces missing from APM are registered before install.
+  Marketplaces Omni no longer declares stay registered.
+- The host template, if present, is ignored and sync says so;
+  `--force-template` is refused.
+- The manifest is written with mode 0600, since it may carry header values. A
+  symlinked `~/.apm/apm.yml` is written through; a dangling one is refused.
+
+Omni snapshots the manifest after every install. When the live manifest no
+longer matches that snapshot and differs from the rendered one, it was edited
+by hand: sync shows a diff of a one-line summary per entry and stops. A line
+names the entry (MCP and LSP name, or package source without credentials,
+query or fragment, plus path, ref and targets), lists its other fields and
+ends with a hash of their values, so a changed value shows without being
+printed. On a terminal it offers to adopt or overwrite; elsewhere
+pass one of these flags to `omni agents sync`:
+
+- `--adopt` declares every entry the rendered manifest lacks in
+  `settings.d/agents.json` and lists it in the host group, then renders.
+  Entries that changed by hand are overwritten from settings. Registry MCP
+  servers (any MCP entry without `registry: false`), marketplace packages,
+  sources with credentials in their URL, fields the settings cannot express, a
+  name another entry already uses and entries that would not validate are
+  refused; nothing is written then. Unquoted values in `args`, `env`,
+  `headers`, `tools` and `targets` keep the text written in the manifest.
+  Adopted MCP servers with literal header, env or `extra` values are flagged,
+  so they can be replaced with `${env:NAME}` before the settings are
+  committed.
+- `--force` overwrites the hand edit.
+
+`--adopt` cannot be combined with `--frozen`, since adopted entries are not in
+the lockfile yet. With declarations, `omni agents add` and `remove` point at
+`omni agents sync --adopt` and `settings.d/agents.json` instead of the host
+template. Declared marketplaces are registered on every host; groups do not
+select them.
+
+With no snapshot yet, a live manifest that differs from the rendered one counts
+as edited, so the first rendered sync on a host with an existing manifest asks
+too. `--yes` skips the question and fails like a non-interactive run.
+`--dry-run` reports the edit with its diff and writes nothing. `--adopt` and
+`--force` are refused on the template path. Without
+declarations, sync uses the host template as described below.
 
 ## Host template
 
@@ -75,8 +170,10 @@ silently over work APM or the operator did directly:
   and leaves it alone until the next `--force-template`.
 - `--dry-run` never materializes the template.
 
-`omni sync` runs the same template step but has no `--force-template` flag; run
-`omni agents sync --force-template` for the adoption or override step.
+`omni tools sync --all` runs the same template step but has no `--force-template` flag; run
+`omni agents sync --force-template` for the adoption or override step. For a
+rendered manifest, `omni tools sync --all` asks on a terminal and otherwise
+fails, and `omni reconcile` fails; run `omni agents sync --adopt` or `--force`.
 
 ## Hook commands stay host-independent
 
@@ -363,8 +460,8 @@ old hashes remain available until no live manifest references them.
 
 ### Lifecycle handoff
 
-`omni agents sync` is the only command that materializes the live manifest and
-invokes APM. Migrate and sync share the template/workspace locks and recheck the
+`omni agents sync`, `omni tools sync --all` and `omni reconcile` are the
+commands that materialize the live manifest and invoke APM. Migrate and sync share the template/workspace locks and recheck the
 candidate before mutation, so a concurrent edit fails before the live manifest
 or APM changes. Do not run `apm` directly in parallel with sync; external APM
 processes do not participate in Omni's lock.
@@ -405,9 +502,11 @@ manifest stays `omni agents migrate --host <name> --write`.
 
 ### The ignore list
 
-A deliberate native install is recorded in `agents.ignored` in `settings.json`,
-the only field the `agents` block accepts; every other shape is still rejected
-by the removed-field error. Each entry names the host, target, kind, identity,
+A deliberate native install is recorded in `agents.ignored` (in
+`settings.d/agents.json` once `omni settings extract` has run). Before settings
+v27 it is the only field the `agents` block accepts; v27 adds the declarations
+described in [Agents settings](#agents-settings). Any other shape is still
+rejected by the removed-field error. Each entry names the host, target, kind, identity,
 and an optional reason:
 
 ```sh
@@ -426,7 +525,8 @@ adoption, and is refused by the TUI's remove and adopt keys. Ignoring is not
 adopting: the artifact stays native and absent from the manifest.
 
 The Agents view carries the same inventory under `Not managed by APM`, with
-`x` to ignore or unignore, `a` to adopt one artifact into the host template,
+`x` to ignore or unignore, `a` to adopt one artifact into the host template
+(which rendered syncs ignore while the agents settings declare agent state),
 and `d` to remove it through its own client. See
 [TUI](tui.md#items-apm-does-not-manage).
 

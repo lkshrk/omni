@@ -215,7 +215,7 @@ func renderFragmentRaw(raw map[string]json.RawMessage, patch map[string]json.Raw
 }
 
 // groupFieldNames are the GroupConfig fields routed independently per group.
-var groupFieldNames = []string{"taps", "tools", "dots", "description", "special"}
+var groupFieldNames = []string{"taps", "tools", "dots", "agents", "description", "special"}
 
 type groupsOwnership struct {
 	declared map[string]int            // group name -> last file declaring it
@@ -274,6 +274,8 @@ func groupFieldEmpty(group *GroupConfig, fieldName string) bool {
 		return len(group.Tools) == 0
 	case "dots":
 		return len(group.Dots) == 0
+	case "agents":
+		return len(group.Agents) == 0
 	case "description":
 		return strings.TrimSpace(group.Description) == ""
 	case "special":
@@ -290,6 +292,8 @@ func copyGroupField(dst, src *GroupConfig, fieldName string) {
 		dst.Tools = src.Tools
 	case "dots":
 		dst.Dots = src.Dots
+	case "agents":
+		dst.Agents = src.Agents
 	case "description":
 		dst.Description = src.Description
 	case "special":

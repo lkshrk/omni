@@ -45,8 +45,8 @@ See [State And Files](state-and-files.md).
 
 The tools and dotfiles Omni expects for the active host after expanding
 `settings.json`, host assignments, groups, host overrides, and ignores. Agent
-desired state is separate and lives in APM's `apm.yml` or Omni's optional host
-template.
+desired state lives in the agents settings (`settings.d/agents.json`, selected
+through groups), or else in APM's `apm.yml` or Omni's optional host template.
 
 See [Core Concepts](concepts.md#the-three-stores).
 

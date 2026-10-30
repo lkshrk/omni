@@ -249,10 +249,11 @@ invokes APM commands, then presents their output in the CLI and TUI. APM owns
 manifests, resolution, lockfiles, package installation, marketplaces, plugins,
 MCP, and target deployment.
 
-Omni's only write on the agent side is a whole-file copy: sync materializes the
-optional host template `~/.config/omni/apm.yml` over `~/.apm/apm.yml`, then
-invokes APM install. Omni never edits manifest fields, so the manifest stays a
-dotfile-managed artifact and APM stays the sole owner of everything the install
+Omni's agent-side writes are the whole `~/.apm/apm.yml` and, on adopt, the agents
+settings: sync renders
+it from the agents settings for the current host, or, without declarations,
+copies the optional host template `~/.config/omni/apm.yml` over it. Then it
+invokes APM install. APM stays the sole owner of everything the install
 produces.
 
 ```mermaid
@@ -263,11 +264,12 @@ sequenceDiagram
   participant Manifest as ~/.apm/apm.yml
 
   User->>Omni: omni agents sync
+  Omni->>Omni: Render from agents settings (or read host template)
   Omni->>Manifest: Compare live hash with last applied
-  alt Unseen or edited outside Omni
-    Omni-->>User: Warn, require --force-template
+  alt Edited outside Omni
+    Omni-->>User: Diff; require --adopt/--force (template: --force-template)
   else Matches
-    Omni->>Manifest: Copy host template over it
+    Omni->>Manifest: Write rendered manifest (or copy template)
   end
   Omni->>APM: install -g
   APM-->>Omni: Resolution, lockfile, deployment

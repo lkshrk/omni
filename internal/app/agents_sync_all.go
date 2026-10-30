@@ -24,14 +24,20 @@ import (
 
 const templateStateName = "agents-template-state"
 
+// Kept apart from the template snapshot, so a manifest the template applied is unconfirmed on the first render.
+const renderStateName = "agents-render-state"
+
 var errAgentsSyncLockfile = errors.New("APM lockfile unavailable")
 
 type AgentsSyncAllOptions struct {
 	DryRun        bool
 	Frozen        bool
 	ForceTemplate bool
-	Progress      func(string)
-	Output        func(stdout, stderr string)
+	// Adopt and Force apply only to a manifest rendered from the agents settings.
+	Adopt    bool
+	Force    bool
+	Progress func(string)
+	Output   func(stdout, stderr string)
 }
 
 type AgentsSyncAllResult struct {
@@ -39,6 +45,10 @@ type AgentsSyncAllResult struct {
 	Stderr  string
 	Warning string
 	Notices []string
+	// Rendered reports that the manifest came from the agents settings rather than the host template.
+	Rendered bool
+	// DriftDiff summarises, without values, a hand edit a dry run found.
+	DriftDiff string
 }
 
 func (a *App) APMClient(scope apm.Scope) *apm.Client {
@@ -302,6 +312,10 @@ func liveManifestHash(workspaceDir string) (string, error) {
 }
 
 func snapshotLiveManifest(workspaceDir, stateDir string) error {
+	return snapshotLiveManifestAs(workspaceDir, stateDir, templateStateName)
+}
+
+func snapshotLiveManifestAs(workspaceDir, stateDir, name string) error {
 	hash, err := liveManifestHash(workspaceDir)
 	if err != nil {
 		return err
@@ -309,7 +323,7 @@ func snapshotLiveManifest(workspaceDir, stateDir string) error {
 	if err := os.MkdirAll(stateDir, 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(stateDir, templateStateName), []byte(hash+"\n"), 0o644)
+	return os.WriteFile(filepath.Join(stateDir, name), []byte(hash+"\n"), 0o644)
 }
 
 // Reports whether the live manifest ends up matching the template, so the caller can snapshot even when
@@ -378,13 +392,42 @@ func materializeAgentsTemplateBytes(workspaceDir, stateDir string, force bool, t
 }
 
 // AgentsSyncAll delegates the complete lifecycle to one APM install.
-func (a *App) AgentsSyncAll(ctx context.Context, opts AgentsSyncAllOptions) (AgentsSyncAllResult, error) {
+func (a *App) AgentsSyncAll(ctx context.Context, opts AgentsSyncAllOptions) (res AgentsSyncAllResult, err error) {
+	cfg, err := a.loadConfig()
+	if err != nil {
+		return AgentsSyncAllResult{}, fmt.Errorf("loading config: %w", err)
+	}
 	exists, err := agentsSyncStateExists()
 	if err != nil {
 		return AgentsSyncAllResult{}, err
 	}
-	if !exists {
+	if (opts.Adopt || opts.Force) && !cfg.Agents.Declares() {
+		return AgentsSyncAllResult{}, errors.New("--adopt and --force apply only when the agents settings declare agent state; use --force-template for the host template")
+	}
+	if !exists && !cfg.Agents.Declares() {
 		return AgentsSyncAllResult{}, nil
+	}
+	if opts.Adopt && opts.Frozen {
+		return AgentsSyncAllResult{}, errors.New("--adopt cannot be combined with --frozen: adopted entries are not in the lockfile yet")
+	}
+	if opts.ForceTemplate && cfg.Agents.Declares() {
+		return AgentsSyncAllResult{Rendered: true}, errors.New("--force-template has no effect while the agents settings declare agent state; use --force")
+	}
+	// Adoption writes settings under the config-root lock, which the sync lock below shares; it must run first.
+	var adopted agentsPreAdoption
+	defer func() {
+		if len(adopted.notices) > 0 {
+			res.Rendered = true
+			res.Notices = append(slices.Clone(adopted.notices), res.Notices...)
+		}
+	}()
+	if opts.Adopt && !opts.DryRun {
+		if adopted, err = a.adoptBeforeSync(cfg); err != nil {
+			return AgentsSyncAllResult{Rendered: true}, err
+		}
+		if adopted.cfg != nil {
+			cfg = adopted.cfg
+		}
 	}
 	templatePath, err := AgentsTemplatePath()
 	if err != nil {
@@ -404,10 +447,13 @@ func (a *App) AgentsSyncAll(ctx context.Context, opts AgentsSyncAllOptions) (Age
 	} else if _, err := a.ensureAPM(ctx); err != nil {
 		return AgentsSyncAllResult{}, fmt.Errorf("preparing apm %s: %w", apmVersionPin, err)
 	}
-	var res AgentsSyncAllResult
 	err = apm.WithGlobalWorkspaceLock(ctx, func(ctx context.Context) error {
 		var runErr error
-		res, runErr = a.agentsSyncAllLocked(ctx, opts)
+		if cfg.Agents.Declares() {
+			res, runErr = a.agentsSyncRenderedLocked(ctx, opts, cfg, adopted.liveHash)
+		} else {
+			res, runErr = a.agentsSyncAllLocked(ctx, opts)
+		}
 		return runErr
 	})
 	return res, err
@@ -438,16 +484,8 @@ func (a *App) agentsSyncAllLocked(ctx context.Context, opts AgentsSyncAllOptions
 	if err != nil {
 		return AgentsSyncAllResult{}, err
 	}
-	manifest, verify, notices, err := checkAgentsOwnershipPreflight(dir, a.StateDir, candidatePath, candidate)
+	manifest, notices, err := preflightAgentsManifest(opts, dir, a.StateDir, candidatePath, candidate)
 	if err != nil {
-		if errors.Is(err, errAgentsSyncLockfile) {
-			if guardErr := checkAgentsLSPHazardsManifest(opts, manifest); guardErr != nil {
-				return AgentsSyncAllResult{}, guardErr
-			}
-		}
-		return AgentsSyncAllResult{}, err
-	}
-	if err := verify(); err != nil {
 		return AgentsSyncAllResult{}, err
 	}
 
@@ -460,22 +498,54 @@ func (a *App) agentsSyncAllLocked(ctx context.Context, opts AgentsSyncAllOptions
 			return AgentsSyncAllResult{}, err
 		}
 	}
-	// A refused template application and a dry run both execute against the existing live manifest.
-	// Validate it too when it differs from the candidate selected above.
+	marketplaces, err := templateMarketplaces()
+	if err != nil {
+		return res, err
+	}
+	return a.agentsInstallLocked(ctx, dir, opts, res, agentsInstallPlan{
+		manifest: manifest, synced: synced, candidatePath: candidatePath, candidate: candidate, marketplaces: marketplaces,
+		stateName: templateStateName,
+	})
+}
+
+// An empty candidatePath means the candidate was rendered in memory.
+type agentsInstallPlan struct {
+	manifest      apmManifest
+	synced        bool
+	candidatePath string
+	candidate     []byte
+	marketplaces  []marketplaceDecl
+	stateName     string
+}
+
+// A lockfile failure still lets the LSP hazard guard report first.
+func preflightAgentsManifest(opts AgentsSyncAllOptions, dir, stateDir, path string, raw []byte) (apmManifest, []string, error) {
+	manifest, verify, notices, err := checkAgentsOwnershipPreflight(dir, stateDir, path, raw)
+	if err != nil {
+		if errors.Is(err, errAgentsSyncLockfile) {
+			if guardErr := checkAgentsLSPHazardsManifest(opts, manifest); guardErr != nil {
+				return manifest, nil, guardErr
+			}
+		}
+		return manifest, nil, err
+	}
+	if err := verify(); err != nil {
+		return manifest, nil, err
+	}
+	return manifest, notices, nil
+}
+
+func (a *App) agentsInstallLocked(ctx context.Context, dir string, opts AgentsSyncAllOptions, res AgentsSyncAllResult, plan agentsInstallPlan) (AgentsSyncAllResult, error) {
+	manifest, synced := plan.manifest, plan.synced
+	// When the candidate was not written, APM runs against the live manifest, so preflight that one too.
 	if !synced {
 		livePath := filepath.Join(dir, "apm.yml")
 		live, readErr := os.ReadFile(livePath)
-		if readErr == nil && (livePath != candidatePath || manifestHash(live) != manifestHash(candidate)) {
-			manifest, verify, notices, err = checkAgentsOwnershipPreflight(dir, a.StateDir, livePath, live)
+		if readErr == nil && (livePath != plan.candidatePath || manifestHash(live) != manifestHash(plan.candidate)) {
+			var notices []string
+			var err error
+			manifest, notices, err = preflightAgentsManifest(opts, dir, a.StateDir, livePath, live)
 			if err != nil {
-				if errors.Is(err, errAgentsSyncLockfile) {
-					if guardErr := checkAgentsLSPHazardsManifest(opts, manifest); guardErr != nil {
-						return res, guardErr
-					}
-				}
-				return res, err
-			}
-			if err := verify(); err != nil {
 				return res, err
 			}
 			res.Notices = notices
@@ -499,7 +569,7 @@ func (a *App) agentsSyncAllLocked(ctx context.Context, opts AgentsSyncAllOptions
 		}
 	}
 	// Marketplace-sourced dependencies cannot install before their marketplace is registered.
-	if err := a.ensureMarketplaces(ctx, dir, opts); err != nil {
+	if err := a.ensureMarketplaces(ctx, dir, opts, plan.marketplaces); err != nil {
 		return res, err
 	}
 	installable, err := agentsManifestInstallable(dir)
@@ -532,7 +602,7 @@ func (a *App) agentsSyncAllLocked(ctx context.Context, opts AgentsSyncAllOptions
 		return res, err
 	}
 	// Snapshot the manifest as apm normalized it, so the next sync sees no divergence.
-	return res, snapshotLiveManifest(dir, a.StateDir)
+	return res, snapshotLiveManifestAs(dir, a.StateDir, plan.stateName)
 }
 
 func agentsSyncCandidate(dir string) (string, []byte, error) {
@@ -614,13 +684,17 @@ func checkAgentsOwnershipPreflight(dir, stateDir, manifestPath string, raw []byt
 
 	manifestIdentity := agentsSyncIdentity{path: manifestPath, hash: manifestHash(raw)}
 	verify := func() error {
-		current, err := os.ReadFile(manifestIdentity.path)
-		if raw == nil && os.IsNotExist(err) {
-			return nil
+		// An empty path is a manifest rendered in memory; no file can change underneath it.
+		if manifestIdentity.path != "" {
+			current, err := os.ReadFile(manifestIdentity.path)
+			if raw == nil && os.IsNotExist(err) {
+				return nil
+			}
+			if err != nil || manifestHash(current) != manifestIdentity.hash {
+				return fmt.Errorf("APM manifest changed during ownership preflight")
+			}
 		}
-		if err != nil || manifestHash(current) != manifestIdentity.hash {
-			return fmt.Errorf("APM manifest changed during ownership preflight")
-		}
+		var err error
 		if slices.ContainsFunc(identities, func(identity agentsModuleManifestIdentity) bool { return identity.Lock != nil }) {
 			err = verifyAgentsPackageOwnershipEvidence(raw, identities, []agentsFileContentIdentity{lockIdentity})
 		} else {

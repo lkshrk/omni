@@ -174,7 +174,7 @@ not provide a native fallback.
 
 | Command | Description |
 | --- | --- |
-| `omni agents sync [--frozen] [--dry-run] [--force-template]` | Materialize the host template, then dispatch APM install in the global workspace. |
+| `omni agents sync [--frozen] [--dry-run] [--force-template] [--adopt\|--force]` | Render `~/.apm/apm.yml` from the agents settings (or materialize the host template), then dispatch APM install in the global workspace. |
 | `omni agents migrate --host <name> [--snapshot <dir>] [--dry-run\|--write]` | Preview a host's migration as one apm.yml plus the replaced, retained, and already-managed lists, or publish wrappers and update the marked host template with `--write`. |
 | `omni agents add <package>...` | Dispatch APM package install. |
 | `omni agents remove <package>...` | Dispatch APM package removal. |
@@ -225,6 +225,8 @@ Common agents flags:
 | `--dry-run` | `migrate` | Explicit alias for the default migration preview. Writes no wrappers or template. |
 | `--frozen` | `sync` | Require `apm.yml` and `apm.lock.yaml` to match; no dependency resolution. |
 | `--force-template` | `sync` | Overwrite the live manifest with the host template, adopting it or overriding reported divergence. |
+| `--adopt` | `sync` | When the agents settings render the manifest and it was edited by hand, declare the new entries in `settings.d/agents.json` and the host group, then render. |
+| `--force` | `sync` | When the agents settings render the manifest and it was edited by hand, overwrite the edit. |
 | `--host` | `migrate` | Required. The host whose snapshot declarations join the live native state in the preview. |
 | `--snapshot` | `migrate` | Snapshot directory. Defaults to the single `.omni-apm-migration-backup-*` directory next to the resolved config file; with no such directory the preview covers native state only. |
 | `--write` | `migrate` | Publish verified local wrappers and atomically update only the migration-owned host template. |
@@ -356,6 +358,12 @@ Sync never overwrites a live manifest it has not seen before or one that
 changed outside Omni. Both cases print a warning and leave the live manifest
 alone; `omni agents sync --force-template` adopts or overrides. Omni tracks the
 adopted manifest's hash in `agents-template-state` under its state directory.
+
+When the agents settings declare agent state, sync renders the manifest from
+them instead and ignores the template. A hand edit since the last render prints
+the diff; on a terminal sync asks whether to adopt or overwrite it, elsewhere
+it fails until `--adopt` or `--force` is given. See
+[Agents settings](agents.md#agents-settings).
 
 `omni agents migrate --host <name>` previews one apm.yml built from both the
 snapshot committed in dotfiles, when one is given or found, and the live native

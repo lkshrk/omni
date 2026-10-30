@@ -18,7 +18,7 @@
       "type": "string"
     },
     "agents": {
-      "description": "Agent artifacts omni leaves alone. Agent packages themselves are declared in ~/.apm/apm.yml, not here.",
+      "description": "Agent state omni renders into ~/.apm/apm.yml: packages, MCP and LSP servers selected through groups, marketplaces, manifest targets, and artifacts omni leaves alone. Usually kept in settings.d/agents.json.",
       "type": "object",
       "properties": {
         "ignored": {
@@ -27,11 +27,50 @@
           "items": {
             "$ref": "#/$defs/AgentIgnoreEntry"
           }
+        },
+        "lsp": {
+          "description": "LSP servers rendered into dependencies.lsp. Groups select them by name.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AgentLSPServer"
+          }
+        },
+        "marketplaces": {
+          "description": "Plugin marketplaces registered with APM before install.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AgentMarketplace"
+          }
+        },
+        "mcp": {
+          "description": "Self-defined MCP servers rendered into dependencies.mcp. Groups select them by name.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AgentMCPServer"
+          }
+        },
+        "packages": {
+          "description": "APM packages. Groups select them by name.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AgentPackage"
+          }
+        },
+        "targets": {
+          "description": "Manifest-level APM targets. Omit to let APM detect the active clients.",
+          "examples": [
+            [
+              "claude",
+              "codex"
+            ]
+          ],
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         }
       },
-      "required": [
-        "ignored"
-      ],
       "additionalProperties": false
     },
     "groups": {
@@ -136,12 +175,12 @@
     },
     "version": {
       "description": "settings.json format version. Missing means legacy unversioned config; omni migrates it to the current version on write.",
-      "default": 26,
+      "default": 27,
       "examples": [
-        26
+        27
       ],
       "type": "integer",
-      "const": 26
+      "const": 27
     }
   },
   "required": [
@@ -207,6 +246,257 @@
         "kind",
         "id"
       ],
+      "additionalProperties": false
+    },
+    "AgentLSPServer": {
+      "description": "An LSP server rendered into dependencies.lsp.",
+      "type": "object",
+      "properties": {
+        "args": {
+          "description": "Arguments for command.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "command": {
+          "description": "Executable that starts the server.",
+          "type": "string",
+          "minLength": 1
+        },
+        "cwd": {
+          "description": "Working directory for command.",
+          "type": "string",
+          "minLength": 1
+        },
+        "env": {
+          "description": "Environment for command.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "extensionToLanguage": {
+          "description": "File extensions mapped to language IDs.",
+          "examples": [
+            {
+              ".go": "go"
+            }
+          ],
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "initializationOptions": {
+          "description": "Options sent with the LSP initialize request."
+        },
+        "maxRestarts": {
+          "description": "Restart limit when restartOnCrash is set.",
+          "type": "integer"
+        },
+        "name": {
+          "description": "Server name, also the name groups select it by.",
+          "type": "string",
+          "minLength": 1
+        },
+        "restartOnCrash": {
+          "description": "Restart the server when it crashes.",
+          "type": "boolean"
+        },
+        "shutdownTimeout": {
+          "description": "Shutdown timeout in milliseconds.",
+          "type": "integer"
+        },
+        "startupTimeout": {
+          "description": "Startup timeout in milliseconds.",
+          "type": "integer"
+        },
+        "transport": {
+          "description": "LSP transport.",
+          "type": "string",
+          "minLength": 1
+        },
+        "workspaceFolder": {
+          "description": "Workspace folder passed to the server.",
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "name",
+        "command",
+        "extensionToLanguage"
+      ],
+      "additionalProperties": false
+    },
+    "AgentMCPServer": {
+      "description": "A self-defined MCP server. APM deploys it only to the clients in targets.",
+      "type": "object",
+      "properties": {
+        "args": {
+          "description": "Arguments for command.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "client": {
+          "description": "Client-specific fields keyed by target, merged into APM's extra map. Two clients may not set one field to different values.",
+          "examples": [
+            {
+              "claude": {
+                "headersHelper": "~/.config/env/bin/mcp-headers"
+              }
+            }
+          ],
+          "type": "object",
+          "additionalProperties": {
+            "type": "object"
+          }
+        },
+        "command": {
+          "description": "Executable for stdio.",
+          "type": "string",
+          "minLength": 1
+        },
+        "cwd": {
+          "description": "Working directory for command.",
+          "type": "string",
+          "minLength": 1
+        },
+        "env": {
+          "description": "Environment for command; values may use ${env:NAME}.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "extra": {
+          "description": "Client-specific fields passed to APM as extra, for every client.",
+          "type": "object"
+        },
+        "headers": {
+          "description": "HTTP headers; values may use ${env:NAME}.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "name": {
+          "description": "Server name, also the name groups select it by.",
+          "type": "string",
+          "minLength": 1
+        },
+        "targets": {
+          "description": "Clients this server is deployed to. Omit for every active client; an empty list deploys it nowhere.",
+          "examples": [
+            [
+              "claude",
+              "codex"
+            ]
+          ],
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "tools": {
+          "description": "Tool allowlist.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "transport": {
+          "description": "MCP transport. stdio requires command; the others require url.",
+          "type": "string",
+          "enum": [
+            "stdio",
+            "http",
+            "sse",
+            "streamable-http"
+          ]
+        },
+        "url": {
+          "description": "Server URL for http, sse and streamable-http.",
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "name",
+        "transport"
+      ],
+      "additionalProperties": false
+    },
+    "AgentMarketplace": {
+      "description": "A plugin marketplace registered with APM.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Marketplace name.",
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "description": "Marketplace source (owner/repo or URL), as apm marketplace add accepts it.",
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "name",
+        "source"
+      ],
+      "additionalProperties": false
+    },
+    "AgentPackage": {
+      "description": "One APM package. Source alone is a repository, source plus path a subdirectory of it, path alone a local package.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Name groups select the package by. Defaults to the last segment of path, or of source.",
+          "type": "string",
+          "minLength": 1
+        },
+        "path": {
+          "description": "Subdirectory inside source, or a local package directory when source is omitted (start it with ~/ to stay portable).",
+          "examples": [
+            "plugins/code-simplifier"
+          ],
+          "type": "string",
+          "minLength": 1
+        },
+        "ref": {
+          "description": "Git tag, branch, or commit. Omit to follow the default branch.",
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "description": "Git repository (owner/repo or URL).",
+          "examples": [
+            "lkshrk/linear-ai"
+          ],
+          "type": "string",
+          "minLength": 1
+        },
+        "targets": {
+          "description": "APM targets this package deploys to. Omit for every manifest target.",
+          "examples": [
+            [
+              "claude"
+            ]
+          ],
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
       "additionalProperties": false
     },
     "DotEntry": {
@@ -595,6 +885,20 @@
       "description": "A named collection of logical tool memberships and dotfile entries.",
       "type": "object",
       "properties": {
+        "agents": {
+          "description": "Names of agents.packages, agents.mcp and agents.lsp entries rendered for hosts selecting this group.",
+          "examples": [
+            [
+              "linear-ai",
+              "litellm-tools"
+            ]
+          ],
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
         "description": {
           "description": "Human-readable description shown in 'omni groups'.",
           "examples": [

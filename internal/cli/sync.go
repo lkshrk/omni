@@ -184,13 +184,7 @@ func syncAllToolFailure(result *app.SyncAllResult) error {
 }
 
 func runSyncAllAPMLeg(cmd *cobra.Command, state *rootState, dryRun bool) error {
-	result, err := state.app.AgentsSyncAll(cmd.Context(), app.AgentsSyncAllOptions{
-		DryRun: dryRun,
-		Output: func(stdout, stderr string) {
-			fmt.Fprint(cmdOut(cmd), stdout)
-			fmt.Fprint(cmd.ErrOrStderr(), stderr)
-		},
-	})
+	result, err := runAgentsSync(cmd, state, app.AgentsSyncAllOptions{DryRun: dryRun})
 	printAgentsWarning(cmd, result.Warning)
 	if err != nil {
 		return err

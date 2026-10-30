@@ -52,14 +52,19 @@ func ExtractIncludeFragments(path string) (*ExtractReport, error) {
 
 	groupsSansDots, dotsOnly := splitGroupsAndDots(cfg.Groups)
 	fragmentValues := map[string]any{
+		agentsFragment:           nil,
 		"settings.d/tools.json":  nil,
 		"settings.d/groups.json": nil,
 		"settings.d/dots.json":   nil,
 	}
 	fragmentKeys := map[string]string{
+		agentsFragment:           "agents",
 		"settings.d/tools.json":  "tools",
 		"settings.d/groups.json": "groups",
 		"settings.d/dots.json":   "groups",
+	}
+	if cfg.Agents != nil {
+		fragmentValues[agentsFragment] = cfg.Agents
 	}
 	if len(cfg.Tools) > 0 {
 		fragmentValues["settings.d/tools.json"] = cfg.Tools
@@ -140,10 +145,7 @@ func ExtractIncludeFragments(path string) (*ExtractReport, error) {
 	if !slices.Equal(includes, newIncludes) {
 		patch["$include"] = includesRaw
 	}
-	if classifyAgentsBlock(mainRaw).kind == agentsBlockRetired {
-		patch["agents"] = json.RawMessage("null")
-	}
-	for _, key := range []string{"tools", "groups"} {
+	for _, key := range []string{"agents", "tools", "groups"} {
 		if _, ok := mainRaw[key]; ok {
 			patch[key] = json.RawMessage("null")
 		}
@@ -158,6 +160,69 @@ func ExtractIncludeFragments(path string) (*ExtractReport, error) {
 		}
 	}
 	return report, nil
+}
+
+const agentsFragment = "settings.d/agents.json"
+
+// EnsureAgentsFragment moves the agents block into settings.d/agents.json unless a fragment already owns it.
+func EnsureAgentsFragment(path string) (retErr error) {
+	lock, err := AcquireWriteLock(path)
+	if err != nil {
+		return err
+	}
+	defer func() { retErr = errors.Join(retErr, lock.Close()) }()
+	chain, err := loadIncludeChain(path)
+	if err != nil {
+		return err
+	}
+	for _, file := range chain[1:] {
+		if _, ok := file.raw["agents"]; ok {
+			return nil
+		}
+	}
+	mainPath := chain[0].path
+	fragmentPath := filepath.Join(filepath.Dir(mainPath), filepath.FromSlash(agentsFragment))
+	if resolved, err := resolveConfigWritePath(fragmentPath); err == nil {
+		fragmentPath = resolved
+	}
+	existing := make(map[string]json.RawMessage)
+	if data, err := os.ReadFile(fragmentPath); err == nil {
+		if err := unmarshalJSONObject(data, &existing); err != nil {
+			return fmt.Errorf("parsing fragment %q: %w", fragmentPath, err)
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("reading fragment %q: %w", fragmentPath, err)
+	}
+	agents := chain[0].raw["agents"]
+	if len(agents) == 0 {
+		agents = existing["agents"]
+	}
+	if len(agents) == 0 {
+		agents = json.RawMessage(`{"ignored":[]}`)
+	}
+	if err := os.MkdirAll(filepath.Dir(fragmentPath), 0o755); err != nil {
+		return fmt.Errorf("creating fragment dir: %w", err)
+	}
+	if err := atomicWriteUnlocked(fragmentPath, renderFragmentRaw(existing, map[string]json.RawMessage{"agents": agents})); err != nil {
+		return err
+	}
+	var includes []string
+	if includeRaw := chain[0].raw["$include"]; len(includeRaw) > 0 {
+		if err := json.Unmarshal(includeRaw, &includes); err != nil {
+			return fmt.Errorf("parsing config includes: %w", err)
+		}
+	}
+	patch := map[string]json.RawMessage{"agents": json.RawMessage("null")}
+	if !slices.ContainsFunc(includes, func(include string) bool {
+		return filepath.ToSlash(filepath.Clean(strings.TrimSpace(include))) == agentsFragment
+	}) {
+		includesRaw, err := json.Marshal(append(includes, agentsFragment))
+		if err != nil {
+			return err
+		}
+		patch["$include"] = includesRaw
+	}
+	return patchRawUnlocked(mainPath, patch)
 }
 
 func splitGroupsAndDots(groups []*GroupConfig) (sansDots, dotsOnly []*GroupConfig) {

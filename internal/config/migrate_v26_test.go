@@ -15,8 +15,8 @@ func TestMigrateV25ToV26KeepsContent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load v25 config: %v", err)
 	}
-	if cfg.Version != 26 {
-		t.Fatalf("version = %d, want 26", cfg.Version)
+	if cfg.Version != config.CurrentVersion {
+		t.Fatalf("version = %d, want %d", cfg.Version, config.CurrentVersion)
 	}
 	if spec, ok := cfg.Tools["ripgrep"]; !ok || len(spec.Providers) != 1 || spec.Providers[0].Provider != "pacman" {
 		t.Fatalf("tools = %#v, want ripgrep via pacman preserved", cfg.Tools)
@@ -45,8 +45,5 @@ func TestV26AcceptsAURProvider(t *testing.T) {
 	}
 	if got := cfg.Tools["walker"].Providers; len(got) != 1 || got[0].Provider != "aur" || got[0].Package != "walker-bin" {
 		t.Fatalf("walker providers = %#v, want aur/walker-bin", got)
-	}
-	if !strings.Contains(config.SchemaURL, ".v26.") {
-		t.Fatalf("SchemaURL = %q, want v26", config.SchemaURL)
 	}
 }

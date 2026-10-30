@@ -305,7 +305,7 @@ func missingMigrationError(version int) error {
 }
 
 func removedAgentConfigFieldError(path string) error {
-	return fmt.Errorf("config field %q was removed in v24; declare agent packages and runtime state in ~/.apm/apm.yml — remove the retired agent fields from the config, keep a copy, then run omni agents migrate --host <host> --snapshot <dir>", path)
+	return fmt.Errorf("config field %q was removed in v24; declare agent packages in the v27 agents settings (settings.d/agents.json) or ~/.apm/apm.yml — remove the retired agent fields from the config, keep a copy, then run omni agents migrate --host <host> --snapshot <dir>", path)
 }
 
 type configMigration struct {
@@ -342,6 +342,7 @@ var configMigrations = []configMigration{
 	{from: 23, to: 24, apply: migrateConfigV23ToV24, applyRaw: migrateRawConfigV23ToV24},
 	{from: 24, to: 25, apply: migrateConfigV24ToV25, applyRaw: migrateRawConfigV24ToV25},
 	{from: 25, to: 26, apply: migrateConfigV25ToV26, applyRaw: migrateRawConfigV25ToV26},
+	{from: 26, to: 27, apply: migrateConfigV26ToV27, applyRaw: migrateRawConfigV26ToV27},
 }
 
 func configMigrationFrom(version int) (configMigration, bool) {
@@ -925,6 +926,7 @@ func normalizedCopy(cfg *RootConfig) RootConfig {
 		gc.Taps = append([]string(nil), g.Taps...)
 		gc.Tools = append([]ToolEntry(nil), g.Tools...)
 		gc.Dots = append([]DotEntry(nil), g.Dots...)
+		gc.Agents = cloneStringSlice(g.Agents)
 		for i := range gc.Dots {
 			if gc.Dots[i].Hosts != nil {
 				hosts := make(map[string]DotVariant, len(gc.Dots[i].Hosts))
@@ -1224,6 +1226,20 @@ func migrateRawConfigV25ToV26(raw map[string]json.RawMessage) error {
 		return err
 	}
 	raw["version"] = json.RawMessage(`26`)
+	return nil
+}
+
+// No-op: v27 only adds agent declarations and group agent lists; agents.ignored carries over unchanged.
+func migrateConfigV26ToV27(cfg *RootConfig) error {
+	cfg.Version = 27
+	return nil
+}
+
+func migrateRawConfigV26ToV27(raw map[string]json.RawMessage) error {
+	if err := validateRemovedAgentConfigFields(raw); err != nil {
+		return err
+	}
+	raw["version"] = json.RawMessage(`27`)
 	return nil
 }
 

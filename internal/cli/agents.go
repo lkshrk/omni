@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -50,20 +52,25 @@ func printAgentsWarning(cmd *cobra.Command, warning string) {
 }
 
 func newAPMAgentsSyncCmd(state *rootState) *cobra.Command {
-	var frozen, dryRun, forceTemplate bool
+	var frozen, dryRun, forceTemplate, adopt, force bool
 	cmd := &cobra.Command{
 		Use:   "sync",
 		Short: "Install the global APM workspace",
-		Args:  cobra.NoArgs,
+		Long: `Render ~/.apm/apm.yml from the agents settings when they declare agent state, otherwise copy
+the host template, then run APM's global install. A hand edit of a rendered manifest stops the
+sync with a summary diff: --adopt declares its new entries in settings.d/agents.json, --force
+overwrites it.`,
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			result, err := state.app.AgentsSyncAll(cmd.Context(), app.AgentsSyncAllOptions{
+			if adopt && force {
+				return fmt.Errorf("--adopt and --force are mutually exclusive")
+			}
+			result, err := runAgentsSync(cmd, state, app.AgentsSyncAllOptions{
 				Frozen:        frozen,
 				DryRun:        dryRun,
 				ForceTemplate: forceTemplate,
-				Output: func(stdout, stderr string) {
-					fmt.Fprint(cmdOut(cmd), stdout)
-					fmt.Fprint(cmd.ErrOrStderr(), stderr)
-				},
+				Adopt:         adopt,
+				Force:         force,
 			})
 			printAgentsWarning(cmd, result.Warning)
 			return err
@@ -72,7 +79,65 @@ func newAPMAgentsSyncCmd(state *rootState) *cobra.Command {
 	cmd.Flags().BoolVar(&frozen, "frozen", false, "Require apm.yml and apm.lock.yaml to match")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the install plan without deploying files")
 	cmd.Flags().BoolVar(&forceTemplate, "force-template", false, "Overwrite the live manifest with the host template")
+	cmd.Flags().BoolVar(&adopt, "adopt", false, "Declare entries added to ~/.apm/apm.yml by hand in the agents settings, then render")
+	cmd.Flags().BoolVar(&force, "force", false, "Overwrite hand edits of ~/.apm/apm.yml with the manifest rendered from the agents settings")
 	return cmd
+}
+
+var readDriftChoice = scanLine
+
+// runAgentsSync streams APM output and, on a terminal, lets the user adopt or overwrite a hand-edited rendered manifest.
+func runAgentsSync(cmd *cobra.Command, state *rootState, opts app.AgentsSyncAllOptions) (app.AgentsSyncAllResult, error) {
+	opts.Output = func(stdout, stderr string) {
+		fmt.Fprint(cmdOut(cmd), stdout)
+		fmt.Fprint(cmd.ErrOrStderr(), stderr)
+	}
+	result, err := state.app.AgentsSyncAll(cmd.Context(), opts)
+	fmt.Fprint(cmd.ErrOrStderr(), result.DriftDiff)
+	var drift *app.AgentsManifestDriftError
+	if !errors.As(err, &drift) {
+		printAgentsNotices(cmd, result)
+		return result, err
+	}
+	fmt.Fprint(cmd.ErrOrStderr(), drift.Diff)
+	if state.yes || !stdinIsTerminal() {
+		return result, err
+	}
+	if opts.Frozen {
+		fmt.Fprintf(cmdOut(cmd), "%s was edited by hand. [o]verwrite / [c]ancel (adopting needs a sync without --frozen): ", drift.Path)
+	} else {
+		fmt.Fprintf(cmdOut(cmd), "%s was edited by hand. [a]dopt new entries into the agents settings / [o]verwrite / [c]ancel: ", drift.Path)
+	}
+	line, ok := readDriftChoice()
+	if !ok {
+		return result, err
+	}
+	switch strings.ToLower(strings.TrimSpace(line)) {
+	case "a", "adopt":
+		if opts.Frozen {
+			return result, err
+		}
+		opts.Adopt = true
+	case "o", "overwrite":
+		opts.Force = true
+	default:
+		return result, err
+	}
+	result, err = state.app.AgentsSyncAll(cmd.Context(), opts)
+	printAgentsNotices(cmd, result)
+	return result, err
+}
+
+// Only the rendered path prints notices; APM output already carries the shadowed-files note.
+func printAgentsNotices(cmd *cobra.Command, result app.AgentsSyncAllResult) {
+	if !result.Rendered {
+		return
+	}
+	for _, notice := range result.Notices {
+		if !strings.Contains(result.Output, notice) {
+			fmt.Fprintln(cmd.ErrOrStderr(), "note:", notice)
+		}
+	}
 }
 
 func newAPMAgentsAddCmd(state *rootState) *cobra.Command {
@@ -89,7 +154,7 @@ func newAPMAgentsAddCmd(state *rootState) *cobra.Command {
 			if err := runAPM(state, cmd, apmArgs...); err != nil {
 				return err
 			}
-			printAgentsTemplateHint(cmd, args[0], false)
+			printAgentsHint(cmd, state, args[0], false)
 			return nil
 		},
 	}
@@ -97,9 +162,9 @@ func newAPMAgentsAddCmd(state *rootState) *cobra.Command {
 	return cmd
 }
 
-func printAgentsTemplateHint(cmd *cobra.Command, spec string, removal bool) {
+func printAgentsHint(cmd *cobra.Command, state *rootState, spec string, removal bool) {
 	out := cmd.ErrOrStderr()
-	for _, line := range app.AgentsTemplateHintLines(spec, removal) {
+	for _, line := range state.app.AgentsHintLines(spec, removal) {
 		fmt.Fprintln(out, line)
 	}
 }
@@ -114,7 +179,7 @@ func newAPMAgentsRemoveCmd(state *rootState) *cobra.Command {
 			if err := runAPM(state, cmd, append([]string{"uninstall", "-g"}, args...)...); err != nil {
 				return err
 			}
-			printAgentsTemplateHint(cmd, args[0], true)
+			printAgentsHint(cmd, state, args[0], true)
 			return nil
 		},
 	}

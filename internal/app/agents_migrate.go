@@ -249,7 +249,7 @@ func buildAPMRender(decls config.LegacyAgentDecls, ownerDeps []apmPackageDep) (a
 	return out, nil
 }
 
-func encodeAPMManifest(manifest apmManifest) (string, error) {
+func encodeAPMManifest(manifest any) (string, error) {
 	var buf strings.Builder
 	encoder := yaml.NewEncoder(&buf)
 	encoder.SetIndent(2)

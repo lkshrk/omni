@@ -28,3 +28,23 @@ func AgentsTemplateHintLines(spec string, removal bool) []string {
 	}
 	return append(lines, "  add 'path:' for a subdirectory of the repo and 'targets:' to limit deploy targets")
 }
+
+// AgentsHintLines points at the agents settings when they render the manifest, else at the host template.
+func (a *App) AgentsHintLines(spec string, removal bool) []string {
+	cfg, err := a.loadConfig()
+	if err != nil || !cfg.Agents.Declares() {
+		return AgentsTemplateHintLines(spec, removal)
+	}
+	if removal {
+		return []string{
+			"",
+			"hint: removed from the live workspace only; it stays declared in the agents settings (settings.d/agents.json)",
+			"  and the next 'omni agents sync' reports the manifest as hand-edited until you remove it there",
+		}
+	}
+	return []string{
+		"",
+		"hint: the agents settings render ~/.apm/apm.yml, so the next 'omni agents sync' reports this install as a hand edit;",
+		"  run 'omni agents sync --adopt' to declare it in settings.d/agents.json and this host's group",
+	}
+}

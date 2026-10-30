@@ -30,17 +30,31 @@ func mergeAgents(dst *RootConfig, src *AgentsConfig) {
 	if dst.Agents == nil {
 		dst.Agents = &AgentsConfig{}
 	}
-	for _, entry := range src.Ignored {
-		index := slices.IndexFunc(dst.Agents.Ignored, func(existing AgentIgnoreEntry) bool {
-			return existing.Host == entry.Host && existing.Target == entry.Target &&
-				existing.Kind == entry.Kind && existing.ID == entry.ID
-		})
-		if index >= 0 {
-			dst.Agents.Ignored[index] = entry
+	if src.Targets != nil {
+		dst.Agents.Targets = slices.Clone(src.Targets)
+	}
+	dst.Agents.Packages = mergeByKey(dst.Agents.Packages, src.Packages, AgentPackage.EntryName)
+	dst.Agents.MCP = mergeByKey(dst.Agents.MCP, src.MCP, func(s AgentMCPServer) string { return s.Name })
+	dst.Agents.LSP = mergeByKey(dst.Agents.LSP, src.LSP, func(s AgentLSPServer) string { return s.Name })
+	dst.Agents.Marketplaces = mergeByKey(dst.Agents.Marketplaces, src.Marketplaces, func(m AgentMarketplace) string { return m.Name })
+	dst.Agents.Ignored = mergeByKey(dst.Agents.Ignored, src.Ignored, func(e AgentIgnoreEntry) string {
+		return e.Host + "\x00" + e.Target + "\x00" + e.Kind + "\x00" + e.ID
+	})
+}
+
+// mergeByKey lets src redefine entries dst held before the merge, once each; other duplicates are kept for validation.
+func mergeByKey[T any](dst, src []T, key func(T) string) []T {
+	earlier := len(dst)
+	replaced := make([]bool, earlier)
+	for _, entry := range src {
+		index := slices.IndexFunc(dst[:earlier], func(existing T) bool { return key(existing) == key(entry) })
+		if index >= 0 && !replaced[index] {
+			dst[index], replaced[index] = entry, true
 			continue
 		}
-		dst.Agents.Ignored = append(dst.Agents.Ignored, entry)
+		dst = append(dst, entry)
 	}
+	return dst
 }
 
 func mergeSettings(dst, src *Settings) {
@@ -149,6 +163,7 @@ func mergeGroup(dst, src *GroupConfig) {
 	dst.Taps = appendUniqueStrings(dst.Taps, src.Taps...)
 	dst.Tools = appendUniqueToolEntries(dst.Tools, src.Tools)
 	dst.Dots = appendUniqueDotEntries(dst.Dots, src.Dots)
+	dst.Agents = appendUniqueStrings(dst.Agents, src.Agents...)
 	if strings.TrimSpace(dst.Description) == "" {
 		dst.Description = src.Description
 	}

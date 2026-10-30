@@ -147,8 +147,11 @@ func ApplyAgentsOutdated(rows []AgentsPackageRow, result apm.OutdatedResult) {
 
 // Local reports a filesystem-path dependency, which apm can neither update nor address by repo.
 func (r AgentsPackageRow) Local() bool {
-	return r.LocalPath != "" || strings.HasPrefix(strings.ToLower(r.Source), apmLocalRepo+"/") ||
-		strings.HasPrefix(r.Source, "/") || strings.HasPrefix(r.Source, ".") || strings.HasPrefix(r.Source, "~")
+	return r.LocalPath != "" || strings.HasPrefix(strings.ToLower(r.Source), apmLocalRepo+"/") || isAPMLocalSpec(r.Source)
+}
+
+func isAPMLocalSpec(spec string) bool {
+	return strings.HasPrefix(spec, "/") || strings.HasPrefix(spec, ".") || strings.HasPrefix(spec, "~")
 }
 
 type apmLockfile struct {

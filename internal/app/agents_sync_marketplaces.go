@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/lkshrk/omni/internal/config"
 )
 
 // apm.yml cannot express marketplaces, so the template declares them as trailing `# apm marketplace add`
@@ -20,6 +22,10 @@ type marketplaceDecl struct {
 
 func (d marketplaceDecl) Render() string {
 	return fmt.Sprintf("apm marketplace add %s --name %s", d.source, d.name)
+}
+
+func newMarketplaceDecl(name, source string) marketplaceDecl {
+	return marketplaceDecl{name: name, source: source, args: []string{"marketplace", "add", source, "--name", name}}
 }
 
 func parseMarketplaceDecl(line string) (marketplaceDecl, bool) {
@@ -73,22 +79,34 @@ func registeredMarketplaceNames(workspaceDir string) map[string]bool {
 	return names
 }
 
-// Registers declared marketplaces apm does not know yet; extras stay registered because removal is a manual decision.
-func (a *App) ensureMarketplaces(ctx context.Context, workspaceDir string, opts AgentsSyncAllOptions) error {
+func templateMarketplaces() ([]marketplaceDecl, error) {
 	tmplPath, err := AgentsTemplatePath()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	template, err := os.ReadFile(tmplPath)
 	if os.IsNotExist(err) {
-		return nil
+		return nil, nil
 	}
 	if err != nil {
-		return fmt.Errorf("read agents template: %w", err)
+		return nil, fmt.Errorf("read agents template: %w", err)
 	}
+	return parseTemplateMarketplaces(template), nil
+}
+
+func settingsMarketplaces(agents *config.AgentsConfig) []marketplaceDecl {
+	decls := make([]marketplaceDecl, 0, len(agents.Marketplaces))
+	for _, marketplace := range agents.Marketplaces {
+		decls = append(decls, newMarketplaceDecl(marketplace.Name, marketplace.Source))
+	}
+	return decls
+}
+
+// Registers declared marketplaces apm does not know yet; extras stay registered because removal is a manual decision.
+func (a *App) ensureMarketplaces(ctx context.Context, workspaceDir string, opts AgentsSyncAllOptions, decls []marketplaceDecl) error {
 	registered := registeredMarketplaceNames(workspaceDir)
 	var errs []error
-	for _, decl := range parseTemplateMarketplaces(template) {
+	for _, decl := range decls {
 		if registered[decl.name] {
 			continue
 		}
