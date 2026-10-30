@@ -10,7 +10,7 @@ set -euo pipefail
 
 # The fork commit the pinned wheel is built from.
 FORK_REPO="${APM_FORK_REPO:-https://github.com/lkshrk/apm.git}"
-FORK_COMMIT="db584b8815da37502ee4bdbde92d90617e2692e7"
+FORK_COMMIT="046d594d360e872ba4b092f4e2afa80f48fbddc6"
 # Fixed so the zip timestamps, and therefore the digest, do not depend on when the wheel is built.
 export SOURCE_DATE_EPOCH=1700000000
 

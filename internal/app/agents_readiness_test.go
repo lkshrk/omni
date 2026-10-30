@@ -248,13 +248,13 @@ func TestAgentsOutdatedProbesVersionBeforeWorkspace(t *testing.T) {
 }
 
 func TestAgentsOutdatedInvokesAPMForReadyWorkspace(t *testing.T) {
-	a, mock, home := newAgentsReadinessApp(t, true, pinnedVersionResponse(), executor.MockCall{})
+	a, mock, home := newAgentsReadinessApp(t, true, pinnedVersionResponse(), executor.MockCall{Stdout: `{"dependencies": []}`})
 	writeAgentsWorkspaceFile(t, home, "apm.yml", "name: live\n")
 	writeAgentsWorkspaceFile(t, home, "apm.lock.yaml", "dependencies: []\n")
 	if _, err := a.AgentsOutdated(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if len(mock.Calls) != 2 || strings.Join(mock.Calls[1].Args, " ") != "outdated -g --parallel-checks 4" {
+	if len(mock.Calls) != 2 || strings.Join(mock.Calls[1].Args, " ") != "outdated -g --json --parallel-checks 4" {
 		t.Fatalf("calls = %+v", mock.Calls)
 	}
 }

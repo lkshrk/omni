@@ -43,9 +43,9 @@ func TestCLIAndTUIAgentsRefreshProduceEquivalentAPMState(t *testing.T) {
 		runOmniCommand(t, bin, s.root, s.env, "--config", s.configPath, "--cache-dir", s.cache, "agents", "outdated")
 	}, runTUI: func(t *testing.T, bin string, s *paritySandbox) {
 		runAgentsActionsTUI(t, bin, s, func(term *vttest.Terminal) {
-			before := countAgentsAction(s, "|outdated -g --parallel-checks 4")
-			sendAgentsActionsKeyUntil(t, term, "R", func(string) bool { return countAgentsAction(s, "|outdated -g --parallel-checks 4") > before }, "TUI did not refresh agents")
-		}, func(s *paritySandbox) bool { return countAgentsAction(s, "|outdated -g --parallel-checks 4") >= 2 })
+			before := countAgentsAction(s, "|outdated -g --json --parallel-checks 4")
+			sendAgentsActionsKeyUntil(t, term, "R", func(string) bool { return countAgentsAction(s, "|outdated -g --json --parallel-checks 4") > before }, "TUI did not refresh agents")
+		}, func(s *paritySandbox) bool { return countAgentsAction(s, "|outdated -g --json --parallel-checks 4") >= 2 })
 	}, observe: observeAgentsActionsParity, readTUI: readAgentsActionsThroughCLI})
 }
 
@@ -88,11 +88,12 @@ dependencies:
 	writeExecutable(t, filepath.Join(binDir, "apm"), `#!/bin/sh
 set -eu
 if [ "${1:-}" = "--version" ]; then
-  echo 'Agent Package Manager (APM) CLI version 0.35.0+omni.5'
+  echo 'Agent Package Manager (APM) CLI version 0.35.0+omni.6'
   exit 0
 fi
 printf '%s|%s\n' "$PWD" "$*" >> "${OMNI_TEST_APM_LOG:?}"
 case "$*" in
+	  outdated*--json*) touch "${OMNI_TEST_APM_STATE:?}/refreshed"; echo '{"dependencies": []}' ;;
 	  outdated*) touch "${OMNI_TEST_APM_STATE:?}/refreshed"; echo '[✓] All dependencies are up-to-date' ;;
   'update -g --yes') touch "${OMNI_TEST_APM_STATE:?}/updated"; echo '[✓] updated' ;;
   'uninstall -g https://github.com/acme/tool') touch "${OMNI_TEST_APM_STATE:?}/removed"; echo '[✓] removed' ;;

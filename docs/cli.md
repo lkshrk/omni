@@ -76,7 +76,7 @@ first available installer (`uv tool install`, `pipx install`, then
 once its guards pass; it refuses, and reports how to install APM, only when none
 of those installers is available.
 
-`omni doctor` requires the exact fork version `0.35.0+omni.5`; another version
+`omni doctor` requires the exact fork version `0.35.0+omni.6`; another version
 or an unparseable version fails the "APM version" check. `--fix` installs the
 pinned wheel (downloaded from Omni's releases and verified by SHA-256) through the
 same installers. See [APM Version](agents.md#apm-version) for the upgrade procedure.
