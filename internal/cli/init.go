@@ -89,6 +89,9 @@ Run 'omni bootstrap' on every new machine to reproduce your environment.`,
 			}
 			fmt.Fprintln(out)
 			printBootstrapHost(applied.Host)
+			if applied.APMError != nil {
+				fmt.Fprintf(errOut, "warning: APM setup: %v\n", applied.APMError)
+			}
 
 			doImport := flagImport
 			if !flagImport && !flagNoImport {
@@ -210,6 +213,9 @@ func runExistingConfigBootstrap(cmd *cobra.Command, state *rootState, a *app.App
 		}
 	}
 
+	if err := a.EnsureAPM(ctx); err != nil {
+		fmt.Fprintf(cmdErr(cmd), "warning: APM setup: %v\n", err)
+	}
 	if promptYesNo(state, "Run sync now to install configured tools?", true) {
 		if err := runToolSyncSection(ctx, a); err != nil {
 			return err

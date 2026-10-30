@@ -175,6 +175,26 @@ func DefaultCacheDir() (string, error) {
 	return path, nil
 }
 
+// DefaultDataDir resolves Omni's XDG data directory.
+func DefaultDataDir() (string, error) {
+	base := os.Getenv("XDG_DATA_HOME")
+	if base == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("resolving home directory: %w", err)
+		}
+		base = filepath.Join(home, ".local", "share")
+	}
+	path, err := filepath.Abs(filepath.Join(base, "omni"))
+	if err != nil {
+		return "", err
+	}
+	if err := testguard.RequireTempPath("default data dir", path); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
 // DefaultStateDir resolves durable Omni state independently from the cache and
 // never falls back to the working directory.
 func DefaultStateDir() (string, error) {

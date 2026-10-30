@@ -22,7 +22,7 @@ func (a *App) doctorAgents(_ context.Context, result *DoctorResult, _ *config.Ro
 		return
 	}
 	if !a.APMAvailable() {
-		result.addCheck("agents", "Agent packages (APM)", DoctorStatusWarn, "apm executable not found on PATH; run 'omni doctor --fix' to install it")
+		result.addCheck("agents", "Agent packages (APM)", DoctorStatusWarn, apmMissingMessage())
 		return
 	}
 	files := []struct {

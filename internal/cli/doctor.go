@@ -78,16 +78,10 @@ func newDoctorCmd(state *rootState) *cobra.Command {
 
 func printAPMInstallFixReport(out io.Writer, report app.APMInstallFixReport) {
 	if report.Planned != "" {
-		fmt.Fprintf(out, "dry run: would install or upgrade APM via: %s\n", report.Planned)
-	}
-	if report.Upgraded != "" {
-		fmt.Fprintf(out, "upgraded APM via: %s\n", report.Upgraded)
+		fmt.Fprintf(out, "dry run: would install %s\n", report.Planned)
 	}
 	if report.Installed != "" {
-		fmt.Fprintf(out, "installed APM via: %s\n", report.Installed)
-		if report.NotOnPATH {
-			fmt.Fprintln(out, "warning: apm installed but not resolvable; add its bin directory (usually ~/.local/bin) to PATH")
-		}
+		fmt.Fprintf(out, "installed %s\n", report.Installed)
 	}
 }
 

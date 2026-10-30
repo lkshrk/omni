@@ -119,44 +119,6 @@ func TestDoctorAPMVersionFailsWhenUnparseable(t *testing.T) {
 	}
 }
 
-func TestFixMissingAPMUpgradesBelowFloor(t *testing.T) {
-	a, mock := newAPMFixApp(t, map[string]bool{"apm": true, "uv": true})
-	mock.Responses = []executor.MockCall{
-		{Stdout: "APM CLI version 0.27.0\n"},
-		{},
-		{Stdout: "APM CLI version " + apmVersionPin + "\n"},
-	}
-	wheel := serveAPMWheel(t, a)
-	report, err := a.FixMissingAPM(context.Background(), false)
-	if err != nil || report.Upgraded != "uv tool install --force "+wheel || report.AlreadyInstalled {
-		t.Fatalf("report = %#v, err = %v", report, err)
-	}
-	if len(mock.Calls) != 3 || mock.Calls[1].Name != "uv" || mock.Calls[2].Name != "apm" {
-		t.Fatalf("calls = %#v", mock.Calls)
-	}
-}
-
-func TestFixMissingAPMDryRunPlansUpgrade(t *testing.T) {
-	a, mock := newAPMFixApp(t, map[string]bool{"apm": true, "pipx": true})
-	mock.Responses = []executor.MockCall{{Stdout: "APM CLI version 0.27.0\n"}}
-	report, err := a.FixMissingAPM(context.Background(), true)
-	if err != nil || report.Planned != "pipx install --force "+a.apmWheel().URL {
-		t.Fatalf("report = %#v, err = %v", report, err)
-	}
-	if len(mock.Calls) != 1 {
-		t.Fatalf("dry run ran the upgrade: %#v", mock.Calls)
-	}
-}
-
-func TestFixMissingAPMRepairsUnparseableVersion(t *testing.T) {
-	a, mock := newAPMFixApp(t, map[string]bool{"apm": true, "uv": true})
-	mock.Responses = []executor.MockCall{{Stdout: "APM CLI version unknown\n"}}
-	report, err := a.FixMissingAPM(context.Background(), true)
-	if err != nil || report.Planned != "uv tool install --force "+a.apmWheel().URL || report.AlreadyInstalled {
-		t.Fatalf("report = %#v, err = %v", report, err)
-	}
-}
-
 func TestPinnedAPMCheckMemoized(t *testing.T) {
 	a, _ := newAPMVersionApp(t, executor.MockCall{Stdout: "Agent Package Manager (APM) CLI version " + apmVersionPin + "\n"})
 	if err := a.requirePinnedAPM(context.Background()); err != nil {
@@ -183,14 +145,5 @@ func TestPinnedAPMCheckDoesNotCacheContextCancellation(t *testing.T) {
 	}
 	if err := a.requirePinnedAPM(context.Background()); err != nil {
 		t.Fatalf("second call err = %v, want nil", err)
-	}
-}
-
-func TestFixMissingAPMErrorsWithoutUpgrader(t *testing.T) {
-	a, mock := newAPMFixApp(t, map[string]bool{"apm": true})
-	mock.Responses = []executor.MockCall{{Stdout: "APM CLI version 0.20.0\n"}}
-	_, err := a.FixMissingAPM(context.Background(), false)
-	if err == nil || !strings.Contains(err.Error(), "no supported installer") {
-		t.Fatalf("err = %v", err)
 	}
 }

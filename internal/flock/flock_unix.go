@@ -10,10 +10,20 @@ import (
 )
 
 // Lock blocks until the exclusive lock is held.
-func Lock(f *os.File) error { return syscall.Flock(int(f.Fd()), syscall.LOCK_EX) }
+func Lock(f *os.File) error { return blockingFlock(f, syscall.LOCK_EX) }
 
 // RLock blocks until a shared lock is held.
-func RLock(f *os.File) error { return syscall.Flock(int(f.Fd()), syscall.LOCK_SH) }
+func RLock(f *os.File) error { return blockingFlock(f, syscall.LOCK_SH) }
+
+// Go's preemption signals can still surface EINTR here on some platforms; retry to keep blocking.
+func blockingFlock(f *os.File, how int) error {
+	for {
+		err := syscall.Flock(int(f.Fd()), how)
+		if !errors.Is(err, syscall.EINTR) {
+			return err
+		}
+	}
+}
 
 // TryLock reports whether the exclusive lock was taken without waiting.
 func TryLock(f *os.File) (bool, error) {

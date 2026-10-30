@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -66,7 +65,7 @@ func serveAPMWheel(t *testing.T, a *App) string {
 }
 
 func TestFixMissingAPMRefusesAWheelThatFailsItsDigest(t *testing.T) {
-	a, mock := newAPMFixApp(t, map[string]bool{"uv": true})
+	a, mock := newPrivateAPMApp(t, map[string]bool{"uv": true})
 	wheel, _ := serveAPMWheelBody(t, a, []byte("tampered"), []byte("pinned"))
 	_, err := a.FixMissingAPM(context.Background(), false)
 	if err == nil || !strings.Contains(err.Error(), "checksum mismatch") {
@@ -81,11 +80,8 @@ func TestFixMissingAPMRefusesAWheelThatFailsItsDigest(t *testing.T) {
 }
 
 func TestFixMissingAPMReusesVerifiedCachedWheelOffline(t *testing.T) {
-	a, mock := newAPMFixApp(t, map[string]bool{"uv": true})
-	mock.Responses = []executor.MockCall{
-		{},
-		{Stdout: "Agent Package Manager (APM) CLI version " + apmVersionPin + "\n"},
-	}
+	a, mock := newPrivateAPMApp(t, map[string]bool{"uv": true})
+	mock.Responses = pinnedBuildResponses()
 	wheel, hits := serveAPMWheelBody(t, a, []byte("not served"), []byte("cached"))
 	if err := os.MkdirAll(filepath.Dir(wheel), 0o700); err != nil {
 		t.Fatal(err)
@@ -94,20 +90,20 @@ func TestFixMissingAPMReusesVerifiedCachedWheelOffline(t *testing.T) {
 		t.Fatal(err)
 	}
 	report, err := a.FixMissingAPM(context.Background(), false)
-	if err != nil || report.Installed != "uv tool install "+wheel {
+	if err != nil || !strings.HasPrefix(report.Installed, "apm "+apmVersionPin+" into ") {
 		t.Fatalf("report = %#v, err = %v", report, err)
 	}
 	if hits.Load() != 0 {
 		t.Fatalf("downloaded %d times despite a verified cached wheel", hits.Load())
 	}
+	if got := mock.Calls[1].Args[len(mock.Calls[1].Args)-1]; got != wheel {
+		t.Fatalf("installed %q, want the verified cached wheel %q", got, wheel)
+	}
 }
 
 func TestFixMissingAPMReplacesACorruptCachedWheel(t *testing.T) {
-	a, mock := newAPMFixApp(t, map[string]bool{"uv": true})
-	mock.Responses = []executor.MockCall{
-		{},
-		{Stdout: "Agent Package Manager (APM) CLI version " + apmVersionPin + "\n"},
-	}
+	a, mock := newPrivateAPMApp(t, map[string]bool{"uv": true})
+	mock.Responses = pinnedBuildResponses()
 	wheel, hits := serveAPMWheelBody(t, a, []byte("good"), []byte("good"))
 	if err := os.MkdirAll(filepath.Dir(wheel), 0o700); err != nil {
 		t.Fatal(err)
@@ -123,14 +119,14 @@ func TestFixMissingAPMReplacesACorruptCachedWheel(t *testing.T) {
 	}
 }
 
-func TestFixMissingAPMDownloadsNothingWithoutAnInstaller(t *testing.T) {
-	a, _ := newAPMFixApp(t, nil)
+func TestFixMissingAPMDownloadsNothingWithoutABuilder(t *testing.T) {
+	a, _ := newPrivateAPMApp(t, nil)
 	_, hits := serveAPMWheelBody(t, a, []byte("wheel"), []byte("wheel"))
 	if _, err := a.FixMissingAPM(context.Background(), false); err == nil {
-		t.Fatal("expected the no-installer error")
+		t.Fatal("expected the no-builder error")
 	}
 	if hits.Load() != 0 {
-		t.Fatalf("downloaded the wheel %d times with no installer to use it", hits.Load())
+		t.Fatalf("downloaded the wheel %d times with no builder to use it", hits.Load())
 	}
 }
 
@@ -163,200 +159,65 @@ func TestParseAPMWheelRejectsUnverifiablePins(t *testing.T) {
 	}
 }
 
-func TestFixMissingAPMNoopWhenInstalled(t *testing.T) {
-	a, mock := newAPMFixApp(t, map[string]bool{"apm": true, "uv": true})
-	mock.Responses = []executor.MockCall{{Stdout: "Agent Package Manager (APM) CLI version " + apmVersionPin + "\n"}}
+func TestFixMissingAPMNoopWhenTheCopyIsPinned(t *testing.T) {
+	a, mock := newPrivateAPMApp(t, map[string]bool{"uv": true})
+	serveAPMWheel(t, a)
+	writeCompleteAPMCopy(t, a)
+	mock.Responses = []executor.MockCall{{Stdout: "APM CLI version " + apmVersionPin + "\n"}}
 	report, err := a.FixMissingAPM(context.Background(), false)
 	if err != nil || !report.AlreadyInstalled {
 		t.Fatalf("report = %#v, err = %v", report, err)
 	}
-	if len(mock.Calls) != 1 || mock.Calls[0].Name != "apm" {
-		t.Fatalf("unexpected calls: %#v", mock.Calls)
+	if len(mock.Calls) != 1 {
+		t.Fatalf("calls = %#v, want only the version probe", mock.Calls)
 	}
 }
 
-func TestFixMissingAPMDryRunPlansPreferredInstaller(t *testing.T) {
-	a, mock := newAPMFixApp(t, map[string]bool{"uv": true, "pip3": true})
+func TestFixMissingAPMRebuildsACopyThatReportsAnotherVersion(t *testing.T) {
+	a, mock := newPrivateAPMApp(t, map[string]bool{"uv": true})
+	serveAPMWheel(t, a)
+	writeCompleteAPMCopy(t, a)
+	mock.Responses = append([]executor.MockCall{{Stdout: "APM CLI version 0.27.0\n"}}, pinnedBuildResponses()...)
+	report, err := a.FixMissingAPM(context.Background(), false)
+	if err != nil || report.Installed == "" {
+		t.Fatalf("report = %#v, err = %v", report, err)
+	}
+	if got := mock.Calls[1]; got.Name != "uv" || got.Args[0] != "venv" {
+		t.Fatalf("second call = %#v, want the rebuild", got)
+	}
+}
+
+func TestFixMissingAPMDryRunPlansWithoutRunning(t *testing.T) {
+	a, mock := newPrivateAPMApp(t, map[string]bool{"uv": true})
 	report, err := a.FixMissingAPM(context.Background(), true)
-	if err != nil || report.Planned != "uv tool install "+a.apmWheel().URL {
+	if err != nil || !strings.HasSuffix(report.Planned, " with uv") || !strings.Contains(report.Planned, apmVersionPin) {
 		t.Fatalf("report = %#v, err = %v", report, err)
 	}
 	if len(mock.Calls) != 0 {
-		t.Fatalf("dry run executed commands: %#v", mock.Calls)
+		t.Fatalf("dry run ran commands: %#v", mock.Calls)
 	}
 }
 
-func TestFixMissingAPMInstallsViaFallbackInstaller(t *testing.T) {
-	a, mock := newAPMFixApp(t, map[string]bool{"pip3": true})
-	mock.Responses = []executor.MockCall{
-		{},
-		{Stdout: "Agent Package Manager (APM) CLI version " + apmVersionPin + "\n"},
-	}
-	wheel := serveAPMWheel(t, a)
-	report, err := a.FixMissingAPM(context.Background(), false)
-	if err != nil || report.Installed != "pip3 install --user "+wheel {
-		t.Fatalf("report = %#v, err = %v", report, err)
-	}
-	if len(mock.Calls) != 2 || mock.Calls[0].Name != "pip3" || mock.Calls[1].Name != "apm" {
-		t.Fatalf("calls = %#v", mock.Calls)
-	}
-}
-
-type flipExecutor struct {
-	availExecutor
-	makeAvailable string
-}
-
-func (e *flipExecutor) Run(ctx context.Context, name string, args ...string) (string, string, error) {
-	stdout, stderr, err := e.availExecutor.Run(ctx, name, args...)
-	if err == nil && e.makeAvailable != "" {
-		e.available[e.makeAvailable] = true
-	}
-	return stdout, stderr, err
-}
-
-func TestFixMissingAPMReportsResolvableInstall(t *testing.T) {
-	configPath := filepath.Join(t.TempDir(), "settings.json")
-	if err := config.Save(configPath, &config.RootConfig{Version: config.CurrentVersion}); err != nil {
-		t.Fatal(err)
-	}
-	mock := &flipExecutor{availExecutor: availExecutor{available: map[string]bool{"uv": true}}, makeAvailable: "apm"}
-	mock.Responses = []executor.MockCall{
-		{},
-		{Stdout: "Agent Package Manager (APM) CLI version " + apmVersionPin + "\n"},
-	}
-	a := New(configPath)
-	a.SetFallbackExecutor(mock)
-	wheel := serveAPMWheel(t, a)
-	report, err := a.FixMissingAPM(context.Background(), false)
-	if err != nil || report.Installed != "uv tool install "+wheel || report.NotOnPATH {
-		t.Fatalf("report = %#v, err = %v", report, err)
-	}
-}
-
-func TestFixMissingAPMRejectsUnverifiableInstall(t *testing.T) {
-	a, _ := newAPMFixApp(t, map[string]bool{"uv": true})
-	serveAPMWheel(t, a)
-	report, err := a.FixMissingAPM(context.Background(), false)
-	if err == nil || report.Installed != "" || !strings.Contains(err.Error(), apmVersionPin) {
-		t.Fatalf("report = %#v, err = %v", report, err)
-	}
-}
-
-func TestFixMissingAPMRetriesExternallyManagedPip(t *testing.T) {
-	configPath := filepath.Join(t.TempDir(), "settings.json")
-	if err := config.Save(configPath, &config.RootConfig{Version: config.CurrentVersion}); err != nil {
-		t.Fatal(err)
-	}
-	mock := &availExecutor{available: map[string]bool{"pip3": true}}
-	mock.Responses = []executor.MockCall{
-		{Stderr: "error: externally-managed-environment\n", Err: context.DeadlineExceeded},
-		{},
-		{Stdout: "Agent Package Manager (APM) CLI version " + apmVersionPin + "\n"},
-	}
-	a := New(configPath)
-	a.SetFallbackExecutor(mock)
-	wheel := serveAPMWheel(t, a)
-	report, err := a.FixMissingAPM(context.Background(), false)
-	if err != nil || report.Installed != "pip3 install --user "+wheel+" --break-system-packages" {
-		t.Fatalf("report = %#v, err = %v", report, err)
-	}
-	if len(mock.Calls) != 3 || mock.Calls[1].Args[len(mock.Calls[1].Args)-1] != "--break-system-packages" || mock.Calls[2].Name != "apm" {
-		t.Fatalf("calls = %#v", mock.Calls)
-	}
-}
-
-func TestFixMissingAPMDoesNotRetryOtherPipFailures(t *testing.T) {
-	configPath := filepath.Join(t.TempDir(), "settings.json")
-	if err := config.Save(configPath, &config.RootConfig{Version: config.CurrentVersion}); err != nil {
-		t.Fatal(err)
-	}
-	mock := &availExecutor{available: map[string]bool{"pip3": true}}
-	mock.Responses = []executor.MockCall{{Stderr: "network unreachable\n", Err: context.DeadlineExceeded}}
-	a := New(configPath)
-	a.SetFallbackExecutor(mock)
-	serveAPMWheel(t, a)
+func TestFixMissingAPMNeverInstallsOverAnOverride(t *testing.T) {
+	a, mock := newAPMFixApp(t, map[string]bool{"apm": true, "uv": true})
+	t.Setenv(apmOverrideEnv, "apm")
+	mock.Responses = []executor.MockCall{{Stdout: "APM CLI version 0.27.0\n"}}
 	_, err := a.FixMissingAPM(context.Background(), false)
-	if err == nil || !strings.Contains(err.Error(), "network unreachable") {
+	if err == nil || !strings.Contains(err.Error(), "does not install over an override") {
 		t.Fatalf("err = %v", err)
 	}
-	if len(mock.Calls) != 1 {
-		t.Fatalf("calls = %#v", mock.Calls)
+	if len(mock.Calls) != 1 || mock.Calls[0].Name != "apm" {
+		t.Fatalf("calls = %#v, want only the override's version probe", mock.Calls)
 	}
 }
 
-func TestFixMissingAPMErrorsWithoutInstaller(t *testing.T) {
-	a, _ := newAPMFixApp(t, nil)
-	_, err := a.FixMissingAPM(context.Background(), false)
-	if err == nil || !strings.Contains(err.Error(), a.apmWheel().URL) {
-		t.Fatalf("err = %v", err)
-	}
-}
-
-// apm is on PATH but does not match the pin: the first upgrader failing means it was installed by another one, so
-// the fix tries the rest before reporting the upgrade impossible.
-func TestFixMissingAPMFallsThroughToTheNextUpgrader(t *testing.T) {
-	a, mock := newAPMFixApp(t, map[string]bool{"apm": true, "uv": true, "pipx": true})
-	mock.Responses = []executor.MockCall{
-		{Stdout: "Agent Package Manager (APM) CLI version 0.0.1\n"},
-		{Stderr: "`apm-cli` is not installed\n", Err: errors.New("exit status 1")},
-		{Stdout: "upgraded\n"},
-		{Stdout: "Agent Package Manager (APM) CLI version " + apmVersionPin + "\n"},
-	}
-
-	wheel := serveAPMWheel(t, a)
+func TestFixMissingAPMAcceptsAPinnedOverride(t *testing.T) {
+	a, mock := newAPMFixApp(t, map[string]bool{"apm": true})
+	t.Setenv(apmOverrideEnv, "apm")
+	mock.Responses = []executor.MockCall{{Stdout: "APM CLI version " + apmVersionPin + "\n"}}
 	report, err := a.FixMissingAPM(context.Background(), false)
-	if err != nil || report.Upgraded != "pipx install --force "+wheel {
+	if err != nil || !report.AlreadyInstalled {
 		t.Fatalf("report = %#v, err = %v", report, err)
-	}
-	if len(mock.Calls) != 4 {
-		t.Fatalf("calls = %#v, want the failed uv upgrade followed by pipx", mock.Calls)
-	}
-}
-
-func TestFixMissingAPMReprobesAfterSuccessfulUpgrade(t *testing.T) {
-	a, mock := newAPMFixApp(t, map[string]bool{"apm": true, "uv": true, "pipx": true})
-	mock.Responses = []executor.MockCall{
-		{Stdout: "Agent Package Manager (APM) CLI version 0.0.1\n"},
-		{},
-		{Stdout: "Agent Package Manager (APM) CLI version 0.0.1\n"},
-		{},
-		{Stdout: "Agent Package Manager (APM) CLI version " + apmVersionPin + "\n"},
-	}
-
-	wheel := serveAPMWheel(t, a)
-	report, err := a.FixMissingAPM(context.Background(), false)
-	if err != nil || report.Upgraded != "pipx install --force "+wheel {
-		t.Fatalf("report = %#v, err = %v", report, err)
-	}
-	want := []string{"apm", "uv", "apm", "pipx", "apm"}
-	if len(mock.Calls) != len(want) {
-		t.Fatalf("calls = %#v", mock.Calls)
-	}
-	for i, call := range mock.Calls {
-		if call.Name != want[i] {
-			t.Fatalf("calls = %#v", mock.Calls)
-		}
-	}
-}
-
-func TestFixMissingAPMReportsEveryFailedUpgrader(t *testing.T) {
-	a, mock := newAPMFixApp(t, map[string]bool{"apm": true, "uv": true, "pipx": true})
-	serveAPMWheel(t, a)
-	mock.Responses = []executor.MockCall{
-		{Stdout: "Agent Package Manager (APM) CLI version 0.0.1\n"},
-		{Stderr: "uv refused\n", Err: errors.New("exit status 1")},
-		{Stderr: "pipx refused\n", Err: errors.New("exit status 1")},
-	}
-
-	_, err := a.FixMissingAPM(context.Background(), false)
-	if err == nil {
-		t.Fatal("every upgrader failed but the fix reported success")
-	}
-	for _, want := range []string{"uv refused", "pipx refused"} {
-		if !strings.Contains(err.Error(), want) {
-			t.Fatalf("err = %v, want it to name %q", err, want)
-		}
 	}
 }
 
@@ -371,6 +232,8 @@ func newSyncWithoutAPMApp(t *testing.T) (*App, *availExecutor, string) {
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "config"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(dir, "data"))
+	t.Setenv(apmOverrideEnv, "")
 	if err := os.MkdirAll(filepath.Join(home, ".apm"), 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -383,7 +246,7 @@ func newSyncWithoutAPMApp(t *testing.T) (*App, *availExecutor, string) {
 	return a, mock, home
 }
 
-func TestAgentsSyncAllRefusesToInstallWithoutAPM(t *testing.T) {
+func TestAgentsSyncAllRefusesToRunWithoutABuilder(t *testing.T) {
 	a, mock, home := newSyncWithoutAPMApp(t)
 
 	_, err := a.AgentsSyncAll(context.Background(), AgentsSyncAllOptions{})
@@ -391,43 +254,52 @@ func TestAgentsSyncAllRefusesToInstallWithoutAPM(t *testing.T) {
 		t.Fatalf("error lacks install hint: %v", err)
 	}
 	if len(mock.Calls) != 0 {
-		t.Fatalf("apm invoked despite missing binary: %#v", mock.Calls)
+		t.Fatalf("commands ran without apm: %#v", mock.Calls)
 	}
 	if _, err := os.Stat(filepath.Join(home, ".apm", "apm.yml")); err != nil {
 		t.Fatalf("existing manifest changed: %v", err)
 	}
 }
 
-func TestAgentsSyncAllInstallsPinnedAPMFirst(t *testing.T) {
+func TestAgentsSyncAllProvisionsPinnedAPMFirst(t *testing.T) {
 	a, _, _ := newSyncWithoutAPMApp(t)
-	mock := &flipExecutor{availExecutor: availExecutor{available: map[string]bool{"uv": true}}, makeAvailable: "apm"}
-	mock.Responses = []executor.MockCall{
-		{},
-		{Stdout: "Agent Package Manager (APM) CLI version " + apmVersionPin + "\n"},
-	}
+	mock := &venvExecutor{availExecutor: availExecutor{available: map[string]bool{"uv": true}}}
+	mock.Responses = pinnedBuildResponses()
 	a.SetFallbackExecutor(mock)
-	wheel := serveAPMWheel(t, a)
+	serveAPMWheel(t, a)
 
-	// The rest of the sync runs against the mock; only the install ordering matters here.
+	// The rest of the sync runs against the mock; only the provisioning order matters here.
 	_, _ = a.AgentsSyncAll(context.Background(), AgentsSyncAllOptions{})
-	if len(mock.Calls) == 0 {
-		t.Fatal("sync never ran an installer")
+	if len(mock.Calls) < 3 {
+		t.Fatalf("calls = %#v, want the provisioning steps", mock.Calls)
 	}
-	first := mock.Calls[0]
-	if got := strings.Join(append([]string{first.Name}, first.Args...), " "); got != "uv tool install "+wheel {
-		t.Fatalf("first command = %q, want the pinned APM install", got)
+	if first := mock.Calls[0]; first.Name != "uv" || first.Args[0] != "venv" {
+		t.Fatalf("first command = %#v, want omni's APM copy built first", first)
 	}
 }
 
 func TestAgentsSyncAllDryRunInstallsNothing(t *testing.T) {
 	a, _, _ := newSyncWithoutAPMApp(t)
-	mock := &flipExecutor{availExecutor: availExecutor{available: map[string]bool{"uv": true}}, makeAvailable: "apm"}
+	mock := &venvExecutor{availExecutor: availExecutor{available: map[string]bool{"uv": true}}}
 	a.SetFallbackExecutor(mock)
 
 	_, _ = a.AgentsSyncAll(context.Background(), AgentsSyncAllOptions{DryRun: true})
 	for _, call := range mock.Calls {
-		if call.Name == "uv" {
+		if call.Name == "uv" || call.Name == "python3" {
 			t.Fatalf("dry run installed apm: %#v", call)
 		}
+	}
+}
+
+func TestAgentsSyncAllDryRunWithoutACopyReportsItAndRunsNothing(t *testing.T) {
+	a, _, _ := newSyncWithoutAPMApp(t)
+	mock := &venvExecutor{availExecutor: availExecutor{available: map[string]bool{"uv": true}}}
+	a.SetFallbackExecutor(mock)
+	_, err := a.AgentsSyncAll(context.Background(), AgentsSyncAllOptions{DryRun: true})
+	if err == nil || !strings.Contains(err.Error(), "not installed yet") {
+		t.Fatalf("err = %v, want the missing-copy message", err)
+	}
+	if len(mock.Calls) != 0 {
+		t.Fatalf("dry run ran commands: %#v", mock.Calls)
 	}
 }

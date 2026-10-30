@@ -63,6 +63,8 @@ nfpms:
       - rpm
     dependencies:
       - stow
+      - git
+      - uv
 
 changelog:
   use: git

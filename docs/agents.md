@@ -3,6 +3,8 @@
 APM is the sole owner of steady-state agent packages, skills, MCP, plugins,
 marketplaces, dependency locks, and deployed runtime state.
 
+Omni provisions the exact pinned APM wheel into `$XDG_DATA_HOME/omni/apm/` on first use and always runs that private copy. `OMNI_APM=/path/to/apm` is the explicit development/test override. Use `omni apm <args>` for an APM command Omni does not wrap. A separate `apm` on `PATH` is not used by Omni.
+
 `omni agents sync` is the primary integration command. The remaining agent
 commands are thin APM wrappers: `add`, `remove`, `update`, `search`, `audit`,
 `targets`, `outdated`, `prune`, `deps`, and `marketplace`.
@@ -439,15 +441,14 @@ a PyPI release, and the release is neither an Omni version nor marked Latest.
 omni doctor --fix
 ```
 
-Doctor downloads the wheel, refuses it unless its SHA-256 matches the pin, keeps
-it in the cache directory (`<cache>/apm/`), and installs that file through the
-first available installer (`uv tool install`, `pipx install`, then
-`pip3 install --user`). A cached wheel that still matches is reused, so a
-reinstall needs no network. A mismatching download is deleted and no installer
-runs. `--dry-run` plans the install with the release URL and downloads nothing.
-Omni checks the digest itself because `uv` and `pipx` reject the `#sha256=`
-fragment that `pip` would verify. CI and the integration image hand the same
-pin to `pip`, which does.
+Doctor downloads the wheel, refuses it unless its SHA-256 matches the pin, and
+keeps the verified wheel in Omni's cache directory (`<cache>/apm/`). It then
+creates a private venv under `$XDG_DATA_HOME/omni/apm/<version>` with `uv`, or
+with Python 3.10 or newer when uv is unavailable, and verifies `apm --version`.
+A cached wheel that still matches is reused, so a rebuild needs no network for
+APM itself. A mismatching download is deleted before any build starts.
+`--dry-run` reports the planned private install without downloading. CI and the
+integration image hand the same pin to `pip`, which verifies the URL fragment.
 
 The fork adds native omp MCP deployment and per-server MCP targets. Package
 dependencies retain upstream Git/path coordinates and per-package target

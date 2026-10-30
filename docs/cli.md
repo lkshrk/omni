@@ -51,6 +51,8 @@ disabled for this host is reported as disabled rather than actively probed.
 `settings.json`. It reads the raw file, so it reports them even though every
 other command refuses to load such a config.
 
+`omni apm <args>` runs Omni's private pinned APM copy for advanced APM commands not exposed under `omni agents`; `OMNI_APM=/path/to/apm` overrides it for development and tests.
+
 `omni doctor --fix` repairs Omni-owned tool and dotfile state. For agents, it
 can remove exact package-owned MCP/LSP duplicates from the canonical host
 template; APM still owns package cleanup and runtime state.
@@ -69,17 +71,16 @@ rechecks the content hashes and file identities of every classification input
 before replacement. Any changed input or unsupported exact-candidate layout
 refuses the whole repair; it does not apply a partial removal.
 
-When the `apm` executable is missing and agent features are enabled,
-`omni doctor --fix` installs the exact APM release required by Omni through the
-first available installer (`uv tool install`, `pipx install`, then
-`pip3 install --user`). Agent sync installs or upgrades to that release itself
-once its guards pass; it refuses, and reports how to install APM, only when none
-of those installers is available.
+When Omni's private APM copy is missing and agent features are enabled,
+`omni doctor --fix` builds it from the exact verified pinned wheel. Agent sync
+and first agent use provision it automatically once their guards pass. A
+missing private copy is a warning; Omni needs uv, or Python 3.10 or newer, to
+build it.
 
-`omni doctor` requires the exact fork version `0.35.0+omni.7`; another version
-or an unparseable version fails the "APM version" check. `--fix` installs the
-pinned wheel (downloaded from Omni's releases and verified by SHA-256) through the
-same installers. See [APM Version](agents.md#apm-version) for the upgrade procedure.
+`omni doctor` requires the exact fork version `0.35.0+omni.7` from either the
+private copy or `OMNI_APM`; another version or an unparseable version fails the
+"APM version" check. See [APM Version](agents.md#apm-version) for the upgrade
+procedure.
 
 `omni doctor` exits nonzero when any check fails, and `--fix` and `--dry-run`
 do not suppress that: `--fix --dry-run` still runs the full diagnostic pass, so

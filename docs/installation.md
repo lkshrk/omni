@@ -10,18 +10,18 @@ Omni is a Go CLI/TUI application.
 - Skill packages backed by Git require system `git` on `PATH`. HTTP
   well-known catalogs and local directory sources do not require Git.
 - Node, `npx`, and `bunx` are not prerequisites for agent skills.
-- Dotfile sync requires GNU Stow. Homebrew and Linux packages install the
-  `stow` package as a dependency; release archives and `go install` users need
-  `stow` on `PATH`.
+- Dotfile sync requires GNU Stow. Agent packages use Omni's private APM copy;
+  Omni provisions it automatically with `uv`, or Python 3.10 or newer when uv is unavailable.
+  Homebrew and Linux packages install `stow`, `git` and `uv` as dependencies.
 
 ## Dependency Handling By Channel
 
-| Install channel | GNU Stow handling |
+| Install channel | Dependencies |
 | --- | --- |
-| Homebrew | The generated formula depends on `stow`; `brew install omni` installs it when needed. |
-| Linux packages | The `.deb`, `.rpm`, `.apk`, and Arch packages declare `stow` as a dependency. Use the distro package manager so dependencies are resolved. |
-| Release archives | Archives contain only the `omni` binary. Install `stow` separately before using dotfile sync. |
-| `go install` | Go installs only the `omni` binary. Install `stow` separately before using dotfile sync. |
+| Homebrew | The generated formula depends on `stow`, `git` and `uv`. |
+| Linux packages | The `.deb`, `.rpm`, `.apk`, and Arch packages declare `stow`, `git` and `uv`. Use the distro package manager so dependencies are resolved. |
+| Release archives | Archives contain only the `omni` binary. Install `stow`, Git, and preferably uv separately. |
+| `go install` | Go installs only the `omni` binary. Install `stow`, Git, and preferably uv separately. |
 
 Low-level package tools such as `dpkg -i` and `rpm -i` may report a missing
 `stow` dependency instead of fetching it. Prefer commands that resolve

@@ -202,3 +202,15 @@ func TestTargetsJSONUsesDisposableHome(t *testing.T) {
 		t.Fatalf("disposable home still exists: %v", err)
 	}
 }
+
+func TestClientWithCommandUsesTheOverride(t *testing.T) {
+	mock := &commandexec.MockExecutor{Responses: []commandexec.MockCall{{Stdout: "ok"}}}
+	client := apm.New(mock, apm.Global).WithCommand("/tmp/omni-apm")
+	result, err := client.Run(context.Background(), "targets")
+	if err != nil || result.Stdout != "ok" {
+		t.Fatalf("result = %#v, err = %v", result, err)
+	}
+	if len(mock.Calls) != 1 || mock.Calls[0].Name != "/tmp/omni-apm" {
+		t.Fatalf("calls = %#v", mock.Calls)
+	}
+}

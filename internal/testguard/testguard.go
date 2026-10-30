@@ -471,6 +471,8 @@ func (s *Sandbox) envMap() map[string]string {
 		"all_proxy":             "http://127.0.0.1:1",
 		"NO_PROXY":              "localhost,127.0.0.1,::1",
 		"no_proxy":              "localhost,127.0.0.1,::1",
+		// Tests stub apm by name; only tests of omni's private APM copy unset this.
+		"OMNI_APM": "apm",
 	}
 	if len(s.approvedTools) > 0 {
 		env[approvedToolsEnv] = strings.Join(s.approvedTools, ",")

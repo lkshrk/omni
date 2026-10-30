@@ -39,11 +39,8 @@ type AgentsReadiness struct {
 	LockPath     string
 }
 
-// AgentsReadiness inspects the pinned APM contract and its workspace without writing anything.
+// AgentsReadiness provisions omni's APM copy if missing; otherwise it is read-only.
 func (a *App) AgentsReadiness(ctx context.Context) (AgentsReadiness, error) {
-	if !a.APMAvailable() {
-		return agentsAPMRepairReadiness(errAPMNotInstalled())
-	}
 	if err := a.requirePinnedAPM(ctx); err != nil {
 		var repair *APMRepairError
 		if !errors.As(err, &repair) {

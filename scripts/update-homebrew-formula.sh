@@ -35,6 +35,8 @@ class Omni < Formula
   license "MIT"
 
   depends_on "stow"
+  depends_on "git"
+  depends_on "uv"
 
   on_macos do
     if Hardware::CPU.intel?

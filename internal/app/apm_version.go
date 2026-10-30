@@ -25,7 +25,7 @@ const apmDistribution = "apm-cli"
 // Omni installs and pins APM itself, so tool discovery never offers it as an untracked tool.
 func isOmniManagedPackage(name string) bool { return strings.EqualFold(name, apmDistribution) }
 
-const apmVersionFixHint = "run 'omni doctor --fix' to upgrade apm-cli"
+const apmVersionFixHint = "run 'omni doctor --fix' to reinstall omni's apm copy"
 
 type APMRepairKind string
 
@@ -54,15 +54,29 @@ func (e *APMRepairError) Unwrap() error { return e.Err }
 
 var apmVersionPattern = regexp.MustCompile(`(?:^|\s)(\d+\.\d+\.\d+(?:\+[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?)(?:\s|$)`)
 
-// APMVersion reports the installed apm-cli version as a dotted triple.
+// APMVersion reports the version of the apm omni runs: the OMNI_APM override, else omni's private copy.
 func (a *App) APMVersion(ctx context.Context) (string, error) {
+	command, installed := a.apmCommand()
+	if apmOverride() == "" && !installed {
+		return "", &APMRepairError{Kind: APMRepairMissing, Required: apmVersionPin, Err: errNoAPMCopy}
+	}
+	var version string
+	err := a.withAPMExecutionLock(func() error {
+		var probeErr error
+		version, probeErr = a.apmVersionOf(ctx, command)
+		return probeErr
+	})
+	return version, err
+}
+
+func (a *App) apmVersionOf(ctx context.Context, command string) (string, error) {
 	env, cleanup, err := apm.IsolatedEnv("omni-apm-version-")
 	if err != nil {
 		return "", err
 	}
 	defer cleanup()
 
-	stdout, stderr, err := executor.RunWithEnv(ctx, a.fallbackExecutor(), env, "apm", "--version")
+	stdout, stderr, err := executor.RunWithEnv(ctx, a.fallbackExecutor(), env, command, "--version")
 	if err != nil {
 		return "", executor.WrapError(err, "apm --version", stdout, stderr)
 	}
@@ -86,22 +100,33 @@ func parseAPMVersion(output string) string {
 func apmVersionPinned(version string) bool { return version == apmVersionPin }
 
 func (a *App) doctorAPMVersion(ctx context.Context, result *DoctorResult, _ *config.RootConfig) {
-	if !a.APMAvailable() {
+	command, installed := a.apmCommand()
+	var details []string
+	if pathVersion, found := a.pathAPMVersion(ctx); found && pathVersion != apmVersionPin {
+		details = append(details, fmt.Sprintf("apm %s on PATH is not used by omni and is left alone", pathVersion))
+	}
+	if !installed {
+		result.addCheck("apm-version", "APM version", DoctorStatusWarn, apmMissingMessage(), details...)
 		return
 	}
 	version, err := a.APMVersion(ctx)
 	a.seedPinnedAPM(version, err)
+	source := "omni's copy " + command
+	if apmOverride() != "" {
+		source = apmOverrideEnv + "=" + command
+	}
+	details = append([]string{source}, details...)
 	if err != nil {
 		result.addCheck("apm-version", "APM version", DoctorStatusFail,
-			"apm version could not be determined", err.Error(), apmVersionFixHint)
+			"apm version could not be determined", append(details, err.Error(), apmVersionFixHint)...)
 		return
 	}
 	if !apmVersionPinned(version) {
 		result.addCheck("apm-version", "APM version", DoctorStatusFail,
-			fmt.Sprintf("apm %s is unsupported; omni requires exactly %s", version, apmVersionPin), apmVersionFixHint)
+			fmt.Sprintf("apm %s is unsupported; omni requires exactly %s", version, apmVersionPin), append(details, apmVersionFixHint)...)
 		return
 	}
-	result.addCheck("apm-version", "APM version", DoctorStatusOK, "apm "+version, "pinned "+apmVersionPin)
+	result.addCheck("apm-version", "APM version", DoctorStatusOK, "apm "+version, append([]string{"pinned " + apmVersionPin}, details...)...)
 }
 
 func pinnedAPMError(version string, err error) error {
@@ -118,6 +143,14 @@ func (a *App) requirePinnedAPM(ctx context.Context) error {
 	if a.pinnedAPMDone {
 		return a.pinnedAPMErr
 	}
+	if _, err := a.ensureAPM(ctx); err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return err
+		}
+		a.pinnedAPMErr, a.pinnedAPMDone = err, true
+		return err
+	}
+	a.apmPresentDone = false
 	version, err := a.APMVersion(ctx)
 	err = pinnedAPMError(version, err)
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {

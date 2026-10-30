@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -41,7 +42,8 @@ type AgentsSyncAllResult struct {
 }
 
 func (a *App) APMClient(scope apm.Scope) *apm.Client {
-	return apm.New(a.fallbackExecutor(), scope)
+	command, _ := a.apmCommand()
+	return apm.New(a.fallbackExecutor(), scope).WithCommand(command)
 }
 
 func (a *App) commandAvailable(name string) bool {
@@ -51,12 +53,13 @@ func (a *App) commandAvailable(name string) bool {
 	return executor.CommandAvailable(name)
 }
 
-// APMAvailable memoizes its PATH walk: it runs on every apm invocation, and apm cannot appear mid-process unless we install it.
+// APMAvailable reports whether the apm omni runs is installed now, without provisioning it; the probe is memoized.
 func (a *App) APMAvailable() bool {
 	a.pinnedAPMMu.Lock()
 	defer a.pinnedAPMMu.Unlock()
 	if !a.apmPresentDone {
-		a.apmPresent, a.apmPresentDone = a.commandAvailable("apm"), true
+		_, a.apmPresent = a.apmCommand()
+		a.apmPresentDone = true
 	}
 	return a.apmPresent
 }
@@ -68,24 +71,11 @@ func (a *App) forgetAPMProbes() {
 	a.apmPresentDone, a.pinnedAPMDone, a.pinnedAPMErr = false, false, nil
 }
 
-// Sync installs the APM release Omni is pinned to, as dots sync installs stow.
-// Without any installer the readiness checks refuse as before, with the install hint.
 func (a *App) ensurePinnedAPM(ctx context.Context) error {
-	if a.APMAvailable() && a.requirePinnedAPM(ctx) == nil {
-		return nil
-	}
-	if !slices.ContainsFunc(apmInstallCommands(""), func(c []string) bool { return a.commandAvailable(c[0]) }) {
-		return nil
-	}
-	if _, err := a.FixMissingAPM(ctx, false); err != nil {
-		return fmt.Errorf("installing apm %s: %w", apmVersionPin, err)
+	if err := a.requirePinnedAPM(ctx); err != nil {
+		return fmt.Errorf("preparing apm %s: %w", apmVersionPin, err)
 	}
 	return nil
-}
-
-func errAPMNotInstalled() error {
-	return &APMRepairError{Kind: APMRepairMissing, Required: apmVersionPin,
-		Err: fmt.Errorf("%w: %s", apm.ErrNotInstalled, apm.InstallHint)}
 }
 
 // RunAPM is the single door every Omni APM invocation passes through, CLI and TUI alike. It delegates lifecycle
@@ -98,10 +88,28 @@ func (a *App) RunAPM(ctx context.Context, args ...string) (apm.Result, error) {
 	return a.approveParkedAndRerun(ctx, args, result)
 }
 
-func (a *App) runAPMOnce(ctx context.Context, args ...string) (apm.Result, error) {
-	if !a.APMAvailable() {
-		return apm.Result{}, errAPMNotInstalled()
+// RunAPMAttached runs omni's APM copy with the caller's terminal streams and preserves APM's exit code.
+func (a *App) RunAPMAttached(ctx context.Context, stdin io.Reader, stdout, stderr io.Writer, args ...string) error {
+	if err := a.requirePinnedAPM(ctx); err != nil {
+		return err
 	}
+	home, homeErr := os.UserHomeDir()
+	var link settingsLink
+	if homeErr == nil {
+		link = captureSettingsLink(home)
+	}
+	err := a.withAPMExecutionLock(func() error {
+		return a.APMClient(apm.Global).RunAttached(ctx, stdin, stdout, stderr, args...)
+	})
+	if apmMutatesHooks(args) && homeErr == nil {
+		if repairErr := repairClaudeHooks(home, link); repairErr != nil && err == nil {
+			err = repairErr
+		}
+	}
+	return err
+}
+
+func (a *App) runAPMOnce(ctx context.Context, args ...string) (apm.Result, error) {
 	if err := a.requirePinnedAPM(ctx); err != nil {
 		return apm.Result{}, err
 	}
@@ -110,7 +118,12 @@ func (a *App) runAPMOnce(ctx context.Context, args ...string) (apm.Result, error
 	if homeErr == nil {
 		link = captureSettingsLink(home)
 	}
-	result, err := a.APMClient(apm.Global).Run(ctx, args...)
+	var result apm.Result
+	err := a.withAPMExecutionLock(func() error {
+		var runErr error
+		result, runErr = a.APMClient(apm.Global).Run(ctx, args...)
+		return runErr
+	})
 	if apmMutatesHooks(args) && homeErr == nil {
 		if repairErr := repairClaudeHooks(home, link); repairErr != nil && err == nil {
 			err = repairErr
@@ -156,9 +169,6 @@ func (a *App) approveParkedAndRerun(ctx context.Context, args []string, installe
 }
 
 func (a *App) AgentsOutdated(ctx context.Context) (apm.OutdatedResult, error) {
-	if !a.APMAvailable() {
-		return apm.OutdatedResult{}, errAPMNotInstalled()
-	}
 	if err := a.requirePinnedAPM(ctx); err != nil {
 		return apm.OutdatedResult{}, err
 	}
@@ -176,7 +186,12 @@ func (a *App) AgentsOutdated(ctx context.Context) (apm.OutdatedResult, error) {
 	if missing {
 		return apm.OutdatedResult{}, nil
 	}
-	result, err := a.APMClient(apm.Global).Outdated(ctx)
+	var result apm.OutdatedResult
+	err = a.withAPMExecutionLock(func() error {
+		var runErr error
+		result, runErr = a.APMClient(apm.Global).Outdated(ctx)
+		return runErr
+	})
 	if err != nil {
 		return result, err
 	}
@@ -381,6 +396,14 @@ func (a *App) AgentsSyncAll(ctx context.Context, opts AgentsSyncAllOptions) (Age
 	}
 	defer func() { _ = lock.Close() }()
 
+	// Provisioning takes the APM runtime lock exclusively, so it must never wait while the workspace lock is held.
+	if opts.DryRun {
+		if !a.APMAvailable() {
+			return AgentsSyncAllResult{}, &APMRepairError{Kind: APMRepairMissing, Required: apmVersionPin, Err: errors.New(apmMissingMessage())}
+		}
+	} else if _, err := a.ensureAPM(ctx); err != nil {
+		return AgentsSyncAllResult{}, fmt.Errorf("preparing apm %s: %w", apmVersionPin, err)
+	}
 	var res AgentsSyncAllResult
 	err = apm.WithGlobalWorkspaceLock(ctx, func(ctx context.Context) error {
 		var runErr error
@@ -467,8 +490,10 @@ func (a *App) agentsSyncAllLocked(ctx context.Context, opts AgentsSyncAllOptions
 	if err := checkAgentsFrozenPackages(opts, manifest); err != nil {
 		return res, err
 	}
-	// Every guard has passed, so the sync can proceed: install the pinned APM before its first use.
 	if !opts.DryRun {
+		if !a.APMAvailable() {
+			return res, &APMRepairError{Kind: APMRepairMissing, Required: apmVersionPin, Err: errors.New(apmMissingMessage())}
+		}
 		if err := a.ensurePinnedAPM(ctx); err != nil {
 			return res, err
 		}

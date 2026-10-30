@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -25,7 +26,7 @@ var (
 	ErrUnsupportedScope = errors.New("APM operation does not support this scope")
 )
 
-const InstallHint = "run 'omni doctor --fix' and ensure apm is on PATH"
+const InstallHint = "run 'omni doctor --fix' to install omni's APM copy"
 
 type Result struct {
 	Stdout string
@@ -33,12 +34,21 @@ type Result struct {
 }
 
 type Client struct {
-	exec  commandexec.Executor
-	scope Scope
+	exec    commandexec.Executor
+	scope   Scope
+	command string
 }
 
 func New(exec commandexec.Executor, scope Scope) *Client {
-	return &Client{exec: exec, scope: scope}
+	return &Client{exec: exec, scope: scope, command: "apm"}
+}
+
+// WithCommand runs the given APM executable, a path or a name resolved through PATH, instead of "apm".
+func (c *Client) WithCommand(command string) *Client {
+	if command != "" {
+		c.command = command
+	}
+	return c
 }
 
 // Run invokes APM without translating its output or maintaining a second state model.
@@ -128,21 +138,21 @@ func (c *Client) runEnv(ctx context.Context, env []string, args ...string) (Resu
 	}
 	run := func() (string, string, error) {
 		if !usesGlobalWorkspace(args) {
-			return commandexec.RunWithEnv(ctx, c.exec, env, "apm", args...)
+			return commandexec.RunWithEnv(ctx, c.exec, env, c.command, args...)
 		}
 		dir, err := ensureGlobalWorkspaceDir()
 		if err != nil {
 			return "", "", err
 		}
 		if globalWorkspaceLockHeld(ctx, dir) {
-			return commandexec.RunInDirWithEnv(ctx, c.exec, dir, env, "apm", args...)
+			return commandexec.RunInDirWithEnv(ctx, c.exec, dir, env, c.command, args...)
 		}
 		lock, err := acquireWorkspaceLock(ctx, dir)
 		if err != nil {
 			return "", "", err
 		}
 		defer func() { _ = lock.Close() }()
-		return commandexec.RunInDirWithEnv(ctx, c.exec, dir, env, "apm", args...)
+		return commandexec.RunInDirWithEnv(ctx, c.exec, dir, env, c.command, args...)
 	}
 	stdout, stderr, err := run()
 	result := Result{Stdout: stdout, Stderr: stderr}
@@ -158,6 +168,26 @@ func (c *Client) runEnv(ctx context.Context, env []string, args ...string) (Resu
 		command += " " + args[0]
 	}
 	return result, commandexec.WrapError(err, command+" failed", stdout, stderr)
+}
+
+func (c *Client) RunAttached(ctx context.Context, stdin io.Reader, stdout, stderr io.Writer, args ...string) error {
+	if c == nil {
+		return errors.New("APM client missing")
+	}
+	dir, err := ensureGlobalWorkspaceDir()
+	if err != nil {
+		return err
+	}
+	return WithGlobalWorkspaceLock(ctx, func(ctx context.Context) error {
+		command, env := commandexec.ResolveCommand(c.command)
+		cmd := exec.CommandContext(ctx, command, args...)
+		cmd.Dir, cmd.Env, cmd.Stdin, cmd.Stdout, cmd.Stderr = dir, env, stdin, stdout, stderr
+		err := cmd.Run()
+		if errors.Is(err, exec.ErrNotFound) {
+			return fmt.Errorf("%w: %s", ErrNotInstalled, InstallHint)
+		}
+		return err
+	})
 }
 
 func usesGlobalWorkspace(args []string) bool {

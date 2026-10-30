@@ -821,7 +821,7 @@ func setupCLITestSandbox(env *testscript.Env) error {
 		"APPDATA": filepath.Join(home, "AppData", "Roaming"), "LOCALAPPDATA": filepath.Join(home, "AppData", "Local"),
 		"XDG_CONFIG_HOME": configRoot, "XDG_DATA_HOME": data, "XDG_CACHE_HOME": cache, "XDG_STATE_HOME": state,
 		"OMNI_CONFIG": filepath.Join(configRoot, "omni", "settings.json"), "OMNI_CACHE_DIR": filepath.Join(root, ".omni-cache"),
-		"OMNI_STATE_DIR": filepath.Join(state, "omni"), "OMNI_HOSTNAME": "testhost",
+		"OMNI_STATE_DIR": filepath.Join(state, "omni"), "OMNI_HOSTNAME": "testhost", "OMNI_APM": "apm",
 		"TMPDIR": tmp, "TMP": tmp, "TEMP": tmp,
 		"GOPATH": filepath.Join(data, "go"), "GOCACHE": filepath.Join(cache, "go-build"), "GOMODCACHE": filepath.Join(cache, "go-mod"),
 		"CARGO_HOME": filepath.Join(data, "cargo"), "RUSTUP_HOME": filepath.Join(data, "rustup"),

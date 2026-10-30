@@ -494,6 +494,8 @@ func uncatalogedRunnableCLICommandExemption(path []string) (cliCatalogExemption,
 	switch commandKey(path) {
 	case "trace list":
 		return cliCatalogExemption{kind: cliCatalogUtility, reason: "Developer trace inspection utility; it does not expose a product capability."}, true
+	case "apm":
+		return cliCatalogExemption{kind: cliCatalogUtility, reason: "Advanced passthrough to omni's private APM copy; agent actions own the product flows."}, true
 	default:
 		return cliCatalogExemption{}, false
 	}

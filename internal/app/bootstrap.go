@@ -44,6 +44,7 @@ type BootstrapApplyResult struct {
 	NodeManager   string
 	PythonManager string
 	Host          BootstrapHostResult
+	APMError      error
 }
 
 type SetupHostResult struct {
@@ -131,12 +132,14 @@ func (a *App) ApplyBootstrap(ctx context.Context, opts BootstrapApplyOptions) (B
 	if err != nil {
 		return BootstrapApplyResult{}, err
 	}
+	apmErr := a.EnsureAPM(ctx)
 	return BootstrapApplyResult{
 		CreatedConfig: createdConfig,
 		ConfigPath:    a.ConfigPath,
 		NodeManager:   opts.NodeManager,
 		PythonManager: opts.PythonManager,
 		Host:          host,
+		APMError:      apmErr,
 	}, nil
 }
 
@@ -159,6 +162,12 @@ func (a *App) SetupImport(ctx context.Context, disabled []string) (SetupImportRe
 		added = len(importResult.Added)
 	}
 	return SetupImportResult{Added: added, HostInfo: hostInfo}, nil
+}
+
+func (a *App) EnsureAPM(ctx context.Context) error {
+	_, err := a.ensureAPM(ctx)
+	a.forgetAPMProbes()
+	return err
 }
 
 func (a *App) BootstrapHostName() string {
