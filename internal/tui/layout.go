@@ -20,4 +20,6 @@ const (
 	// Covers compact rows like "(3)".
 	dotsIgnoredColW = 3
 	dotsNameMinW    = 12
+	// Enough for "~/.config/hypr/…"; other columns give up width before the path drops below it.
+	dotsTargetMinW = 16
 )

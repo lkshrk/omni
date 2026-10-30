@@ -88,3 +88,37 @@ func TestNewModelStartsWithUsableTerminalSize(t *testing.T) {
 		t.Fatalf("new model size = %dx%d, want %dx%d", m.width, m.height, defaultTerminalWidth, defaultTerminalHeight)
 	}
 }
+
+func TestToolsViewAlignsRecipeProviderWithGroupsAtEveryWidth(t *testing.T) {
+	t.Parallel()
+	for _, width := range []int{60, 80, 100, 140} {
+		tools := recipeScriptTools()
+		m := baseModel(tools)
+		m.mode = viewList
+		m.width = width
+		m.height = 40
+		m.toolMemberships = map[string][]string{}
+		for _, tool := range tools {
+			m.toolMemberships[toolMembershipKey(tool)] = []string{"ai-plugins"}
+		}
+		m.applyFilter()
+		out := m.View().Content
+		assertNoLineExceedsWidth(t, out, width)
+		starts := map[string]int{}
+		for _, line := range strings.Split(stripANSIEscapeSequences(out), "\n") {
+			for _, tool := range tools {
+				if strings.Contains(line, tool.Name+" ") {
+					if idx := strings.LastIndex(line, "script"); idx >= 0 {
+						starts[tool.Name] = lipgloss.Width(line[:idx])
+					}
+				}
+			}
+		}
+		if len(starts) != len(tools) {
+			t.Fatalf("width %d: provider found for %v, want every tool:\n%s", width, starts, stripANSIEscapeSequences(out))
+		}
+		if starts["claude-code"] != starts["codebase-memory-mcp"] {
+			t.Fatalf("width %d: provider starts at %v, want the same column", width, starts)
+		}
+	}
+}

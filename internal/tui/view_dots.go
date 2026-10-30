@@ -230,8 +230,7 @@ func dotsSectionedTab(m Model) sectionedTab {
 	layout := dotsTableLayout()
 	iconNameGap := strings.Repeat(" ", layout.iconGap)
 	nameTargetGap := strings.Repeat(" ", layout.columnGap)
-	fixedW := layout.iconWidth + layout.iconGap + cols.name + layout.columnGap + dotsRightGroupWidth(cols) + layout.columnGap
-	targetWidth := max(contentW-fixedW, 1)
+	targetWidth := dotsTargetWidth(cols, contentW)
 	splitDotsRow := func(left, right string) string {
 		return renderTableRowBody(dotsTableLayout(), []rowCell{leftCell(left, 0)}, []rowCell{rightCell(right, 0)}, contentW)
 	}
@@ -661,6 +660,7 @@ type dotsTableColumns struct {
 	ratio  int
 	ignore int
 	group  int
+	target int
 }
 
 // dots packs many narrow count columns, so it keeps tighter gaps than the
@@ -674,8 +674,8 @@ var dotsTableColumnSpec = []tableColumn{
 }
 
 var dotsShrinkLadder = []tableShrinkStep{
-	shrinkStep("group", 6),
 	shrinkStep("name", 8),
+	shrinkStep("group", 6),
 	shrinkStep("ratio", 4),
 	shrinkStep("ignore", 3),
 	shrinkStep("status", 6),
@@ -686,7 +686,7 @@ var dotsShrinkLadder = []tableShrinkStep{
 	shrinkStep("name", 1),
 }
 
-type dotsRowCells struct{ name, status, ratio, ignore, group string }
+type dotsRowCells struct{ name, status, ratio, ignore, group, target string }
 
 func dotsMeasuredRows(p palette, m Model, entries []app.DotStatus) []dotsRowCells {
 	var rows []dotsRowCells
@@ -700,17 +700,22 @@ func dotsMeasuredRows(p palette, m Model, entries []app.DotStatus) []dotsRowCell
 			ratio:  dotRatioText(counts),
 			ignore: dotIgnoredText(counts),
 			group:  renderGroupPills(p, dotEntryGroups(m, entry), m.hostInfo, 0, nil),
+			target: tildePath(entry.TargetPath),
 		})
-		visitDotChildren(entry.Children, func(child app.DotChild) {
-			childStatus, _ := dotChildStatusDisplay(p, child, state)
-			childCounts := app.DotChildFileCounts(child, state)
+		if !dotsEntryMatchesExpanded(m, entry) {
+			continue
+		}
+		for _, row := range appendDotsChildRows(m, nil, entry, entry.Children) {
+			childStatus, _ := dotChildStatusDisplay(p, row.child, state)
+			childCounts := app.DotChildFileCounts(row.child, state)
 			rows = append(rows, dotsRowCells{
-				name:   dotChildDisplayName(m, entry, child),
+				name:   dotChildDisplayName(m, entry, row.child),
 				status: childStatus,
 				ratio:  dotRatioText(childCounts),
 				ignore: dotIgnoredText(childCounts),
+				target: tildePath(row.child.Path),
 			})
-		})
+		}
 	}
 	return rows
 }
@@ -736,14 +741,20 @@ func dotsTableColumnWidths(p palette, m Model, entries []app.DotStatus) dotsTabl
 	if widths["ignore"] > 0 {
 		widths["ignore"] = max(widths["ignore"], dotsIgnoredColW)
 	}
-	return dotsTableColumns{name: widths["name"], status: widths["status"], ratio: widths["ratio"], ignore: widths["ignore"], group: widths["group"]}
+	target := 0
+	for _, row := range rows {
+		target = max(target, lipgloss.Width(row.target))
+	}
+	return dotsTableColumns{name: widths["name"], status: widths["status"], ratio: widths["ratio"], ignore: widths["ignore"], group: widths["group"], target: min(target, dotsTargetMinW)}
 }
 
-func visitDotChildren(children []app.DotChild, fn func(app.DotChild)) {
-	for _, child := range children {
-		fn(child)
-		visitDotChildren(child.Children, fn)
-	}
+func dotsFixedWidth(cols dotsTableColumns) int {
+	layout := dotsTableLayout()
+	return layout.iconWidth + layout.iconGap + cols.name + layout.columnGap + dotsRightGroupWidth(cols) + layout.columnGap
+}
+
+func dotsTargetWidth(cols dotsTableColumns, contentW int) int {
+	return max(contentW-dotsFixedWidth(cols), 1)
 }
 
 func dotsRightGroupWidth(cols dotsTableColumns) int {
@@ -759,11 +770,10 @@ func dotsRightGroupWidth(cols dotsTableColumns) int {
 }
 
 func fitDotsColumnsToWidth(cols dotsTableColumns, contentW int) dotsTableColumns {
-	layout := dotsTableLayout()
-	totalW := layout.iconWidth + layout.iconGap + cols.name + layout.columnGap + 1 + layout.columnGap + dotsRightGroupWidth(cols)
+	totalW := dotsFixedWidth(cols) + max(cols.target, 1)
 	widths := tableWidths{"name": cols.name, "status": cols.status, "ratio": cols.ratio, "ignore": cols.ignore, "group": cols.group}
 	widths.fit(totalW-max(contentW, 1), dotsShrinkLadder...)
-	return dotsTableColumns{name: widths["name"], status: widths["status"], ratio: widths["ratio"], ignore: widths["ignore"], group: widths["group"]}
+	return dotsTableColumns{name: widths["name"], status: widths["status"], ratio: widths["ratio"], ignore: widths["ignore"], group: widths["group"], target: cols.target}
 }
 
 func dotRightColumns(p palette, selected bool, status string, statusStyle lipgloss.Style, counts app.DotFileCounts, ratioW, ignoredW int, groups []string, info *app.HostInfo, groupW int) string {
