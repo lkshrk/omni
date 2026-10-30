@@ -62,7 +62,7 @@ func seedDoctorFixParity(t *testing.T, sandbox *paritySandbox) {
 	t.Helper()
 	writeExecutable(t, filepath.Join(sandbox.home, ".test-stub-bin", "apm"), `#!/bin/sh
 case "$*" in
-  --version) echo 'Agent Package Manager (APM) CLI version 0.35.0+omni.6' ;;
+  --version) echo 'Agent Package Manager (APM) CLI version 0.35.0+omni.7' ;;
   'audit --ci --format json') echo '{"passed":true,"checks":[{"name":"lockfile-exists","passed":true,"message":"Lockfile present","details":[]}]}' ;;
   *) exit 64 ;;
 esac
