@@ -2011,6 +2011,7 @@ type refreshLookupMaps struct {
 	installedMaps   map[string]map[string]string
 	metadataMaps    map[string]map[string]provider.InstalledMetadata
 	concreteForBulk map[string]string
+	available       map[string]bool
 }
 
 func (a *App) ensureProviderBulkSnapshot(ctx context.Context, providerName string, maps *refreshLookupMaps) {
@@ -2119,55 +2120,113 @@ func (a *App) lookupAlternateConfiguredInstall(ctx context.Context, cfg *config.
 		return "", false, ""
 	}
 	routeProvider := a.operationProviderName(t)
+	tried := map[string]struct{}{routeProvider: {}}
 	for _, candidate := range discoveryScopeInstallSpecs(spec) {
 		altEntry := spec.ToToolEntry(t.Name, candidate)
 		alt := a.operationProviderName(altEntry)
-		if alt == "" || alt == routeProvider {
+		if alt == "" {
 			continue
 		}
-		a.ensureProviderBulkSnapshot(ctx, alt, maps)
-		altProv, hasProvider := a.registry.Get(alt)
-		keys := toolEntryLookupKeys(altEntry)
-		required := ""
-		pinned := false
-		if hasProvider {
-			keys, required, pinned = a.exactPinLookupKeys(altProv, alt, altEntry, keys)
+		if _, done := tried[alt]; done {
+			continue
 		}
-		if mm, ok := maps.multiMaps[alt]; ok {
-			entry := provider.LookupInstalledEntry(mm, keys)
-			if entry.ConcreteManager != "" {
-				if !pinned {
-					return entry.Version, true, entry.ConcreteManager
-				}
-				installed, ver, err := a.resolveExactPinBulkVersion(ctx, altProv, alt, altEntry, entry.ConcreteManager, entry.Version, required, true)
-				if err == nil && installed {
-					return ver, true, entry.ConcreteManager
-				}
+		tried[alt] = struct{}{}
+		if ver, found, with := a.lookupInstallViaProvider(ctx, alt, altEntry, maps); found {
+			return ver, true, with
+		}
+	}
+	// Node and python managers share one package registry, so a sibling manager's install is the same package.
+	// System managers do not: the same name can be a different package.
+	for _, alt := range a.siblingRegistryManagers(ctx, routeProvider, maps) {
+		if _, done := tried[alt]; done {
+			continue
+		}
+		tried[alt] = struct{}{}
+		altEntry := t
+		altEntry.Provider = alt
+		altEntry.InstallWith = ""
+		if ver, found, with := a.lookupInstallViaProvider(ctx, alt, altEntry, maps); found {
+			return ver, true, with
+		}
+	}
+	return "", false, ""
+}
+
+func (a *App) siblingRegistryManagers(ctx context.Context, routeProvider string, maps *refreshLookupMaps) []string {
+	ecosystem, ok := a.registry.EcosystemFor(routeProvider)
+	// The ecosystem provider itself already scans every manager of its family.
+	if !ok || ecosystem == routeProvider || (ecosystem != provider.EcosystemNode && ecosystem != provider.EcosystemPython) {
+		return nil
+	}
+	var siblings []string
+	for _, name := range provider.BuiltinConcreteProvidersForEcosystem(ecosystem) {
+		if maps.providerAvailable(ctx, a.registry, name) {
+			siblings = append(siblings, name)
+		}
+	}
+	return siblings
+}
+
+// Available shells out to the manager's --version, so one refresh asks each provider once.
+func (m *refreshLookupMaps) providerAvailable(ctx context.Context, registry *provider.Registry, name string) bool {
+	if available, ok := m.available[name]; ok {
+		return available
+	}
+	available := false
+	if p, registered := registry.Get(name); registered {
+		ok, err := p.Available(ctx)
+		available = err == nil && ok
+	}
+	if m.available == nil {
+		m.available = make(map[string]bool)
+	}
+	m.available[name] = available
+	return available
+}
+
+func (a *App) lookupInstallViaProvider(ctx context.Context, alt string, altEntry config.ToolEntry, maps *refreshLookupMaps) (version string, installed bool, installedWith string) {
+	a.ensureProviderBulkSnapshot(ctx, alt, maps)
+	altProv, hasProvider := a.registry.Get(alt)
+	keys := toolEntryLookupKeys(altEntry)
+	required := ""
+	pinned := false
+	if hasProvider {
+		keys, required, pinned = a.exactPinLookupKeys(altProv, alt, altEntry, keys)
+	}
+	if mm, ok := maps.multiMaps[alt]; ok {
+		entry := provider.LookupInstalledEntry(mm, keys)
+		if entry.ConcreteManager != "" {
+			if !pinned {
+				return entry.Version, true, entry.ConcreteManager
 			}
-			continue
-		}
-		if m, ok := maps.installedMaps[alt]; ok {
-			if ver, found := provider.LookupString(m, keys); found {
-				manager := maps.concreteForBulk[alt]
-				with := manager
-				if with == "" {
-					with = alt
-				}
-				if !pinned {
-					return ver, true, with
-				}
-				installed, resolvedVersion, err := a.resolveExactPinBulkVersion(ctx, altProv, alt, altEntry, manager, ver, required, true)
-				if err == nil && installed {
-					return resolvedVersion, true, with
-				}
-			}
-			continue
-		}
-		if hasProvider {
-			installed, ver, err := a.isInstalledWithEntry(ctx, altProv, alt, altEntry)
+			installed, ver, err := a.resolveExactPinBulkVersion(ctx, altProv, alt, altEntry, entry.ConcreteManager, entry.Version, required, true)
 			if err == nil && installed {
-				return ver, true, installedWithForOperation(ctx, altProv, alt, altEntry.InstallWith)
+				return ver, true, entry.ConcreteManager
 			}
+		}
+		return "", false, ""
+	}
+	if m, ok := maps.installedMaps[alt]; ok {
+		if ver, found := provider.LookupString(m, keys); found {
+			manager := maps.concreteForBulk[alt]
+			with := manager
+			if with == "" {
+				with = alt
+			}
+			if !pinned {
+				return ver, true, with
+			}
+			installed, resolvedVersion, err := a.resolveExactPinBulkVersion(ctx, altProv, alt, altEntry, manager, ver, required, true)
+			if err == nil && installed {
+				return resolvedVersion, true, with
+			}
+		}
+		return "", false, ""
+	}
+	if hasProvider {
+		installed, ver, err := a.isInstalledWithEntry(ctx, altProv, alt, altEntry)
+		if err == nil && installed {
+			return ver, true, installedWithForOperation(ctx, altProv, alt, altEntry.InstallWith)
 		}
 	}
 	return "", false, ""
