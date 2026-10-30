@@ -3,7 +3,7 @@
 Status: decisions agreed (2026-10-11); implementation not started. Epic: XXX-346.
 
 The MCP target/ownership limitations below describe the original design
-baseline. The pinned `0.35.0+omni.5` fork now implements per-server MCP target
+baseline. The pinned `0.35.0+omni.7` fork now implements per-server MCP target
 selection, native omp ownership, and generic native-extension/portable-hook
 deployment; see [Agents](../agents.md#omp-extensions-and-hooks).
 

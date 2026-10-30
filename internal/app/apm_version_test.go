@@ -47,6 +47,7 @@ func TestAPMVersionPin(t *testing.T) {
 		{apmVersionPin, true},
 		{"0.35.0+omni.4", false},
 		{"0.35.0+omni.6", false},
+		{"0.35.0+omni.8", false},
 		{"0.28.0+omni.2", false},
 		{"0.28.0+build.1", false},
 		{"0.28.1", false},
@@ -93,7 +94,7 @@ func TestDoctorAPMVersionAcceptsPin(t *testing.T) {
 }
 
 func TestDoctorAPMVersionRejectsMismatch(t *testing.T) {
-	for _, version := range []string{"0.28.0", "0.31.0", "0.34.0", "0.35.0", "0.35.0+omni.1", "0.35.0+omni.3", "0.35.0+omni.4", "0.35.0+omni.6", "0.35.1"} {
+	for _, version := range []string{"0.28.0", "0.31.0", "0.34.0", "0.35.0", "0.35.0+omni.1", "0.35.0+omni.3", "0.35.0+omni.4", "0.35.0+omni.6", "0.35.0+omni.8", "0.35.1"} {
 		a, _ := newAPMVersionApp(t, executor.MockCall{Stdout: "Agent Package Manager (APM) CLI version " + version + "\n"})
 		result := &DoctorResult{}
 		a.doctorAPMVersion(context.Background(), result, &config.RootConfig{})

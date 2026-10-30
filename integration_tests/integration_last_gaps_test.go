@@ -51,11 +51,12 @@ func TestTUIAgentsUpdateInvokesSelectedPackage(t *testing.T) {
 	writeExecutable(t, filepath.Join(root.root, "bin", "apm"), `#!/bin/sh
 set -eu
 if [ "${1:-}" = "--version" ]; then
-  echo 'Agent Package Manager (APM) CLI version 0.35.0+omni.5'
+  echo 'Agent Package Manager (APM) CLI version 0.35.0+omni.7'
   exit 0
 fi
 printf '%s|%s\n' "$PWD" "$*" >> "${OMNI_TEST_APM_LOG:?}"
 case "$*" in
+  outdated*--json*) echo '{"dependencies": []}' ;;
   outdated*) echo '[✓] All dependencies are up-to-date' ;;
   'update -g --yes https://github.com/acme/tool') touch "${OMNI_TEST_APM_ROW_MARKER:?}"; echo '[✓] updated selected package' ;;
   *) echo "delegated: $*" ;;
