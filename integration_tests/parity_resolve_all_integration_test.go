@@ -57,9 +57,7 @@ func seedResolveAllParity(t *testing.T, s *paritySandbox) {
 
 func runResolveAllParityTUI(t *testing.T, bin string, s *paritySandbox, actionKey rune, wantPrefix string) {
 	runTUI(t, bin, s.root, s.env, []string{"--config", s.configPath, "--cache-dir", s.cache}, func(term *vttest.Terminal) string {
-		if err := term.Resize(160, 30); err != nil {
-			t.Fatalf("resize TUI: %v", err)
-		}
+		resizeTUI(t, term, 160, 30)
 		waitForRequiredScreen(t, term, 6*time.Second, screenHas("Dashboard", "Dots"), "TUI did not start")
 		writeTUIKeys(t, term, "\t", "\t")
 		waitForRequiredScreen(t, term, 8*time.Second, screenHas("alpha", "beta", "Conflict"), "TUI did not render conflicts")
