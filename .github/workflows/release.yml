@@ -25,7 +25,7 @@ jobs:
     if: github.event_name != 'workflow_run' || (github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Annotated tag pushes set github.sha to the tag object, not its commit.
           ref: ${{ github.event.workflow_run.head_sha || github.ref }}
@@ -94,14 +94,14 @@ jobs:
 
       - name: Set up Go
         if: steps.tag.outputs.tag != ''
-        uses: actions/setup-go@v7.0.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
           cache: true
 
       - name: GoReleaser
         if: steps.tag.outputs.tag != ''
-        uses: goreleaser/goreleaser-action@v7.3.0
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
           version: '~> v2'
           args: release --clean
