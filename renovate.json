@@ -1,25 +1,11 @@
 {
 	"$schema": "https://docs.renovatebot.com/renovate-schema.json",
-	"extends": ["config:recommended", ":dependencyDashboard", "github>lkshrk/gh-ops//renovate/presets/github-actions.json5"],
-	"rangeStrategy": "replace",
-	"automerge": false,
-	"automergeType": "pr",
-	"automergeStrategy": "squash",
+	"extends": [
+		"github>lkshrk/gh-ops//renovate/presets/app-library.json5",
+		"github>lkshrk/gh-ops//renovate/presets/automerge-major.json5",
+		"helpers:pinGitHubActionDigests"
+	],
 	"packageRules": [
-		{
-			"description": "Automerge non-major updates after CI passes",
-			"matchUpdateTypes": ["patch", "minor", "digest", "pin"],
-			"automerge": true
-		},
-		{
-			"description": "Require manual review for major updates",
-			"matchUpdateTypes": ["major"],
-			"automerge": false
-		},
-		{
-			"matchDepTypes": ["engines"],
-			"enabled": false
-		},
 		{
 			"description": "Bun Group (bun panics unless its dialects share its exact version)",
 			"groupName": "bun",
@@ -30,12 +16,6 @@
 			"minimumGroupSize": 2
 		}
 	],
-	"lockFileMaintenance": {
-		"enabled": true,
-		"automerge": true,
-		"automergeType": "branch",
-		"schedule": ["before 4am on sunday"]
-	},
 	"prConcurrentLimit": 5,
 	"prHourlyLimit": 2,
 	"timezone": "Europe/Berlin"
