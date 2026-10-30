@@ -166,9 +166,26 @@ func TestDockerIntegrationRunsFreshContainerAndExportsEvidence(t *testing.T) {
 			t.Fatalf("integration container run is missing %q", want)
 		}
 	}
-	for _, forbidden := range []string{"--mount", "--volume", "/var/run/docker.sock", "builder prune", "cacheonly"} {
+	for _, forbidden := range []string{"--volume", "/var/run/docker.sock", "builder prune", "cacheonly"} {
 		if strings.Contains(build+run, forbidden) {
 			t.Fatalf("integration targets contain forbidden host coupling or cache-only execution %q", forbidden)
+		}
+	}
+	const driverCacheMount = `--mount "type=bind,source=$$gocache,target=/home/omni/driver-go-build"`
+	if strings.Contains(build, "--mount") {
+		t.Fatal("integration image build must not mount host paths")
+	}
+	if got := strings.Count(run, "--mount"); got != 1 || !strings.Contains(run, driverCacheMount) {
+		t.Fatalf("integration run may only mount the driver Go build cache; found %d mounts", got)
+	}
+	for _, want := range []string{
+		`if [ "$(INTEGRATION_GOCACHE)" = 1 ]; then`,
+		`gocache="$$safe_root/integration-go-build"`,
+		`refusing unsafe integration Go build cache`,
+		`"OMNI_TEST_BUILD_GOCACHE=/home/omni/driver-go-build"`,
+	} {
+		if !strings.Contains(run, want) {
+			t.Fatalf("integration driver cache mount is missing guard %q", want)
 		}
 	}
 
@@ -263,6 +280,43 @@ func TestSafeRunnerDropsInheritedGoFlags(t *testing.T) {
 	cmd.Env = append(os.Environ(), "GOFLAGS=-coverprofile=/dev/null")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("safe runner inherited GOFLAGS: %v\n%s", err, out)
+	}
+}
+
+func TestSafeRunnerKeepsDriverBuildCacheOutOfOtherCommands(t *testing.T) {
+	root := repoRoot(t)
+	cmd := exec.Command("bash", filepath.Join(root, "scripts", "run-test-safe.sh"), "bash", "-c", `
+		set -eu
+		test -z "${OMNI_TEST_BUILD_GOCACHE:-}"
+		case "$GOCACHE" in "$OMNI_TEST_ROOT"/*) ;; *) exit 1 ;; esac
+	`)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(), "OMNI_TEST_BUILD_GOCACHE="+t.TempDir())
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("driver build cache leaked outside go test: %v\n%s", err, out)
+	}
+}
+
+func TestSafeRunnerRejectsUnsafeDriverBuildCache(t *testing.T) {
+	root := repoRoot(t)
+	target := t.TempDir()
+	link := filepath.Join(t.TempDir(), "cache-link")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	for name, value := range map[string]string{
+		"relative": "relative/cache",
+		"symlink":  link,
+		"missing":  filepath.Join(t.TempDir(), "missing"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			cmd := exec.Command("bash", filepath.Join(root, "scripts", "run-test-safe.sh"), "bash", "-c", "true")
+			cmd.Dir = root
+			cmd.Env = append(os.Environ(), "OMNI_TEST_BUILD_GOCACHE="+value)
+			if out, err := cmd.CombinedOutput(); err == nil || !strings.Contains(string(out), "refusing unsafe OMNI_TEST_BUILD_GOCACHE") {
+				t.Fatalf("safe runner accepted %s driver build cache: %v\n%s", name, err, out)
+			}
+		})
 	}
 }
 

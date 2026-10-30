@@ -1029,7 +1029,8 @@ func TestExtractAndInstall_TarOversizedEntryRejected(t *testing.T) {
 	dir := t.TempDir()
 	archivePath := filepath.Join(dir, "big.tar.gz")
 
-	const bigSize = maxEntryBytes + 1
+	const limit = 1 << 20
+	const bigSize = limit + 1
 	f, err := os.Create(archivePath)
 	if err != nil {
 		t.Fatal(err)
@@ -1057,7 +1058,7 @@ func TestExtractAndInstall_TarOversizedEntryRejected(t *testing.T) {
 	f.Close()  //nolint:errcheck
 
 	destPath := filepath.Join(dir, "mytool")
-	err = extractAndInstall(archivePath, "big.tar.gz", "mytool", "", destPath)
+	err = extractAndInstallWithLimit(archivePath, "big.tar.gz", "mytool", "", destPath, limit)
 	if err == nil || !strings.Contains(err.Error(), "limit") {
 		t.Fatalf("oversized tar entry: want limit error, got %v", err)
 	}
@@ -1582,5 +1583,12 @@ func TestAttachGitHubToken_NeverAsksGHForNonGitHubHost(t *testing.T) {
 	}
 	if *calls != 0 {
 		t.Fatalf("gh consulted %d times for a non-GitHub host", *calls)
+	}
+}
+
+func TestExtractAndInstall_DefaultEntryLimitIs512MiB(t *testing.T) {
+	t.Parallel()
+	if maxEntryBytes != 512<<20 {
+		t.Fatalf("maxEntryBytes = %d, want 512 MiB", maxEntryBytes)
 	}
 }

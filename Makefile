@@ -17,6 +17,7 @@ TEST_FLAGS  ?= -race -trimpath
 INTEGRATION_PACKAGES ?= ./integration_tests/... ./internal/provider/... ./internal/apm/... ./internal/app/... ./internal/cli/...
 INTEGRATION_IMAGE ?= omni-integration-test:local
 INTEGRATION_LANE ?= full
+INTEGRATION_GOCACHE ?= 0
 ARGS        ?= --help
 DOCKER      ?= docker
 DOCKER_SAFE := bash scripts/run-docker-safe.sh "$(DOCKER)"
@@ -179,6 +180,15 @@ test-integration: test-integration-build
 	meta="$$evidence/meta.json"; \
 	gate="$$evidence/gate.json"; \
 	find "$$evidence" -maxdepth 1 -type f \( -name go-test.jsonl -o -name meta.json -o -name gate.json \) -delete; \
+	set --; \
+	if [ "$(INTEGRATION_GOCACHE)" = 1 ]; then \
+		gocache="$$safe_root/integration-go-build"; \
+		if [ -e "$$gocache" ]; then [ -d "$$gocache" ] && [ ! -L "$$gocache" ] || { echo "refusing unsafe integration Go build cache" >&2; exit 2; }; fi; \
+		mkdir -p "$$gocache"; \
+		[ "$$(cd "$$gocache" && pwd -P)" = "$$safe_root/integration-go-build" ] || { echo "integration Go build cache escaped repo .tmp" >&2; exit 2; }; \
+		chmod -R a+rwX "$$gocache" 2>/dev/null || true; \
+		set -- --mount "type=bind,source=$$gocache,target=/home/omni/driver-go-build" --env "OMNI_TEST_BUILD_GOCACHE=/home/omni/driver-go-build"; \
+	fi; \
 	image_id=$$($(DOCKER_SAFE) image inspect --format '{{.Id}}' "$(INTEGRATION_IMAGE)"); \
 	container=$$($(DOCKER_SAFE) create \
 		--network none \
@@ -187,6 +197,7 @@ test-integration: test-integration-build
 		--env "TEST_IMAGE_REF=$(INTEGRATION_IMAGE)" \
 		--env "TEST_IMAGE_ID=$$image_id" \
 		--env "OMNI_TEST_APPROVED_TOOLS=apm,claude,codex,grok,cowsay" \
+		"$$@" \
 		"$(INTEGRATION_IMAGE)" \
 		sh -c 'set +e; go_bin=$$(command -v go); binary_sha256=$$(sha256sum "$$go_bin" | cut -d " " -f 1); bash scripts/run-test-safe.sh go test -count=1 -tags=integration -race -trimpath -json $$TEST_PACKAGES > /tmp/test-results.jsonl 2>&1; status=$$?; [ "$$status" -eq 0 ] && result=pass || result=fail; printf '\''{"schema_version":1,"lane":"docker-%s","goos":"linux","tags":["integration"],"count":1}\n'\'' "$$TEST_LANE" > /tmp/test-meta.json; printf '\''{"schema_version":1,"kind":"container_gate","lane":"docker-%s","goos":"linux","image_ref":"%s","image_id":"%s","binary_sha256":"%s","command_id":"go-test-integration","exit_code":%s,"status":"%s","events":"go-test.jsonl"}\n'\'' "$$TEST_LANE" "$$TEST_IMAGE_REF" "$$TEST_IMAGE_ID" "$$binary_sha256" "$$status" "$$result" > /tmp/test-gate.json; exit "$$status"'); \
 	trap '$(DOCKER_SAFE) rm -f "$$container" >/dev/null 2>&1 || true; rmdir "$$lane_lock" >/dev/null 2>&1 || true' EXIT HUP INT TERM; \

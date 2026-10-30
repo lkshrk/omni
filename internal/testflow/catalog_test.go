@@ -393,3 +393,32 @@ func withOS(selector Selector, osName string) Selector {
 	return selector
 }
 func withTag(selector Selector, tag string) Selector { selector.Tags = []string{tag}; return selector }
+
+func TestRealismEvidenceUsesSplitLanes(t *testing.T) {
+	for _, lane := range []string{"docker-realism-cli", "docker-realism-tui"} {
+		if !validLane(lane) {
+			t.Fatalf("lane %q is not registered", lane)
+		}
+	}
+	catalog, err := Load(filepath.Join("..", "..", "test", "flows.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, flow := range catalog.Flows {
+		for _, requirement := range flow.Requirements {
+			for _, evidence := range requirement.Evidence {
+				sel := evidence.Selector
+				want := ""
+				switch {
+				case strings.HasPrefix(sel.Test, "TestCLIBinary"):
+					want = "docker-realism-cli"
+				case strings.HasPrefix(sel.Test, "TestCLIAndTUI"), strings.HasPrefix(sel.Test, "TestTUI"):
+					want = "docker-realism-tui"
+				}
+				if sel.Lane == "docker-realism" || (want != "" && sel.Package == "github.com/lkshrk/omni/integration_tests" && sel.Lane != want) {
+					t.Errorf("flow %q selector %s is in lane %q, want %q", flow.ID, sel.Test, sel.Lane, want)
+				}
+			}
+		}
+	}
+}

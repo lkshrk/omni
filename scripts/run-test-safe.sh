@@ -259,6 +259,20 @@ for key in CI GITHUB_ACTIONS TERM COLORTERM LANG LC_ALL LC_CTYPE TZ \
 	fi
 done
 
+driver_gocache=""
+if [ -n "${OMNI_TEST_BUILD_GOCACHE:-}" ]; then
+	case "$OMNI_TEST_BUILD_GOCACHE" in /*) ;; *)
+		echo "refusing unsafe OMNI_TEST_BUILD_GOCACHE: must be absolute" >&2
+		exit 2
+		;;
+	esac
+	if [ -L "$OMNI_TEST_BUILD_GOCACHE" ] || [ ! -d "$OMNI_TEST_BUILD_GOCACHE" ]; then
+		echo "refusing unsafe OMNI_TEST_BUILD_GOCACHE: must be an existing non-symlink directory" >&2
+		exit 2
+	fi
+	driver_gocache="$OMNI_TEST_BUILD_GOCACHE"
+fi
+
 env -i "${safe_env[@]}" go telemetry off >/dev/null
 if [ "$1" = "go" ] && [ "${2:-}" = "test" ]; then
 	validate_go_test_args "$@"
@@ -278,6 +292,10 @@ if [ "$1" = "go" ] && [ "${2:-}" = "test" ]; then
 		"https_proxy="
 		"all_proxy="
 	)
+	# Driver compile cache only: each test binary's testguard init swaps GOCACHE back to its own sandbox.
+	if [ -n "$driver_gocache" ]; then
+		build_env+=("GOCACHE=$driver_gocache")
+	fi
 	# Black-box tests run a nested `go build ./cmd/omni` after the proxy is blocked, so every
 	# module of the build graph must already be in the sandbox module cache. Same public,
 	# build-only access as the driver above; the checksum database still verifies each module.

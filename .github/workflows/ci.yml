@@ -253,9 +253,12 @@ jobs:
           - name: onboarding
             packages: -parallel=1 -run=^(TestAgentsMigrationRealAPMLifecycle|TestAgentsManifestlessRealAPMLifecycle|TestTUIAgentsTabSyncsMCPThroughRealAPM)$$ ./internal/app/... ./integration_tests/...
             cache: integration-onboarding
-          - name: realism
-            packages: -parallel=1 -timeout=10m -run=^(TestCLIBinary.*|TestCLIAndTUI.*|TestTUI.*)$$ ./integration_tests/...
-            cache: integration-realism
+          - name: realism-cli
+            packages: -parallel=1 -timeout=10m -run=^TestCLIBinary.*$$ ./integration_tests/...
+            cache: integration-realism-cli
+          - name: realism-tui
+            packages: -parallel=1 -timeout=10m -run=^(TestCLIAndTUI.*|TestTUI.*)$$ ./integration_tests/...
+            cache: integration-realism-tui
     steps:
       - uses: actions/checkout@v7.0.1
 
@@ -265,11 +268,20 @@ jobs:
       # exposes the GHA runtime env that type=gha cache needs outside build-push-action
       - uses: crazy-max/ghaction-github-runtime@v4.0.0
 
+      # One frozen entry for all lanes: the cache budget is full and std plus deps dominate the compile.
+      - name: Restore integration Go build cache
+        id: go-build-cache
+        uses: actions/cache/restore@v6.1.0
+        with:
+          path: .tmp/integration-go-build
+          key: integration-go-build-v2-${{ hashFiles('go.sum', 'Dockerfile.test') }}
+
       - name: Integration tests in Docker
         run: make test-integration
         env:
           INTEGRATION_PACKAGES: ${{ matrix.packages }}
           INTEGRATION_LANE: ${{ matrix.name }}
+          INTEGRATION_GOCACHE: '1'
           DOCKER_TEST_CACHE: >-
             --cache-from type=gha,scope=integration-cli-ad
             --cache-from type=gha,scope=integration-tests
@@ -277,8 +289,17 @@ jobs:
             --cache-from type=gha,scope=provider-tests
             --cache-from type=gha,scope=integration-apm
             --cache-from type=gha,scope=integration-onboarding
-            --cache-from type=gha,scope=integration-realism
+            --cache-from type=gha,scope=integration-realism-cli
+            --cache-from type=gha,scope=integration-realism-tui
             --cache-to type=gha,scope=${{ matrix.cache }},mode=max
+
+      # Only the apm lane saves: it compiles internal/cli and so nearly the whole module.
+      - name: Save integration Go build cache
+        if: always() && matrix.name == 'apm' && steps.go-build-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6.1.0
+        with:
+          path: .tmp/integration-go-build
+          key: ${{ steps.go-build-cache.outputs.cache-primary-key }}
 
       - name: Upload integration test evidence
         if: always()
