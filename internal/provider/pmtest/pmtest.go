@@ -16,10 +16,16 @@ import (
 
 const testTimeout = 2 * time.Minute
 
+const containerSystemPath = "/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:/usr/local/cargo/bin:" +
+	"/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+var sandboxProxyVars = []string{"HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"}
+
 // Context returns a timeout context long enough for distro metadata refreshes.
 func Context(t *testing.T, providerName string) (context.Context, context.CancelFunc) {
 	t.Helper()
 	requireContainerGuard(t, providerName)
+	useContainerSystem(t)
 	return context.WithTimeout(context.Background(), testTimeout)
 }
 
@@ -202,5 +208,17 @@ func requireContainerGuard(t *testing.T, providerName string) {
 	}
 	if _, err := os.Stat("/.dockerenv"); err != nil {
 		t.Fatal("pmcontainer tests require a Docker container marker; refusing to touch the live package manager")
+	}
+}
+
+// useContainerSystem exposes the image's package manager and network; HOME and XDG stay in the testguard sandbox.
+func useContainerSystem(t *testing.T) {
+	t.Helper()
+	t.Setenv("PATH", containerSystemPath)
+	for _, key := range sandboxProxyVars {
+		t.Setenv(key, "")
+		if err := os.Unsetenv(key); err != nil {
+			t.Fatalf("unset %s: %v", key, err)
+		}
 	}
 }

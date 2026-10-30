@@ -36,7 +36,7 @@ define run_pm_test
 	$(DOCKER_SAFE) start -a "$$container"
 endef
 
-GIT_VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+GIT_VERSION := $(shell git describe --tags --match 'v[0-9]*.[0-9]*.[0-9]*' --always --dirty 2>/dev/null || echo dev)
 GIT_COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "")
 BUILD_DATE  := $(shell date -u +%Y-%m-%d)
 LDFLAGS     := -X $(MODULE)/internal/buildinfo.Version=$(GIT_VERSION) \

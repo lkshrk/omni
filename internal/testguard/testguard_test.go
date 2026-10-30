@@ -323,7 +323,7 @@ func main() { fmt.Printf("ACTIVE=%t ISOLATED=%t", testguard.Active(), testguard.
 		t.Fatal(err)
 	}
 	binary := filepath.Join(fixture, "omni.test-looking-production")
-	build := exec.Command("go", "build", "-o", binary, ".")
+	build := exec.Command("go", "build", "-buildvcs=false", "-o", binary, ".")
 	build.Dir = fixture
 	build.Env = replaceEnv(replaceEnv(os.Environ(), "GOWORK", "off"), "CGO_ENABLED", "0")
 	if out, err := build.CombinedOutput(); err != nil {
