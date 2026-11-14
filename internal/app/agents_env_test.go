@@ -21,9 +21,12 @@ func TestAgentsEnvFromLockfile(t *testing.T) {
     args:
     - --t=${HF}
     - --plain
+    - --org=<ORG>
     env:
       TOKEN: ${GH}
+      OLD: ${env:LEGACY}
       LITERAL: value
+      LOWER: <lower>
 mcp_target_servers:
   claude: [litellm-tools, github]
   codex: [litellm-tools]
@@ -34,7 +37,7 @@ mcp_target_servers:
 		t.Fatal(err)
 	}
 	want := map[string][]string{
-		"claude": {"GH", "HF", "LITELLM_API"},
+		"claude": {"GH", "HF", "LEGACY", "LITELLM_API", "ORG"},
 		"codex":  {"LITELLM_API"},
 		"omp":    {"LITELLM_API"},
 	}

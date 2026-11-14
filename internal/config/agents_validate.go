@@ -122,6 +122,7 @@ func validateAgentMCP(path string, server AgentMCPServer) []ValidationError {
 }
 
 var secretVarName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+var angleReference = regexp.MustCompile(`<([A-Z_][A-Z0-9_]*)>`)
 
 func validateMCPSecretReferences(path string, server AgentMCPServer) []ValidationError {
 	var errs []ValidationError
@@ -139,6 +140,9 @@ func validateMCPSecretReferences(path string, server AgentMCPServer) []Validatio
 
 func secretReferenceProblems(value string) []string {
 	var problems []string
+	for _, m := range angleReference.FindAllStringSubmatch(value, -1) {
+		problems = append(problems, fmt.Sprintf("write ${%s} instead of <%s>", m[1], m[1]))
+	}
 	for {
 		start := strings.Index(value, "${")
 		if start < 0 {

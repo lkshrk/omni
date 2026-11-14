@@ -294,20 +294,20 @@ That is usually your shell wrapper.
 
 This applies to user-scope installs (`apm install -g`, which omni uses). APM
 never resolves or prompts there. It refuses a server that carries a reference
-on Gemini, Hermes or Windsurf, because those clients would need the value
-written into their config. Other servers still install.
+on Gemini, Antigravity, Hermes or Windsurf, because those clients would need the
+value written into their config. Other servers still install.
 
-Codex also refuses a reference it cannot forward:
+At user scope, Codex also refuses a reference it cannot forward:
 
 - A renamed variable, such as `TOKEN: ${OTHER}`. It must be `KEY: ${KEY}`.
-- A header other than `Bearer ${VAR}` or a whole-value `${VAR}`.
+- A header value other than `Bearer ${VAR}` or a whole-value `${VAR}`.
 - Any reference in `args`.
 
 The install error names the server and the field, never the value.
 
-omni settings accept only the exact `${VAR}` form. They reject defaults such as
-`${VAR:-x}` and `${VAR:=x}`, the `${env:VAR}` form, and any reference mixed with
-other text.
+omni settings accept only the exact `${VAR}` form. A reference may sit inside
+literal text, such as `Bearer ${VAR}`. Settings reject defaults such as
+`${VAR:-x}` and `${VAR:=x}`, the `${env:VAR}` form and the `<VAR>` form.
 
 ### See which variables you need
 
@@ -349,6 +349,10 @@ unresolved, and the server fails to authenticate.
 
 `omni doctor` has an "MCP secrets" check. It warns when an APM-owned client
 entry may hold a resolved value instead of a reference. It never prints values.
+
+Claude entries written by older omni or APM versions can still hold resolved
+values. Remove each flagged entry from `~/.claude.json` once by hand; the next
+`omni agents sync` writes it again with references.
 
 ## Package-owned MCP and LSP
 

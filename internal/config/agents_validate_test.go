@@ -21,6 +21,9 @@ func TestValidateMCPSecretReferences(t *testing.T) {
 		{"unterminated", "${TOKEN", "use an exact ${VAR} reference; unterminated ${"},
 		{"good and bad", "${GOOD} ${TOKEN:-x}", "use an exact ${VAR} reference; defaults are not supported"},
 		{"env prefix", "${env:TOKEN}", "write ${TOKEN} instead of ${env:TOKEN}"},
+		{"angle", "<TOKEN>", "write ${TOKEN} instead of <TOKEN>"},
+		{"angle embedded", "Bearer <TOKEN>", "write ${TOKEN} instead of <TOKEN>"},
+		{"lowercase angle", "<token>", ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

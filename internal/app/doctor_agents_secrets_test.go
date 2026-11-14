@@ -156,3 +156,27 @@ func TestReadAPMLockfileParseErrorOmitsContent(t *testing.T) {
 		t.Fatalf("error = %q", err)
 	}
 }
+
+func TestDoctorAgentsSecretLiteralsCodexSkipsCommentsAndMultilineStrings(t *testing.T) {
+	home, lock := secretsTestSetup(t)
+	codex := filepath.Join(home, ".codex", "config.toml")
+	writeSecretsTestFile(t, codex, strings.Join([]string{
+		"[mcp_servers.gh-server.env]",
+		"# GH = \"ghp_comment\"",
+		"MODE = \"fast\"",
+		"NOTE = \"\"\"",
+		"ghp_multi = \"ghp_basic\"",
+		"\"\"\"",
+		"RAW = '''",
+		"ghp_literal = 'ghp_raw'",
+		"'''",
+		"\"bad key ghp_quoted\" = \"ghp_q\"",
+		"GH = \"${GH}\"",
+	}, "\n")+"\n")
+	got := runSecretLiterals(t, home, lock)
+	want := []string{"gh-server (codex) env NOTE", "gh-server (codex) env RAW"}
+	if got.Status != DoctorStatusWarn || !slices.Equal(got.Details, want) {
+		t.Fatalf("check = %+v", got)
+	}
+	assertNoSecretOutput(t, got, "ghp_comment", "ghp_multi", "ghp_basic", "ghp_literal", "ghp_raw", "ghp_quoted", "ghp_q")
+}

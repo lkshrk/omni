@@ -5,7 +5,7 @@ import (
 	"sort"
 )
 
-var envReference = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
+var envReference = regexp.MustCompile(`\$\{(?:env:)?([A-Za-z_]\w*)\}|<([A-Z_][A-Z0-9_]*)>`)
 
 func (a *App) AgentsEnv() (map[string][]string, error) {
 	lock, err := readAPMLockfile()
@@ -26,7 +26,7 @@ func (a *App) AgentsEnv() (map[string][]string, error) {
 			}
 			for _, v := range values {
 				for _, m := range envReference.FindAllStringSubmatch(v, -1) {
-					names[m[1]] = true
+					names[m[1]+m[2]] = true
 				}
 			}
 		}

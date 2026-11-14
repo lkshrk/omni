@@ -141,10 +141,21 @@ func readCodexMCPSecrets(path string) (map[string]clientMCPSecrets, error) {
 	defer func() { _ = file.Close() }()
 	out := map[string]clientMCPSecrets{}
 	var current map[string]string
+	multiline := ""
 	scanner := bufio.NewScanner(file)
 	scanner.Buffer(make([]byte, 0, 64*1024), 1<<20)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
+		if multiline != "" {
+			if strings.Contains(line, multiline) {
+				multiline = ""
+			}
+			continue
+		}
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		multiline = openedMultilineString(line)
 		if strings.HasPrefix(line, "[") {
 			current = nil
 			server, kind, ok := codexMCPSubtable(line)
@@ -200,6 +211,17 @@ func codexMCPSubtable(line string) (server, kind string, ok bool) {
 	return "", "", false
 }
 
+var codexBareKey = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
+
+func openedMultilineString(line string) string {
+	for _, delimiter := range []string{`"""`, "'''"} {
+		if strings.Count(line, delimiter)%2 == 1 {
+			return delimiter
+		}
+	}
+	return ""
+}
+
 func codexStringAssignment(line string) (string, string, bool) {
 	key, rest, ok := strings.Cut(line, "=")
 	if !ok {
@@ -210,7 +232,7 @@ func codexStringAssignment(line string) (string, string, bool) {
 		key = unquoted
 	}
 	rest = strings.TrimSpace(rest)
-	if key == "" || rest == "" {
+	if !codexBareKey.MatchString(key) || rest == "" {
 		return "", "", false
 	}
 	switch rest[0] {
