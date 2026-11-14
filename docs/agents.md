@@ -532,9 +532,9 @@ and `d` to remove it through its own client. See
 
 ## APM Version
 
-Omni requires fork version `0.35.1+omni.1`, based on upstream release v0.35.1.
+Omni requires fork version `0.35.1+omni.2`, based on upstream release v0.35.1.
 The pin, `apmPackagePin` in `internal/app/apm_version.go`, is a wheel attached to
-the `apm-cli-0.35.1-omni.1` release of `lkshrk/omni` plus its SHA-256. It is not
+the `apm-cli-0.35.1-omni.2` release of `lkshrk/omni` plus its SHA-256. It is not
 a PyPI release, and the release is neither an Omni version nor marked Latest.
 
 ```text

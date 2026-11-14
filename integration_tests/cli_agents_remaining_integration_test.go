@@ -78,7 +78,7 @@ func agentsRemainingBinaryFixture(t *testing.T) (root, home, cache string, env [
 	writeExecutable(t, filepath.Join(binDir, "apm"), `#!/bin/sh
 set -eu
 if [ "${1:-}" = "--version" ]; then
-  echo 'Agent Package Manager (APM) CLI version 0.35.1+omni.1'
+  echo 'Agent Package Manager (APM) CLI version 0.35.1+omni.2'
   exit 0
 fi
 printf '%s|%s\n' "$PWD" "$*" >> "$OMNI_TEST_APM_LOG"
