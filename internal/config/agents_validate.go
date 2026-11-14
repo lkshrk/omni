@@ -121,26 +121,47 @@ func validateAgentMCP(path string, server AgentMCPServer) []ValidationError {
 	return errs
 }
 
-var secretReferencePattern = regexp.MustCompile(`\$\{([^}]*)\}`)
+var secretVarName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 func validateMCPSecretReferences(path string, server AgentMCPServer) []ValidationError {
 	var errs []ValidationError
 	check := func(prefix string, values map[string]string) {
 		for _, key := range slices.Sorted(maps.Keys(values)) {
-			for _, match := range secretReferencePattern.FindAllStringSubmatch(values[key], -1) {
-				inner := match[1]
-				switch {
-				case strings.HasPrefix(inner, "env:"):
-					errs = append(errs, ValidationError{Path: path + prefix + key, Message: fmt.Sprintf("write ${%s} instead of ${env:%s}", inner[len("env:"):], inner[len("env:"):])})
-				case strings.Contains(inner, ":-") || strings.Contains(inner, ":="):
-					errs = append(errs, ValidationError{Path: path + prefix + key, Message: "use an exact ${VAR} reference; defaults are not supported"})
-				}
+			for _, message := range secretReferenceProblems(values[key]) {
+				errs = append(errs, ValidationError{Path: path + prefix + key, Message: message})
 			}
 		}
 	}
 	check(".env.", server.Env)
 	check(".headers.", server.Headers)
 	return errs
+}
+
+func secretReferenceProblems(value string) []string {
+	var problems []string
+	for {
+		start := strings.Index(value, "${")
+		if start < 0 {
+			return problems
+		}
+		rest := value[start+2:]
+		end := strings.IndexByte(rest, '}')
+		if end < 0 {
+			return append(problems, "use an exact ${VAR} reference; unterminated ${")
+		}
+		inner := rest[:end]
+		value = rest[end+1:]
+		name, hasEnv := strings.CutPrefix(inner, "env:")
+		switch {
+		case secretVarName.MatchString(inner):
+		case hasEnv && secretVarName.MatchString(name):
+			problems = append(problems, fmt.Sprintf("write ${%s} instead of ${env:%s}", name, name))
+		case strings.Contains(inner, ":-") || strings.Contains(inner, ":="):
+			problems = append(problems, "use an exact ${VAR} reference; defaults are not supported")
+		default:
+			problems = append(problems, "use an exact ${VAR} reference")
+		}
+	}
 }
 
 // RenderedExtra merges extra and every client's fields into the single extra map APM reads.

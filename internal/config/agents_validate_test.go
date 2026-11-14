@@ -13,6 +13,13 @@ func TestValidateMCPSecretReferences(t *testing.T) {
 		{"embedded", "Bearer ${TOKEN}", ""},
 		{"plain", "plain", ""},
 		{"default", "${TOKEN:-x}", "use an exact ${VAR} reference; defaults are not supported"},
+		{"default assign", "${TOKEN:=x}", "use an exact ${VAR} reference; defaults are not supported"},
+		{"error form", "${TOKEN:?x}", "use an exact ${VAR} reference"},
+		{"dash form", "${TOKEN-x}", "use an exact ${VAR} reference"},
+		{"empty", "${}", "use an exact ${VAR} reference"},
+		{"nested brace", "${A{B}", "use an exact ${VAR} reference"},
+		{"unterminated", "${TOKEN", "use an exact ${VAR} reference; unterminated ${"},
+		{"good and bad", "${GOOD} ${TOKEN:-x}", "use an exact ${VAR} reference; defaults are not supported"},
 		{"env prefix", "${env:TOKEN}", "write ${TOKEN} instead of ${env:TOKEN}"},
 	}
 	for _, tc := range cases {
