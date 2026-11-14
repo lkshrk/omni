@@ -292,10 +292,22 @@ The client reads the variable from its own environment when it starts the
 server. So the value must be in the environment of whatever launches the client.
 That is usually your shell wrapper.
 
-A server on any other client that would need the value resolved is refused.
+This applies to user-scope installs (`apm install -g`, which omni uses). APM
+never resolves or prompts there. It refuses a server that carries a reference
+on Gemini, Hermes or Windsurf, because those clients would need the value
+written into their config. Other servers still install.
+
+Codex also refuses a reference it cannot forward:
+
+- A renamed variable, such as `TOKEN: ${OTHER}`. It must be `KEY: ${KEY}`.
+- A header other than `Bearer ${VAR}` or a whole-value `${VAR}`.
+- Any reference in `args`.
+
+The install error names the server and the field, never the value.
 
 omni settings accept only the exact `${VAR}` form. They reject defaults such as
-`${VAR:-x}`, the `${env:VAR}` form, and any reference mixed with other text.
+`${VAR:-x}` and `${VAR:=x}`, the `${env:VAR}` form, and any reference mixed with
+other text.
 
 ### See which variables you need
 
@@ -311,7 +323,9 @@ only, never values.
 Use a wrapper that sets the variables, then starts the client. Two examples
 with fake values:
 
-An `rbw-env` profile. The envmap maps a vault entry to a variable name:
+An `rbw-env` profile. The profile name selects
+`~/.config/env/secrets/<profile>.envmap` (`claude-api` reads
+`claude-api.envmap`). The envmap maps a vault entry to a variable name:
 
 ```text
 ENV/local-agents LITELLM_API
