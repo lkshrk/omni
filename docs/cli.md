@@ -77,7 +77,7 @@ and first agent use provision it automatically once their guards pass. A
 missing private copy is a warning; Omni needs uv, or Python 3.10 or newer, to
 build it.
 
-`omni doctor` requires the exact fork version `0.35.0+omni.7` from either the
+`omni doctor` requires the exact fork version `0.35.1+omni.1` from either the
 private copy or `OMNI_APM`; another version or an unparseable version fails the
 "APM version" check. See [APM Version](agents.md#apm-version) for the upgrade
 procedure.
