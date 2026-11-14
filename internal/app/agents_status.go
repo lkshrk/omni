@@ -308,7 +308,8 @@ func readAPMYAML(file string, out any, label string) error {
 	if err != nil {
 		return err
 	}
-	data, err := os.ReadFile(filepath.Join(dir, file))
+	path := filepath.Join(dir, file)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
@@ -316,7 +317,7 @@ func readAPMYAML(file string, out any, label string) error {
 		return fmt.Errorf("read APM %s: %w", label, err)
 	}
 	if err := yaml.Unmarshal(data, out); err != nil {
-		return fmt.Errorf("parse APM %s: %w", label, err)
+		return fmt.Errorf("parse APM %s: invalid YAML at %s", label, yamlErrorLocation(path, err))
 	}
 	return nil
 }

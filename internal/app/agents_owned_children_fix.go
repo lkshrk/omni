@@ -611,6 +611,11 @@ func verifyAgentsFileIdentities(identities []agentsFileContentIdentity) error {
 }
 
 func agentsInvalidYAMLError(label, path string, err error) error {
+	return fmt.Errorf("invalid %s: %s", label, yamlErrorLocation(path, err))
+}
+
+// The location never includes yaml's message, which can echo document values.
+func yamlErrorLocation(path string, err error) string {
 	location := path
 	fields := strings.Fields(err.Error())
 	for i := 0; i+1 < len(fields); i++ {
@@ -623,7 +628,7 @@ func agentsInvalidYAMLError(label, path string, err error) error {
 		}
 		break
 	}
-	return fmt.Errorf("invalid %s: %s", label, location)
+	return location
 }
 
 func verifyAgentsModuleManifestIdentities(manifests []agentsModuleManifestIdentity) error {

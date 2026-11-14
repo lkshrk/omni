@@ -44,6 +44,21 @@ func (a *App) doctorAgents(_ context.Context, result *DoctorResult, _ *config.Ro
 	}
 	result.addCheck("agents", "Agent packages (APM)", DoctorStatusOK, "global manifest and lockfile are readable", files[0].path, files[1].path)
 	a.doctorAgentsOwnedChildren(result, dir)
+	a.doctorAgentsSecrets(result)
+}
+
+func (a *App) doctorAgentsSecrets(result *DoctorResult) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		result.addCheck("agents", "MCP secrets", DoctorStatusWarn, "client configs could not be checked", err.Error())
+		return
+	}
+	lock, err := readAPMLockfile()
+	if err != nil {
+		result.addCheck("agents", "MCP secrets", DoctorStatusWarn, "client configs could not be checked", err.Error())
+		return
+	}
+	a.doctorAgentsSecretLiterals(result, home, lock)
 }
 
 func (a *App) doctorAgentsOwnedChildren(result *DoctorResult, workspaceDir string) {

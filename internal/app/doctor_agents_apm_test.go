@@ -51,7 +51,7 @@ func TestDoctorAgentsReportsWorkspaceState(t *testing.T) {
 	}
 	result = &DoctorResult{}
 	a.doctorAgents(context.Background(), result, &config.RootConfig{})
-	if len(result.Checks) != 2 || result.Checks[0].Status != DoctorStatusOK || result.Checks[1].Status != DoctorStatusOK {
+	if len(result.Checks) != 3 || result.Checks[0].Status != DoctorStatusOK || result.Checks[1].Status != DoctorStatusOK || result.Checks[2].Status != DoctorStatusOK {
 		t.Fatalf("healthy checks = %+v", result.Checks)
 	}
 	if len(mock.Calls) != 0 {

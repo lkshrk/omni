@@ -33,7 +33,7 @@ dependencies:
 	a.SetFallbackExecutor(&availExecutor{available: map[string]bool{"apm": true}})
 	result := &DoctorResult{}
 	a.doctorAgents(context.Background(), result, &config.RootConfig{})
-	check := result.Checks[len(result.Checks)-1]
+	check := ownedChildrenCheck(t, result)
 	if check.ID != "agents-owned-children" || check.Status != DoctorStatusWarn || !strings.Contains(strings.Join(check.Details, " "), "provided identically") {
 		t.Fatalf("before fix = %#v", check)
 	}
@@ -42,7 +42,7 @@ dependencies:
 	}
 	result = &DoctorResult{}
 	a.doctorAgents(context.Background(), result, &config.RootConfig{})
-	check = result.Checks[len(result.Checks)-1]
+	check = ownedChildrenCheck(t, result)
 	if check.Status != DoctorStatusOK {
 		t.Fatalf("after fix = %#v", check)
 	}
@@ -153,4 +153,15 @@ dependencies:
 	if check := result.Checks[0]; check.Status != DoctorStatusOK {
 		t.Fatalf("stale live MCP survived canonical template replacement: %#v", check)
 	}
+}
+
+func ownedChildrenCheck(t *testing.T, result *DoctorResult) DoctorCheck {
+	t.Helper()
+	for _, check := range result.Checks {
+		if check.ID == "agents-owned-children" {
+			return check
+		}
+	}
+	t.Fatalf("no agents-owned-children check in %+v", result.Checks)
+	return DoctorCheck{}
 }
