@@ -1,5 +1,18 @@
 # Omni
 
+> **Deprecated and archived (2026-11-14).** Omni is no longer developed. Each of its jobs now has a
+> dedicated tool:
+>
+> | Omni handled | Replaced by |
+> |---|---|
+> | Dotfiles (Stow links, ignore lists, host packages) | [chezmoi](https://www.chezmoi.io/) copies, with hosts and role groups |
+> | CLIs and language runtimes | [mise](https://mise.jdx.dev/) global config, one file per role group |
+> | OS packages, GUI apps, fonts | Brewfiles (macOS) and pacman/AUR lists (Arch), applied by chezmoi scripts |
+> | Agent plugins, skills, MCP (private APM fork) | APM itself, patched builds from [lkshrk/apm](https://github.com/lkshrk/apm) (branch `lk`) |
+>
+> The setup lives in [lkshrk/dotfiles](https://github.com/lkshrk/dotfiles); its
+> `docs/omni-migration-plan.md` explains the move. Existing releases stay available.
+
 Portable tool, dotfile, and AI-agent resource management for developer machines.
 
 <p align="center">
