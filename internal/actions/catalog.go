@@ -77,6 +77,7 @@ const (
 	AgentsRemove                   ID = "agents.remove"
 	AgentsRefresh                  ID = "agents.refresh"
 	AgentsDrift                    ID = "agents.drift"
+	AgentsEnv                      ID = "agents.env"
 	AgentsAdopt                    ID = "agents.adopt"
 	AgentsIgnore                   ID = "agents.ignore"
 	AgentsAdoptNative              ID = "agents.adopt_native"
@@ -1104,6 +1105,17 @@ var Agents = []Action{
 		Mutates:         false,
 		CLIOnlyReason:   "The Agents view renders the same inventory as rows; running the report itself is a command, not a row action.",
 		CLI:             []CLIBinding{{Command: []string{"agents", "drift"}, Flags: []string{"--all"}}},
+	},
+	{
+		ID:              AgentsEnv,
+		Domain:          "agents",
+		Scope:           ScopeGlobal,
+		Label:           "list MCP environment variables",
+		Description:     "List the environment variables each client's MCP servers reference.",
+		LongDescription: "Report, per client, the variable names deployed MCP servers reference as ${VAR} in the APM lockfile. Names only, never values.",
+		Mutates:         false,
+		CLIOnlyReason:   "The report feeds launch wrappers; the Agents view has no row for it.",
+		CLI:             []CLIBinding{{Command: []string{"agents", "env"}}},
 	},
 	{
 		ID:              AgentsAdopt,

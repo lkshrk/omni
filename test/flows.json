@@ -7177,6 +7177,70 @@
       ]
     },
     {
+      "id": "agents.env",
+      "action_ids": ["agents.env"],
+      "capability": "agents",
+      "title": "agents env",
+      "criticality": "medium",
+      "criticality_reason": "A wrong list leaves a client launched without a secret its MCP server needs, but the report changes no state.",
+      "requirements": [
+        {
+          "level": "unit",
+          "status": "required",
+          "evidence": [
+            {
+              "type": "unit",
+              "role": "primary",
+              "selector": {
+                "package": "github.com/lkshrk/omni/internal/app",
+                "test": "TestAgentsEnvFromLockfile",
+                "tags": [],
+                "lane": "unit-app",
+                "os": [
+                  "linux"
+                ]
+              }
+            },
+            {
+              "type": "unit",
+              "role": "regression",
+              "reference": "Prints the names per client through the command.",
+              "selector": {
+                "package": "github.com/lkshrk/omni/internal/cli",
+                "test": "TestAgentsEnvPrintsVariableNamesPerClient",
+                "tags": [],
+                "lane": "unit-cli",
+                "os": [
+                  "linux"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "level": "cli_blackbox",
+          "status": "required",
+          "evidence": [
+            {
+              "type": "cli_blackbox",
+              "role": "primary",
+              "selector": {
+                "package": "github.com/lkshrk/omni/integration_tests",
+                "test": "TestCLIBinaryAgentsEnvListsReferencedNamesOnly",
+                "tags": [
+                  "integration"
+                ],
+                "lane": "docker-realism-cli",
+                "os": [
+                  "linux"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "id": "agents.prune",
       "capability": "agents",
       "title": "agents prune",

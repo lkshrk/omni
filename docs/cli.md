@@ -187,6 +187,7 @@ not provide a native fallback.
 | `omni agents deps list|why` | Inspect global APM dependencies. |
 | `omni agents marketplace ...` | List, browse, update, validate, add, or remove APM marketplaces. |
 | `omni agents drift [--all]` | List native plugins, MCP servers and marketplaces APM does not manage, minus the recorded ignores. |
+| `omni agents env` | List, per client, the environment variable names its deployed MCP servers reference as `${VAR}`. Names only, never values. |
 | `omni agents adopt --host <name>` | Preview what onboarding a host onto APM would do. Writes nothing and has no apply mode. |
 | `omni agents ignore --host <h> --target <t> --kind <k> --id <id> [--reason <text>]` | Record a native artifact omni must leave alone. |
 | `omni agents unignore --host <h> --target <t> --kind <k> --id <id>` | Drop a recorded ignore entry. |

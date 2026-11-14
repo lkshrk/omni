@@ -162,6 +162,8 @@ type apmLockfile struct {
 	LSPConfigs   map[string]apmServiceConfig `yaml:"lsp_configs"`
 	Deployments  apmLockDeployments          `yaml:"deployments"`
 	Replacements yaml.Node                   `yaml:"replacements,omitempty"`
+
+	MCPTargetServers map[string][]string `yaml:"mcp_target_servers"`
 }
 
 type apmLockDeployments []apmLockDeployment
@@ -177,10 +179,12 @@ type apmLockDeployment struct {
 }
 
 type apmServiceConfig struct {
-	Transport string   `yaml:"transport"`
-	Command   string   `yaml:"command"`
-	Args      []string `yaml:"args"`
-	URL       string   `yaml:"url"`
+	Transport string            `yaml:"transport"`
+	Command   string            `yaml:"command"`
+	Args      []string          `yaml:"args"`
+	URL       string            `yaml:"url"`
+	Env       map[string]string `yaml:"env"`
+	Headers   map[string]string `yaml:"headers"`
 }
 
 // Models the apm.lock.yaml schema of the pinned APM version asserted by requirePinnedAPM.
