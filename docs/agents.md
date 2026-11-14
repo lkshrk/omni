@@ -273,6 +273,69 @@ runtime output. Do not put them under dots. The `omp` dots entry declares only
 `config.yml`, `models.yml`, and `AGENTS.md`; declaration neither adopts nor
 syncs those files.
 
+## Secrets
+
+MCP servers name their secrets as `${VAR}` references and never hold values.
+In `settings.json`, `apm.yml` and the generated client configs, a secret is only
+a variable name. omni and APM never store, resolve or prompt for the value.
+
+The pinned APM fork writes each reference in the form its client expects:
+
+| Client   | Written form                                          |
+|----------|-------------------------------------------------------|
+| Claude   | `${VAR}`                                              |
+| Codex    | `env_vars`, `env_http_headers`, `bearer_token_env_var` |
+| omp      | `${NAME}`                                             |
+| OpenCode | `{env:VAR}`                                           |
+
+The client reads the variable from its own environment when it starts the
+server. So the value must be in the environment of whatever launches the client.
+That is usually your shell wrapper.
+
+A server on any other client that would need the value resolved is refused.
+
+omni settings accept only the exact `${VAR}` form. They reject defaults such as
+`${VAR:-x}`, the `${env:VAR}` form, and any reference mixed with other text.
+
+### See which variables you need
+
+```sh
+omni agents env
+```
+
+This lists, per client, the variable names its servers need. It prints names
+only, never values.
+
+### Supply the values
+
+Use a wrapper that sets the variables, then starts the client. Two examples
+with fake values:
+
+An `rbw-env` profile. The envmap maps a vault entry to a variable name:
+
+```text
+ENV/local-agents LITELLM_API
+```
+
+```sh
+claude() { rbw-env claude-api -- claude "$@"; }
+```
+
+A plain export in a shell function:
+
+```sh
+claude() { LITELLM_API=example-not-a-real-key command claude "$@"; }
+```
+
+Never put a real value in `settings.json` or `apm.yml`. A launch that skips the
+wrapper, such as an editor or a desktop launcher, leaves the reference
+unresolved, and the server fails to authenticate.
+
+### Check for leaked values
+
+`omni doctor` has an "MCP secrets" check. It warns when an APM-owned client
+entry may hold a resolved value instead of a reference. It never prints values.
+
 ## Package-owned MCP and LSP
 
 A package is authoritative for every MCP or LSP child declared by its installed
