@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"regexp"
 	"slices"
 	"strings"
 )
@@ -116,6 +117,29 @@ func validateAgentMCP(path string, server AgentMCPServer) []ValidationError {
 	if _, err := server.RenderedExtra(); err != nil {
 		errs = append(errs, ValidationError{Path: path + ".client", Message: err.Error()})
 	}
+	errs = append(errs, validateMCPSecretReferences(path, server)...)
+	return errs
+}
+
+var secretReferencePattern = regexp.MustCompile(`\$\{([^}]*)\}`)
+
+func validateMCPSecretReferences(path string, server AgentMCPServer) []ValidationError {
+	var errs []ValidationError
+	check := func(prefix string, values map[string]string) {
+		for _, key := range slices.Sorted(maps.Keys(values)) {
+			for _, match := range secretReferencePattern.FindAllStringSubmatch(values[key], -1) {
+				inner := match[1]
+				switch {
+				case strings.HasPrefix(inner, "env:"):
+					errs = append(errs, ValidationError{Path: path + prefix + key, Message: fmt.Sprintf("write ${%s} instead of ${env:%s}", inner[len("env:"):], inner[len("env:"):])})
+				case strings.Contains(inner, ":-") || strings.Contains(inner, ":="):
+					errs = append(errs, ValidationError{Path: path + prefix + key, Message: "use an exact ${VAR} reference; defaults are not supported"})
+				}
+			}
+		}
+	}
+	check(".env.", server.Env)
+	check(".headers.", server.Headers)
 	return errs
 }
 
